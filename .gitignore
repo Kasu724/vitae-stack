@@ -1,0 +1,35 @@
+# Dependencies and builds (planned)
+node_modules/
+.next/
+out/
+dist/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private runtime data
+var/
+uploads/
+exports/
+*.sqlite
+*.sqlite-*
+
+# Tooling and OS
+.DS_Store
+Thumbs.db
+*.log
+.pnpm-store/
+.turbo/
+.cache/
+.idea/
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
