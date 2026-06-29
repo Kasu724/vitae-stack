@@ -1,0 +1,2 @@
+ALTER TABLE "audit_events" ADD COLUMN "job_operation_id" uuid;--> statement-breakpoint
+ALTER TABLE "audit_events" ADD CONSTRAINT "audit_events_job_operation_workspace_fk" FOREIGN KEY ("job_operation_id","workspace_id") REFERENCES "public"."job_operations"("id","workspace_id") ON DELETE restrict ON UPDATE no action;
