@@ -1,0 +1,50 @@
+name: Bug report
+description: Report reproducible incorrect behavior without sensitive career data
+title: "[Bug]: "
+labels: ["type:bug", "status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include real resumes, job descriptions, credentials, tokens, or private URLs. Report vulnerabilities through the private process in SECURITY.md."
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched for duplicates.
+          required: true
+        - label: This is not a security vulnerability and contains no sensitive user data.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: Release tag or commit SHA; say documentation-only if applicable
+    validations: { required: true }
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed and expected behavior
+      description: State what happened, what you expected, and whether data was changed/lost.
+    validations: { required: true }
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Use synthetic data and numbered steps.
+    validations: { required: true }
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, deployment mode, database/storage/provider type; redact hosts and secrets.
+    validations: { required: true }
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility and assistive technology impact
+  - type: textarea
+    id: safe_diagnostics
+    attributes:
+      label: Safe diagnostics
+      description: Error code/correlation ID only. Do not paste bodies, prompts, headers, logs with content, or keys.
