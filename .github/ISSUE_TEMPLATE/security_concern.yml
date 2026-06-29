@@ -1,0 +1,33 @@
+name: Security hardening concern
+description: Public non-vulnerability security improvement only
+title: "[Security hardening]: "
+labels: ["type:security", "status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "If this could enable exploitation or expose data, stop and use GitHub's private Report a vulnerability flow described in SECURITY.md. Do not put exploit details or user data here."
+  - type: checkboxes
+    id: public_safe
+    attributes:
+      label: Public disclosure check
+      options:
+        - label: This is a general hardening/documentation request, not an undisclosed vulnerability.
+          required: true
+        - label: I included no secrets, private endpoints, exploit payloads, or user data.
+          required: true
+  - type: textarea
+    id: concern
+    attributes:
+      label: Hardening concern
+      description: Describe the control gap at a non-exploitable level.
+    validations: { required: true }
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected control and verification
+    validations: { required: true }
+  - type: input
+    id: threat
+    attributes:
+      label: Related threat/abuse/milestone IDs
+      placeholder: "Example: T05, ACASE-03, M19"

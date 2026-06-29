@@ -1,0 +1,19 @@
+# AI task catalog
+
+Each task has a stable ID, versioned prompt/schema, capability profile, evaluation dataset, and deterministic postconditions.
+
+| Task                               | Input                                          | Output                                                        | Deterministic boundary                                                                    |
+| ---------------------------------- | ---------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| AI-01 Career-fact extraction       | Sanitized source text with locators            | Proposed entries/facts/skills and exact source spans          | File safety, locator validity, schema; proposals require approval                         |
+| AI-02 Job requirement extraction   | Normalized job snapshot                        | Categorized requirements, priority, source spans, ambiguities | Source-span validity; user review creates authoritative revision                          |
+| AI-03 Evidence retrieval           | Requirement + approved fact index              | Candidate evidence IDs/reasons                                | Workspace/status filter and lexical candidate set are deterministic; model cannot add IDs |
+| AI-04 Requirement-evidence ranking | Requirement + bounded candidates               | Ordered candidate IDs and rationale                           | ID subset, value/date contradiction, and strength calculation checked locally             |
+| AI-05 Resume section selection     | Requirements + selected facts + source outline | Include/order operations                                      | Locks, allowed sections, evidence coverage enforced locally                               |
+| AI-06 Bullet revision              | One bullet, requirement IDs, evidence facts    | Atomic replacement + factual claims/citations                 | Exact ID and semantic entailment; metrics/dates checked                                   |
+| AI-07 Cover-letter planning        | Job + selected evidence                        | Paragraph purposes, requirement/evidence IDs                  | No prose facts; all IDs subset-checked                                                    |
+| AI-08 Cover-letter drafting        | Approved plan + evidence                       | Paragraphs with claim spans/citations                         | Claim coverage and conflicts checked; unsupported text rejected                           |
+| AI-09 Change explanation           | Before/after + evidence/requirements           | Concise rationale                                             | Cannot modify suggestion or cite new IDs                                                  |
+| AI-10 Quality feedback             | Canonical document + rules context             | Nonfactual style suggestions                                  | No score, fact insertion, or automatic persistence                                        |
+| AI-11 ATS feedback explanation     | Deterministic findings only                    | Plain-language summary                                        | Findings/scores/severity immutable; unknown claims forbidden                              |
+
+AI-03 uses no model by default for small banks; PostgreSQL lexical retrieval and structured filters may be sufficient. AI-05–08 are optional if no provider is configured: users can edit manually and still use versions/ATS/export. Each task records provider/model alias, prompt/schema version, input/output hashes, attempts, finish state, and usage—not raw prompts in logs.

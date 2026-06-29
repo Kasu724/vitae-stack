@@ -1,0 +1,40 @@
+# Requirements traceability
+
+This matrix is normative planning coverage. Test suite IDs name planned suites; implementation PRs replace/augment them with concrete test file/case links. Acceptance criteria are in [ACCEPTANCE_CRITERIA.md](../product/ACCEPTANCE_CRITERIA.md).
+
+| Requirement                   | Acceptance                 | Milestone(s)        | Planned verification                                 |
+| ----------------------------- | -------------------------- | ------------------- | ---------------------------------------------------- |
+| PR-001 CIB                    | AC-001,002,020             | M04, M18            | T-CIB lifecycle/search/export; T-AUTHZ two-workspace |
+| PR-002 Structured entries     | AC-002,003                 | M04                 | T-CIB all-types/schema/date/metric                   |
+| PR-003 Evidence lifecycle     | AC-002,003,021             | M04, M18            | T-PROV approve/supersede/withdraw/delete             |
+| PR-004 Document library       | AC-018                     | M05                 | T-DOC create/archive/lineage                         |
+| PR-005 Versioning             | AC-013,018                 | M05, M15            | T-VERSION concurrency/diff/restore/idempotency       |
+| PR-006 Document import        | AC-004,025                 | M06                 | T-PARSER formats + malicious corpus/resource cleanup |
+| PR-007 Extraction approval    | AC-002,005                 | M07                 | T-EXTRACT eligibility/locator/review/a11y            |
+| PR-008 Job input              | AC-006                     | M08, M09            | T-JOB text/file/URL snapshot/version                 |
+| PR-009 Secure URL retrieval   | AC-006,025                 | M09, M19            | T-SSRF DNS/redirect/IP/TLS/limits/egress             |
+| PR-010 Requirement extraction | AC-007                     | M10, M12            | T-AI02 schema/span/manual/refusal eval               |
+| PR-011 Evidence matching      | AC-008                     | M11                 | T-MATCH recall/strength/gap/candidate subset         |
+| PR-012 Tailoring setup        | AC-009,012                 | M13, M14            | T-SETUP selection/locks/disclosure                   |
+| PR-013 Resume tailoring       | AC-010–013                 | M13, M15            | T-AI05/06 grounding/lock/suggestion eval+E2E         |
+| PR-014 Cover-letter tailoring | AC-010–013                 | M14, M15            | T-AI07/08 grounding/unknown-field eval+E2E           |
+| PR-015 Claim provenance       | AC-003,010,014,018         | M05, M13–M15        | T-PROV span/ID/history/delete property tests         |
+| PR-016 Unsupported prevention | AC-010,012,014,015         | M13–M17             | T-GROUND unknown/conflict/metric/manual/export       |
+| PR-017 Suggestion review      | AC-011–013                 | M13–M15             | T-SUGGEST atomic/stale/bulk/locked/a11y              |
+| PR-018 Manual editing         | AC-014,018,024             | M05, M15, M20       | T-EDITOR paste/autosave/conflict/AT/provenance       |
+| PR-019 ATS analysis           | AC-016,017                 | M16                 | T-ATS golden/property/math/determinism/AI-faithful   |
+| PR-020 Export                 | AC-015,019                 | M17                 | T-EXPORT parse-back/visual/a11y/injection/auth       |
+| PR-021 Data portability       | AC-020                     | M18                 | T-PORT archive schema/round-trip/dry-run/conflict    |
+| PR-022 Provider config        | AC-009,022                 | M12                 | T-PROVIDER adapter/capability/crypto/redaction       |
+| PR-023 Deployment             | AC-026                     | M01, M02, M22       | T-DEPLOY clean Compose/health/restart/restore        |
+| PR-024 Privacy controls       | AC-009,020–022             | M12, M18, M19       | T-PRIV disclosure/no-telemetry/export/log redaction  |
+| PR-025 Retention/deletion     | AC-021                     | M18, M21            | T-DELETE dependency/retry/outage/orphan/restore      |
+| PR-026 Auth/authz             | AC-001,023,025             | M03, M19            | T-AUTH sessions/CSRF/rate/trusted-local/IDOR         |
+| PR-027 Accessibility          | AC-005,024                 | M01–M20             | T-A11Y component/axe/keyboard/reflow/manual AT       |
+| PR-028 Security               | AC-004,006,010,022,023,025 | M03,M06,M09,M12,M19 | T-SEC threat and abuse-case matrix                   |
+| PR-029 Reliability            | AC-007,013,026             | M02, M06–M22        | T-JOBS lease/idempotency/fault/cancel/restart        |
+| PR-030 Performance            | AC-027                     | M19,M21             | T-PERF reference load/budgets/resource recovery      |
+
+## Coverage rules
+
+AC-028/docs consistency is verified in M01 and M21 by `pnpm docs:check`: every `PR-###` must occur here, have acceptance coverage, milestone coverage, and at least one test family. Security, privacy, accessibility, provenance, and failure behavior are required dimensions in milestone review even when not repeated in a requirement's title.
