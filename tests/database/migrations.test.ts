@@ -22,6 +22,12 @@ describe("database migration artifacts", () => {
       "0004_career-information-bank.sql",
       "0005_document-library-versioning.sql",
       "0006_private-source-document-storage.sql",
+      "0007_extraction-review.sql",
+      "0008_job-description-snapshots.sql",
+      "0009_secure-job-url-import.sql",
+      "0010_model-provider-configuration.sql",
+      "0011_job-requirement-analysis.sql",
+      "0012_requirement-evidence-matching.sql",
     ]);
 
     for (const migrationFile of migrationFiles) {
