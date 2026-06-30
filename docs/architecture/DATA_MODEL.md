@@ -4,7 +4,7 @@ The model uses UUID/ULID-style opaque IDs, UTC timestamps, explicit workspace ow
 
 ## Current implementation boundary
 
-M02–M05 implement identity/auth records, workspace/profile ownership, the Career Information Bank, documents, drafts, immutable versions, section projections, generated-claim/evidence links, document locks, jobs, and content-free audit events. Source, job-posting, tailoring, ATS, export, and provider entities remain planned. Ownership-sensitive relations use composite `(id, workspaceId)` foreign keys. Database triggers reject mutation of approved evidence content and document history rows.
+M02–M10 and the in-progress M12 implement identity/auth records, workspace/profile ownership, the Career Information Bank, documents, drafts, immutable versions, section projections, generated-claim/evidence links, document locks, operational jobs, source documents, extraction reviews, job postings, immutable job revisions, URL-import operations, reviewed requirement revisions, model-provider configurations, and content-free audit events. Matching, tailoring, ATS, and export entities remain planned. Ownership-sensitive relations use composite `(id, workspaceId)` foreign keys. Database triggers reject mutation of approved evidence content, resolved extraction proposals, document history, job revisions, reviewed requirement revisions, and provider credential context.
 
 ```mermaid
 erDiagram

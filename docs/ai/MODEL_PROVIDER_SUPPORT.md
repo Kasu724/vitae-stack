@@ -7,7 +7,7 @@
 | OpenAI-compatible | Optional bearer/API key                          | Public HTTPS or explicitly allowed loopback/private | Native JSON Schema when advertised; JSON plus local validation otherwise | Includes OpenAI preset; endpoint/model chosen by user       |
 | Ollama            | Usually none on loopback; operator policy on LAN | Loopback/default or explicit allowlist              | Native `format`/OpenAI-compatible schema where model supports it         | No bundled model; quality varies and is evaluated per model |
 
-Providers are not endorsed and no model is guaranteed to pass all tasks. Capability tests use synthetic content and show endpoint host, TLS/private-network classification, schema support, refusal behavior, context limit if known, and measured result. Tests do not transmit career data.
+Providers are not endorsed and no model is guaranteed to pass all tasks. Capability tests use synthetic content and show the exact configured endpoint, endpoint policy status, structured-output result, normalized refusal support, and whether usage metadata was observed. Tests do not transmit career data. Context-size discovery is not part of the MVP capability test.
 
 Per-task configuration allows a provider/model alias, but required task semantics are constant. The application pins model identifiers when a provider supports snapshots and records the actual returned model. It shows estimated tokens/cost only when provider metadata is available and labels estimates.
 

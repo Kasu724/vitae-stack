@@ -4,7 +4,7 @@ Secrets include session/auth keys, database passwords, credential-encryption key
 
 Deployment secrets come from environment/file-mounted container secrets or an operator secret manager. `.env` is development-only and ignored. `AUTH_SECRET` and `CREDENTIAL_ENCRYPTION_KEY` are independently generated with at least 256 bits. Database runtime and migration credentials are separate; production must not use a superuser.
 
-Per-user provider keys are stored as versioned AES-256-GCM envelopes: random nonce, ciphertext, key version, and authenticated context binding user/config/provider. The master key is external. Keys are write-only through the API; UI receives last-four/fingerprint metadata only. Decrypt immediately before request, retain only in memory, and overwrite/drop references promptly. An environment-referenced provider configuration stores only the variable name.
+Provider keys are stored as versioned AES-256-GCM envelopes: random nonce, ciphertext, key version, and authenticated context binding workspace/configuration/provider. The master key is external. Keys are write-only through the API; UI receives last-four metadata only. Decrypt immediately before request, retain only in memory, and drop references promptly. An environment-referenced provider configuration stores only an `AI_PROVIDER_` variable name.
 
 Rotation creates a new envelope/key version, verifies decryptability, atomically swaps, and schedules old-envelope deletion. Losing the master key makes encrypted credentials unrecoverable; backups must include key custody separately. Revocation errors remain generic. Startup validates placeholder/weak/missing secrets and unsafe reuse where detectable.
 

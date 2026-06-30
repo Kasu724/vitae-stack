@@ -1,6 +1,6 @@
 # Documentation index
 
-`docs/` is Vitae Stack's source of truth. The software is not implemented; documents describe the intended MVP unless explicitly labeled post-MVP or experimental.
+`docs/` is Vitae Stack's source of truth. M01–M05 are implemented locally; M06–M10 and M12 are in progress; other later milestone documents describe planned behavior unless they explicitly state otherwise. The active execution plan records current validation evidence and outstanding gates.
 
 | Area             | Start here                                                                                                   | Authority                            |
 | ---------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------ |

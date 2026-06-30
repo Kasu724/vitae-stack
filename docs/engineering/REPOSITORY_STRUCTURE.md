@@ -1,6 +1,6 @@
 # Repository structure
 
-M01–M05 established the application, database, authentication, Career Information Bank, and versioned document-library foundation. The current implementation directories are:
+M01–M05 established the application, database, authentication, Career Information Bank, and versioned document-library foundation. M06–M10 currently add private source ingestion, isolated parsers/fetcher, extraction review, immutable job snapshots, and reviewed requirement revisions. M12 adds provider configuration, encrypted credentials, endpoint policy, adapters, task contracts, and synthetic evaluations. Their environment-dependent completion gates remain pending. The current implementation directories are:
 
 ```text
 /
@@ -10,10 +10,14 @@ M01–M05 established the application, database, authentication, Career Informat
 ├─ src/modules/auth/            # Auth factory, principal, workspace policy, accessible UI
 ├─ src/modules/career/          # Career validation, lifecycle repository, actions, and forms
 ├─ src/modules/documents/       # Canonical schema, drafts, versions, claims, and editor
+├─ src/modules/ingestion/       # Upload validation, parser boundary, source lifecycle
+├─ src/modules/extraction/      # Pending proposal review and evidence approval
+├─ src/modules/jobs/            # Job normalization, immutable revisions, actions
+├─ src/modules/job-fetch/       # SSRF policy, fetch protocol, import lifecycle
 ├─ db/schema/                  # Typed PostgreSQL schema
 ├─ db/migrations/              # Reviewed forward SQL and Drizzle snapshots
 ├─ docker/postgres/init/       # Development least-privilege role bootstrap
-├─ tests/{unit,database,integration,e2e,a11y,smoke}/
+├─ tests/{unit,database,integration,parsers,security,e2e,a11y,smoke}/
 ├─ docs/                       # Authoritative project documentation
 ├─ scripts/                    # Documentation and secret-pattern checks
 ├─ .github/                    # Community metadata and reference CI

@@ -13,7 +13,7 @@ Build a privacy-first, self-hostable career-document platform. Never fabricate c
 1. Read the relevant requirements, ADRs, threat model, and milestone.
 2. Keep changes scoped to one independently verifiable outcome.
 3. Update tests, traceability, architecture, and operations docs with behavior changes.
-4. Run the applicable gates: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`, `pnpm test:contract`, `pnpm test:e2e`, `pnpm test:a11y`, `pnpm test:smoke`, `pnpm build`, `pnpm db:check`, `pnpm docs:check`, and `pnpm security:check`. M01–M02 implemented these commands; contract tests remain empty until their owning capabilities arrive. Never report a command as run unless it was executed in the current environment.
+4. Run the applicable gates: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:integration`, `pnpm test:contract`, `pnpm test:evals --smoke`, `pnpm test:parsers`, `pnpm test:security`, `pnpm test:ssrf`, `pnpm test:e2e`, `pnpm test:a11y`, `pnpm test:smoke`, `pnpm build`, `pnpm db:check`, `pnpm docs:check`, and `pnpm security:check`. Never report a command as run unless it was executed in the current environment.
 
 ## Engineering rules
 

@@ -4,8 +4,7 @@ These questions are non-blocking for the MVP plan. Owners resolve them with an A
 
 | ID    | Question                                                                                | Working default                                                              | Resolve by                         |
 | ----- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------- |
-| OQ-01 | Which maintained PDF and DOCX parser versions pass the malicious-fixture evaluation?    | `pdfjs-dist` and `mammoth`, isolated behind parser interfaces                | M06 dependency review              |
-| OQ-02 | Which DOCX generator best preserves accessible headings and lists?                      | `docx`; fall back to HTML/Markdown if conformance fails                      | M05 schema/export spike            |
+| OQ-02 | Which DOCX generator best preserves accessible headings and lists?                      | `docx`; fall back to HTML/Markdown if conformance fails                      | Before M17 export implementation   |
 | OQ-04 | What backup tooling should the reference Compose deployment recommend?                  | Encrypted `pg_dump` plus artifact-directory snapshot, operator scheduled     | Before M18 deletion implementation |
 | OQ-05 | Which English locale/date variants ship in the first ATS ruleset?                       | US English plus locale-neutral ISO/date-range parsing                        | M16 fixture sign-off               |
 | OQ-06 | Can local models meet extraction and grounding thresholds on reference hardware?        | Support them without promising parity; publish per-model eval results        | M12/M21 evals                      |
@@ -17,3 +16,4 @@ No open question permits weakening evidence grounding, final-export blocking, wo
 ## Resolved
 
 - **OQ-03 (M02):** MVP uses application-service authorization, workspace-scoped repositories, composite ownership constraints, and adversarial tests. PostgreSQL RLS is deferred defense-in-depth. See [ADR-0004](adr/0004-postgresql-drizzle.md).
+- **OQ-01 (M06):** The isolated parser adapters pin `pdfjs-dist` 6.1.200 and `mammoth` 1.12.0. Focused supported-format and malicious DOCX/parser-limit tests pass locally; the full container gate remains part of M06 completion.

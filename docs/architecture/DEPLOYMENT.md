@@ -14,7 +14,7 @@ flowchart TB
   Backup --> Vol
 ```
 
-The current reference `docker compose` deployment has the app, PostgreSQL, and an explicit one-shot `migrate` profile on a private bridge network. The app is nonroot/read-only and receives only runtime database credentials; the migration container receives only migration credentials. The worker, artifact volume, resource limits, reverse-proxy example, and S3-compatible adapter arrive in later milestones. Host ports bind to loopback; direct internet exposure is not the default.
+The current reference `docker compose` deployment has the app, PostgreSQL, a no-network parser sidecar, a public-egress job-fetch sidecar, private artifact/result volumes, and an explicit one-shot `migrate` profile. The app is nonroot/read-only and receives only runtime database credentials; the migration container receives only migration credentials. The parser is nonroot/read-only, receives no database/provider credentials, mounts source bytes read-only, and has explicit memory/CPU/PID/file-descriptor caps. The job fetcher is also nonroot/read-only and resource-capped; it receives only a private queue volume, has no database/app-backend/artifact access or credentials, and applies the M09 public-address policy to its egress. General AI/background workers, reverse-proxy example, and S3-compatible storage remain later milestones. Host ports bind to loopback; direct internet exposure is not the default.
 
 Development uses Node.js 24 LTS/pnpm on the host with Docker PostgreSQL, or the full Compose stack. This is the lightweight option: it avoids running the app/worker containers while keeping database parity. SQLite/PGlite is not an MVP runtime because dialect drift would weaken migrations and tests.
 

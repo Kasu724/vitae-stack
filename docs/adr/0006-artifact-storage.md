@@ -26,3 +26,7 @@ Storage root is never web-served; paths are generated, traversal-safe, least-pri
 ## Revisit conditions
 
 Multi-node reference deployment, database-blob performance evidence, or a portable content-addressed/encrypted storage design with simpler consistency.
+
+## Implementation note (M06)
+
+The filesystem adapter uses exclusive mode-0600 writes, opaque `<workspace UUID>/<object UUID>` keys, canonical-root checks, atomic parser envelopes, and deletion before database tombstoning. Compose persists source bytes and parser messages in separate volumes so the no-network parser can mount input read-only. The S3-compatible adapter remains optional and is not required by the default deployment.

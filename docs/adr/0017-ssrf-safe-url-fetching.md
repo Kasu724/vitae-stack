@@ -26,3 +26,7 @@ Protects internal services/metadata and avoids sending user credentials/referer.
 ## Revisit conditions
 
 Safe library/runtime primitives change, dynamic-site demand justifies a separately sandboxed opt-in browser fetcher, or new SSRF research invalidates assumptions.
+
+## Implementation note (M09 in progress)
+
+The current fetch primitive uses the Node 24 HTTPS request/DNS APIs, rejects documented special-use address classes, validates every returned address, and supplies only a validated pinned address through the request lookup callback while preserving TLS hostname verification. HTML extraction pins `htmlparser2` 12.0.0. The authenticated workflow uses durable workspace-owned operation/import rows and a private queue shared with a no-credential, resource-limited sidecar outside the application backend network. Production configuration requires this sidecar or disables URL fetching. Focused policy tests pass locally; isolated network-fixture and live Compose validation remain pending, so M09 is not yet complete.
