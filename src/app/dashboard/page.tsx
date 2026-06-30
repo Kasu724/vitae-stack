@@ -61,6 +61,15 @@ export default async function DashboardPage() {
           <Link href="/sources" className="secondary-button inline-block">
             Import source documents
           </Link>
+          <Link href="/jobs" className="secondary-button inline-block">
+            Add a job description
+          </Link>
+          <Link
+            href="/settings/providers"
+            className="secondary-button inline-block"
+          >
+            Configure model providers
+          </Link>
         </div>
       </section>
     </main>

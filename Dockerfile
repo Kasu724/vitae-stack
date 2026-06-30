@@ -17,10 +17,18 @@ RUN pnpm build
 FROM build AS parser
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs parser \
-  && mkdir -p /var/lib/vitae/artifacts \
+  && mkdir -p /var/lib/vitae/artifacts /var/lib/vitae/parser-queue \
   && chown -R parser:nodejs /var/lib/vitae
 USER parser
 CMD ["pnpm", "parser:worker"]
+
+FROM build AS job-fetcher
+RUN groupadd --system --gid 1001 nodejs \
+  && useradd --system --uid 1001 --gid nodejs fetcher \
+  && mkdir -p /var/lib/vitae/job-fetch-queue \
+  && chown -R fetcher:nodejs /var/lib/vitae/job-fetch-queue
+USER fetcher
+CMD ["pnpm", "job-fetch:worker"]
 
 FROM node:24.17.0-bookworm-slim AS runtime
 ENV NODE_ENV=production
@@ -30,7 +38,7 @@ ENV PORT=3000
 WORKDIR /app
 RUN groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs \
-  && mkdir -p /var/lib/vitae/artifacts \
+  && mkdir -p /var/lib/vitae/artifacts /var/lib/vitae/parser-queue /var/lib/vitae/job-fetch-queue \
   && chown -R nextjs:nodejs /var/lib/vitae
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
