@@ -50,6 +50,48 @@
       "when": 1782750741269,
       "tag": "0006_private-source-document-storage",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782770088183,
+      "tag": "0007_extraction-review",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782771103115,
+      "tag": "0008_job-description-snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782785225937,
+      "tag": "0009_secure-job-url-import",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782786148477,
+      "tag": "0010_model-provider-configuration",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1782787488292,
+      "tag": "0011_job-requirement-analysis",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1782788324843,
+      "tag": "0012_requirement-evidence-matching",
+      "breakpoints": true
     }
   ]
 }

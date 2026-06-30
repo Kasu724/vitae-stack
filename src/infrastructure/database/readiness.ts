@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-export const EXPECTED_MIGRATION_COUNT = 7;
+export const EXPECTED_MIGRATION_COUNT = 13;
 
 interface ReadinessRow {
   migration_count: string;
