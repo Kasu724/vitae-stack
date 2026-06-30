@@ -9,7 +9,11 @@ import { runParserChild } from "../src/modules/ingestion/parser-runner";
 const root = path.resolve(
   process.env.ARTIFACT_STORAGE_ROOT ?? "/var/lib/vitae/artifacts",
 );
-const store = new FilesystemArtifactStore(root);
+const queueRoot = path.resolve(
+  process.env.PARSER_QUEUE_ROOT ?? "/var/lib/vitae/parser-queue",
+);
+const inputStore = new FilesystemArtifactStore(root);
+const queueStore = new FilesystemArtifactStore(queueRoot);
 const requestSchema = z.object({
   state: z.literal("request"),
   storageKey: z.string(),
@@ -25,7 +29,7 @@ const requestSchema = z.object({
 });
 
 async function scan(): Promise<void> {
-  await readdir(root, { withFileTypes: true })
+  await readdir(queueRoot, { withFileTypes: true })
     .catch(() => [])
     .then(async (workspaces) => {
       for (const workspace of workspaces) {
@@ -34,7 +38,7 @@ async function scan(): Promise<void> {
           !/^[0-9a-f-]{36}$/u.test(workspace.name)
         )
           continue;
-        const directory = path.join(root, workspace.name);
+        const directory = path.join(queueRoot, workspace.name);
         const files = await readdir(directory, { withFileTypes: true }).catch(
           () => [],
         );
@@ -43,20 +47,17 @@ async function scan(): Promise<void> {
             continue;
           const key = `${workspace.name}/${file.name}`;
           const parsed = requestSchema.safeParse(
-            await store.readJson(key).catch(() => null),
+            await queueStore.readJson(key).catch(() => null),
           );
           if (!parsed.success) continue;
-          const sourcePath = path.join(
-            root,
-            ...parsed.data.storageKey.split("/"),
-          );
+          const sourcePath = inputStore.pathFor(parsed.data.storageKey);
           const result = await runParserChild({
             filePath: sourcePath,
             mediaType: parsed.data.mediaType,
             maximumTextCharacters: parsed.data.maximumTextCharacters,
             timeoutMs: parsed.data.timeoutMs,
           });
-          await store.putJsonAtomic(key, { state: "result", ...result });
+          await queueStore.putJsonAtomic(key, { state: "result", ...result });
         }
       }
     });

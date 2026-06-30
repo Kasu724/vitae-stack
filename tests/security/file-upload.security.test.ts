@@ -8,6 +8,8 @@ import {
   safeDisplayFilename,
   validateDocxArchive,
 } from "@/modules/ingestion/file-validation";
+import { readBoundedMultipartUpload } from "@/modules/ingestion/multipart-upload";
+import { isTrustedRequestOrigin } from "@/modules/auth/auth-request-handler";
 
 async function docxWith(
   entryName: string,
@@ -41,6 +43,13 @@ describe("hostile upload rejection", () => {
         filename: "resume.txt",
       }),
     ).rejects.toMatchObject({ code: "DECLARED_TYPE_MISMATCH" });
+    await expect(
+      detectSupportedMediaType({
+        bytes: Buffer.from([0x61, 0, 0x62]),
+        declaredMediaType: "text/plain",
+        filename: "resume.txt",
+      }),
+    ).rejects.toMatchObject({ code: "TEXT_BINARY_CONTENT" });
   });
 
   it("rejects macros, embedded objects, and high-ratio DOCX entries", async () => {
@@ -58,6 +67,22 @@ describe("hostile upload rejection", () => {
         { maxRatio: 10 },
       ),
     ).rejects.toMatchObject({ code: "DOCX_RESOURCE_LIMIT" });
+    await expect(
+      validateDocxArchive(
+        await docxWith(
+          "word/_rels/document.xml.rels",
+          '<Relationships><Relationship TargetMode="External" Target="file:///etc/passwd"/></Relationships>',
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "EXTERNAL_DOCX_RELATIONSHIP" });
+    await expect(
+      validateDocxArchive(
+        await docxWith(
+          "word/settings.xml",
+          '<!DOCTYPE x [<!ENTITY attack SYSTEM "file:///etc/passwd">]><x/>',
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "UNSAFE_DOCX_XML" });
   });
 
   it("rejects an excessive extracted-text result", async () => {
@@ -69,5 +94,42 @@ describe("hostile upload rejection", () => {
         100_000,
       ),
     ).rejects.toMatchObject({ code: "EXTRACTED_TEXT_LIMIT" });
+  });
+
+  it("enforces multipart file limits while streaming", async () => {
+    const form = new FormData();
+    form.set("purpose", "resume");
+    form.set(
+      "file",
+      new File(["x".repeat(101)], "large.txt", { type: "text/plain" }),
+    );
+    const request = new Request("http://127.0.0.1:3000/api/sources", {
+      method: "POST",
+      body: form,
+    });
+    await expect(
+      readBoundedMultipartUpload(request, 100),
+    ).rejects.toMatchObject({
+      code: "FILE_TOO_LARGE",
+    });
+  });
+
+  it("requires the exact configured origin for unsafe upload requests", () => {
+    expect(
+      isTrustedRequestOrigin(
+        new Request("http://127.0.0.1:3000/api/sources", {
+          headers: { origin: "http://127.0.0.1:3000" },
+        }),
+        "http://127.0.0.1:3000",
+      ),
+    ).toBe(true);
+    expect(
+      isTrustedRequestOrigin(
+        new Request("http://127.0.0.1:3000/api/sources", {
+          headers: { origin: "https://evil.invalid" },
+        }),
+        "http://127.0.0.1:3000",
+      ),
+    ).toBe(false);
   });
 });

@@ -19,8 +19,18 @@ const errors: Record<string, string> = {
   DECLARED_TYPE_MISMATCH:
     "The browser media type does not match the file content.",
   INVALID_DOCX_ARCHIVE: "The DOCX archive is invalid.",
+  INVALID_DOCX_STRUCTURE: "The DOCX is missing required document parts.",
+  UNSAFE_DOCX_ENTRY: "The DOCX contains an unsafe archive entry.",
   DOCX_RESOURCE_LIMIT: "The DOCX archive exceeds safe expansion limits.",
   ACTIVE_DOCX_CONTENT: "DOCX macros or embedded objects are not accepted.",
+  EXTERNAL_DOCX_RELATIONSHIP:
+    "DOCX relationships to external files or URLs are not accepted.",
+  UNSAFE_DOCX_XML: "The DOCX contains unsafe XML declarations.",
+  TEXT_BINARY_CONTENT: "The text file contains invalid UTF-8 or binary data.",
+  INVALID_MULTIPART: "The upload request is malformed.",
+  TOO_MANY_FILES: "Upload one file at a time.",
+  UPLOAD_RATE_LIMIT:
+    "The hourly workspace upload limit was reached. Try again later.",
   UPLOAD_FAILED:
     "The import could not be completed. No document content was logged.",
 };
