@@ -34,7 +34,10 @@ services:
       BETTER_AUTH_URL: http://127.0.0.1:3000
       REGISTRATION_MODE: closed
       ARTIFACT_STORAGE_ROOT: /var/lib/vitae/artifacts
+      PARSER_QUEUE_ROOT: /var/lib/vitae/parser-queue
+      JOB_FETCH_QUEUE_ROOT: /var/lib/vitae/job-fetch-queue
       PARSER_MODE: sidecar
+      JOB_FETCH_MODE: sidecar
       UPLOAD_MAX_BYTES: "10485760"
       PARSER_TIMEOUT_MS: "15000"
       PARSER_MAX_TEXT_CHARS: "500000"
@@ -60,6 +63,8 @@ services:
       - /tmp
     volumes:
       - artifact-data:/var/lib/vitae/artifacts
+      - parser-queue:/var/lib/vitae/parser-queue
+      - job-fetch-queue:/var/lib/vitae/job-fetch-queue
     security_opt:
       - no-new-privileges:true
     networks:
@@ -72,12 +77,46 @@ services:
     environment:
       NODE_ENV: production
       ARTIFACT_STORAGE_ROOT: /var/lib/vitae/artifacts
+      PARSER_QUEUE_ROOT: /var/lib/vitae/parser-queue
     network_mode: none
+    mem_limit: 384m
+    cpus: 1.0
+    pids_limit: 64
+    ulimits:
+      nofile:
+        soft: 256
+        hard: 256
     read_only: true
     tmpfs:
       - /tmp
     volumes:
-      - artifact-data:/var/lib/vitae/artifacts
+      - artifact-data:/var/lib/vitae/artifacts:ro
+      - parser-queue:/var/lib/vitae/parser-queue
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  job-fetcher:
+    build:
+      context: .
+      target: job-fetcher
+    environment:
+      NODE_ENV: production
+      JOB_FETCH_QUEUE_ROOT: /var/lib/vitae/job-fetch-queue
+    network_mode: bridge
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    ulimits:
+      nofile:
+        soft: 256
+        hard: 256
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - job-fetch-queue:/var/lib/vitae/job-fetch-queue
     cap_drop:
       - ALL
     security_opt:
@@ -104,3 +143,5 @@ networks:
 volumes:
   postgres-data:
   artifact-data:
+  parser-queue:
+  job-fetch-queue:

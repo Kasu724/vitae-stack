@@ -1,0 +1,106 @@
+"use server";
+
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+
+import { getRuntimePool } from "@/infrastructure/database/runtime";
+import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { readServerEnvironment } from "@/infrastructure/config/environment";
+import { JobUrlImportService } from "@/modules/job-fetch/service";
+import {
+  JobUrlImportRepository,
+  JobUrlRateLimitError,
+} from "@/modules/job-fetch/repository";
+
+import { JobRepository } from "./repository";
+
+function text(form: FormData, key: string): string {
+  const value = form.get(key);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function context() {
+  const principal = await getCurrentPrincipal(await headers());
+  if (!principal) redirect("/sign-in");
+  return { principal, repository: new JobRepository(getRuntimePool()) };
+}
+
+export async function createPastedJobAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  let id: string;
+  try {
+    id = await repository.createFromText(principal, {
+      title: text(form, "title"),
+      company: text(form, "company"),
+      text: text(form, "jobText"),
+      idempotencyKey: text(form, "idempotencyKey"),
+    });
+  } catch {
+    redirect("/jobs?error=invalid-text");
+  }
+  redirect(`/jobs/${id}?notice=created`);
+}
+
+export async function createUrlJobAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  let importId: string;
+  try {
+    importId = await new JobUrlImportService(
+      new JobUrlImportRepository(getRuntimePool()),
+      repository,
+      readServerEnvironment(),
+    ).start(principal, {
+      title: text(form, "title"),
+      company: text(form, "company"),
+      url: text(form, "jobUrl"),
+      idempotencyKey: text(form, "idempotencyKey"),
+    });
+  } catch (error) {
+    redirect(
+      `/jobs?error=${error instanceof JobUrlRateLimitError ? "url-rate" : "url-blocked"}`,
+    );
+  }
+  redirect(`/job-imports/${importId}`);
+}
+
+export async function createJobFromSourceAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const sourceId = text(form, "sourceId");
+  let id: string;
+  try {
+    id = await repository.createFromSource(principal, sourceId, {
+      title: text(form, "title"),
+      company: text(form, "company"),
+    });
+  } catch {
+    redirect(`/sources/${sourceId}?error=job-snapshot`);
+  }
+  redirect(`/jobs/${id}?notice=created-from-file`);
+}
+
+export async function reviseJobAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const id = text(form, "jobId");
+  try {
+    await repository.revise(
+      principal,
+      id,
+      text(form, "currentRevisionId"),
+      text(form, "jobText"),
+    );
+  } catch {
+    redirect(`/jobs/${id}?error=revision-conflict`);
+  }
+  redirect(`/jobs/${id}?notice=revised`);
+}
+
+export async function archiveJobAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const id = text(form, "jobId");
+  await repository.setArchived(
+    principal,
+    id,
+    text(form, "archived") === "true",
+  );
+  redirect(`/jobs/${id}?notice=status-updated`);
+}

@@ -6,9 +6,7 @@ export async function handleAuthRequest(
   configuredBaseURL: string,
 ): Promise<Response> {
   if (!new Set(["GET", "HEAD", "OPTIONS"]).has(request.method)) {
-    const origin = request.headers.get("origin");
-    const trustedOrigin = new URL(configuredBaseURL).origin;
-    if (origin !== trustedOrigin) {
+    if (!isTrustedRequestOrigin(request, configuredBaseURL)) {
       return Response.json(
         { error: "Untrusted request origin." },
         { status: 403 },
@@ -17,4 +15,11 @@ export async function handleAuthRequest(
   }
 
   return auth.handler(request);
+}
+
+export function isTrustedRequestOrigin(
+  request: Request,
+  configuredBaseURL: string,
+): boolean {
+  return request.headers.get("origin") === new URL(configuredBaseURL).origin;
 }
