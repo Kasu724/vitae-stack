@@ -9,6 +9,7 @@ describe("server environment", () => {
     expect(environment.APP_BIND_HOST).toBe("127.0.0.1");
     expect(environment.TELEMETRY_ENABLED).toBe(false);
     expect(environment.DATABASE_URL).toMatch(/^postgresql:\/\//);
+    expect(environment.JOB_FETCH_MODE).toBe("inline");
   });
 
   it("rejects a non-PostgreSQL database URL", () => {
@@ -31,6 +32,28 @@ describe("server environment", () => {
     expect(() => parseServerEnvironment({ NODE_ENV: "production" })).toThrow(
       /authentication secret/u,
     );
+  });
+
+  it("requires the no-network parser sidecar in production", () => {
+    expect(() =>
+      parseServerEnvironment({
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "synthetic-production-secret-at-least-32-bytes",
+        PARSER_MODE: "inline",
+        JOB_FETCH_MODE: "disabled",
+      }),
+    ).toThrow(/parser sidecar/u);
+  });
+
+  it("requires isolated or disabled URL fetching in production", () => {
+    expect(() =>
+      parseServerEnvironment({
+        NODE_ENV: "production",
+        BETTER_AUTH_SECRET: "synthetic-production-secret-at-least-32-bytes",
+        PARSER_MODE: "sidecar",
+        JOB_FETCH_MODE: "inline",
+      }),
+    ).toThrow(/URL fetching/u);
   });
 
   it("requires an explicit acknowledgement for production trusted-local mode", () => {

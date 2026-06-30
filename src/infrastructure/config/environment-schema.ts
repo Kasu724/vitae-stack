@@ -21,6 +21,11 @@ const serverEnvironmentSchema = z
     BETTER_AUTH_URL: z.url().default("http://127.0.0.1:3000"),
     REGISTRATION_MODE: z.literal("closed").default("closed"),
     ARTIFACT_STORAGE_ROOT: z.string().min(1).default("./var/private/artifacts"),
+    PARSER_QUEUE_ROOT: z.string().min(1).default("./var/private/parser-queue"),
+    JOB_FETCH_QUEUE_ROOT: z
+      .string()
+      .min(1)
+      .default("./var/private/job-fetch-queue"),
     UPLOAD_MAX_BYTES: z.coerce
       .number()
       .int()
@@ -40,6 +45,10 @@ const serverEnvironmentSchema = z
       .max(5_000_000)
       .default(500_000),
     PARSER_MODE: z.enum(["inline", "sidecar"]).default("inline"),
+    JOB_FETCH_MODE: z.enum(["inline", "sidecar", "disabled"]).default("inline"),
+    CREDENTIAL_ENCRYPTION_KEY: z.string().optional(),
+    CREDENTIAL_KEY_VERSION: z.coerce.number().int().positive().default(1),
+    AI_PRIVATE_ENDPOINT_ALLOWLIST: z.string().max(4096).default(""),
     TRUSTED_LOCAL_DANGER_ACK: z.enum(["true", "false"]).default("false"),
     TELEMETRY_ENABLED: z
       .enum(["true", "false"])
@@ -95,6 +104,17 @@ const serverEnvironmentSchema = z
         code: "custom",
         path: ["PARSER_MODE"],
         message: "production requires the no-network parser sidecar",
+      });
+    }
+    if (
+      environment.NODE_ENV === "production" &&
+      environment.JOB_FETCH_MODE === "inline"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["JOB_FETCH_MODE"],
+        message:
+          "production URL fetching must use the no-credential sidecar or be disabled",
       });
     }
   });
