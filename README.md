@@ -2,7 +2,7 @@
 
 Vitae Stack is a free, open-source, privacy-first platform under active development for producing evidence-grounded resumes and cover letters. The planned MVP maps job requirements to user-approved career facts, explains proposed changes, estimates ATS compatibility, and keeps users in control of every factual claim.
 
-> **Current state (2026-06-29): M01–M05 implemented.** The repository foundation, authentication/workspace isolation, manual Career Information Bank, and structured resume/cover-letter library exist. Documents have autosaved optimistic drafts, immutable full-snapshot versions, comparison, copy-forward restore, and claim/provenance primitives. File import, AI, ATS analysis, and export are not implemented yet.
+> **Current state (2026-06-29): M01–M05 implemented; M06–M10 and M12 in progress.** The repository foundation, authentication/workspace isolation, manual Career Information Bank, and structured resume/cover-letter library exist. Private file import, deterministic extraction review, immutable job snapshots, an SSRF-hardened URL-import workflow, reviewed job-requirement revisions, and the provider-neutral AI configuration/adapter framework are implemented locally. Their database/browser/Compose or live-provider gates remain unverified while the local Docker engine is unavailable. Evidence matching, tailoring, ATS analysis, and export are not implemented yet.
 
 ## Run the foundation
 

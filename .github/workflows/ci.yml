@@ -30,6 +30,10 @@ jobs:
       - run: pnpm test
       - run: pnpm test:integration
       - run: pnpm test:contract
+      - run: pnpm test:evals --smoke
+      - run: pnpm test:parsers
+      - run: pnpm test:security
+      - run: pnpm test:ssrf
       - run: pnpm db:check
       - run: pnpm docs:check
       - run: pnpm security:check
