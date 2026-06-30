@@ -5,8 +5,13 @@ import { z } from "zod";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { isTrustedRequestOrigin } from "@/modules/auth/auth-request-handler";
 import { UnsafeUploadError } from "@/modules/ingestion/file-validation";
-import { SourceRepository } from "@/modules/ingestion/source-repository";
+import { readBoundedMultipartUpload } from "@/modules/ingestion/multipart-upload";
+import {
+  SourceRateLimitError,
+  SourceRepository,
+} from "@/modules/ingestion/source-repository";
 import { SourceService } from "@/modules/ingestion/source-service";
 
 const purposeSchema = z.enum([
@@ -18,27 +23,35 @@ const purposeSchema = z.enum([
 ]);
 
 export async function POST(request: NextRequest) {
+  const environment = readServerEnvironment();
+  if (!isTrustedRequestOrigin(request, environment.BETTER_AUTH_URL))
+    return NextResponse.json({ code: "UNTRUSTED_ORIGIN" }, { status: 403 });
   const principal = await getCurrentPrincipal(await headers());
   if (!principal)
     return NextResponse.redirect(new URL("/sign-in", request.url), 303);
   try {
-    const form = await request.formData();
-    const file = form.get("file");
-    const purpose = purposeSchema.parse(form.get("purpose"));
-    if (!(file instanceof File)) throw new UnsafeUploadError("FILE_REQUIRED");
+    const upload = await readBoundedMultipartUpload(
+      request,
+      environment.UPLOAD_MAX_BYTES,
+    );
+    const purpose = purposeSchema.parse(upload.purpose);
     const id = await new SourceService(
       new SourceRepository(getRuntimePool()),
-      readServerEnvironment(),
+      environment,
     ).upload(principal, {
       purpose,
-      filename: file.name,
-      declaredMediaType: file.type || "application/octet-stream",
-      bytes: Buffer.from(await file.arrayBuffer()),
+      filename: upload.filename,
+      declaredMediaType: upload.mediaType || "application/octet-stream",
+      bytes: upload.bytes,
     });
     return NextResponse.redirect(new URL(`/sources/${id}`, request.url), 303);
   } catch (error) {
     const code =
-      error instanceof UnsafeUploadError ? error.code : "UPLOAD_FAILED";
+      error instanceof UnsafeUploadError
+        ? error.code
+        : error instanceof SourceRateLimitError
+          ? "UPLOAD_RATE_LIMIT"
+          : "UPLOAD_FAILED";
     return NextResponse.redirect(
       new URL(`/sources?error=${encodeURIComponent(code)}`, request.url),
       303,

@@ -44,12 +44,16 @@ const sidecarResultSchema = z.discriminatedUnion("ok", [
 
 export class SourceService {
   private readonly store: FilesystemArtifactStore;
+  private readonly queueStore: FilesystemArtifactStore;
 
   public constructor(
     private readonly repository: SourceRepository,
     private readonly environment: ServerEnvironment,
   ) {
     this.store = new FilesystemArtifactStore(environment.ARTIFACT_STORAGE_ROOT);
+    this.queueStore = new FilesystemArtifactStore(
+      environment.PARSER_QUEUE_ROOT,
+    );
   }
 
   public async upload(
@@ -77,6 +81,7 @@ export class SourceService {
     const id = crypto.randomUUID();
     const storageKey = sourceStorageKey(principal.workspaceId, id);
     await this.store.putExclusive(storageKey, input.bytes);
+    let persisted = false;
     try {
       await this.repository.insertQuarantined(principal, {
         id,
@@ -88,6 +93,7 @@ export class SourceService {
         content_hash: `sha256:${createHash("sha256").update(input.bytes).digest("hex")}`,
         storage_key: storageKey,
       });
+      persisted = true;
       await this.repository.markProcessing(principal, id);
       if (this.environment.PARSER_MODE === "inline") {
         const result = await runParserChild({
@@ -103,7 +109,7 @@ export class SourceService {
           await this.store.delete(storageKey);
         }
       } else {
-        await this.store.putJsonAtomic(
+        await this.queueStore.putJsonAtomic(
           parserMessageKey(principal.workspaceId, id),
           {
             state: "request",
@@ -116,6 +122,10 @@ export class SourceService {
       }
       return id;
     } catch (error) {
+      if (persisted)
+        await this.repository
+          .markRejected(principal, id, "PIPELINE_FAILED")
+          .catch(() => undefined);
       await this.store.delete(storageKey).catch(() => undefined);
       throw error;
     }
@@ -133,7 +143,7 @@ export class SourceService {
       return;
     const key = parserMessageKey(principal.workspaceId, id);
     const parsed = sidecarResultSchema.safeParse(
-      await this.store.readJson(key).catch(() => null),
+      await this.queueStore.readJson(key).catch(() => null),
     );
     if (!parsed.success) return;
     if (parsed.data.ok)
@@ -142,17 +152,22 @@ export class SourceService {
       await this.repository.markRejected(principal, id, parsed.data.errorCode);
       await this.store.delete(source.storage_key);
     }
-    await this.store.delete(key);
+    await this.queueStore.delete(key);
   }
 
   public async deleteBinaryAndRecord(
     principal: WorkspacePrincipal,
     id: string,
   ): Promise<void> {
-    const storageKey = await this.repository.markDeleted(principal, id);
-    await Promise.all([
-      this.store.delete(storageKey),
-      this.store.delete(parserMessageKey(principal.workspaceId, id)),
-    ]);
+    await this.repository.deleteWithArtifacts(
+      principal,
+      id,
+      async (storageKey) => {
+        await Promise.all([
+          this.store.delete(storageKey),
+          this.queueStore.delete(parserMessageKey(principal.workspaceId, id)),
+        ]);
+      },
+    );
   }
 }

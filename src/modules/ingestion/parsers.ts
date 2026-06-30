@@ -17,10 +17,17 @@ export interface ParsedSource {
 function boundedText(text: string, maximum: number): string {
   const cleaned = text
     .replace(/\r\n?/gu, "\n")
-    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu, "");
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/gu, "")
+    .replace(/[\u202A-\u202E\u2066-\u2069]/gu, "");
   if (cleaned.length > maximum)
     throw new UnsafeUploadError("EXTRACTED_TEXT_LIMIT");
+  if (cleaned.trim() && cleaned.trim().split(/\s+/u).length > 100_000)
+    throw new UnsafeUploadError("EXTRACTED_WORD_LIMIT");
   return cleaned;
+}
+
+function containsBidiControls(text: string): boolean {
+  return /[\u202A-\u202E\u2066-\u2069]/u.test(text);
 }
 
 function decodeUtf8(buffer: Buffer, maximum: number): string {
@@ -54,16 +61,27 @@ export async function parseSourceBuffer(
       if (document.numPages > 200)
         throw new UnsafeUploadError("PDF_PAGE_LIMIT");
       const pages: string[] = [];
+      const warnings: string[] = [];
       for (
         let pageNumber = 1;
         pageNumber <= document.numPages;
         pageNumber += 1
       ) {
         const page = await document.getPage(pageNumber);
+        if (page.view.some((dimension) => Math.abs(dimension) > 20_000))
+          throw new UnsafeUploadError("PDF_DIMENSION_LIMIT");
         const content = await page.getTextContent();
         const pageText = content.items
           .map((item) => ("str" in item ? item.str : ""))
           .join(" ");
+        if (!pageText.trim())
+          warnings.push(
+            `Page ${pageNumber} contains no extractable text; OCR is not available.`,
+          );
+        if (containsBidiControls(pageText))
+          warnings.push(
+            `Page ${pageNumber} contained directional control characters that were removed.`,
+          );
         pages.push(pageText);
         if (
           pages.reduce((length, value) => length + value.length, 0) >
@@ -74,7 +92,7 @@ export async function parseSourceBuffer(
       return {
         text: boundedText(pages.join("\n\n"), maximumTextCharacters),
         metadata: { schemaVersion: 1, pageCount: document.numPages },
-        warnings: [],
+        warnings,
         parserVersion: `pdfjs-dist@6.1.200`,
       };
     } catch (error) {
@@ -91,15 +109,20 @@ export async function parseSourceBuffer(
       // Mammoth's external file access remains disabled by default.
       const result = await mammoth.extractRawText({ buffer });
       const text = boundedText(result.value, maximumTextCharacters);
+      const warnings = result.messages.map((message) =>
+        message.message.slice(0, 500),
+      );
+      if (containsBidiControls(result.value))
+        warnings.push(
+          "Directional control characters were removed from extracted text.",
+        );
       return {
         text,
         metadata: {
           schemaVersion: 1,
           paragraphCount: text.split(/\n\s*\n/gu).filter(Boolean).length,
         },
-        warnings: result.messages.map((message) =>
-          message.message.slice(0, 500),
-        ),
+        warnings,
         parserVersion: "mammoth@1.12.0",
       };
     } catch (error) {
@@ -110,9 +133,14 @@ export async function parseSourceBuffer(
   const text = decodeUtf8(buffer, maximumTextCharacters);
   if (mediaType === "application/json") {
     try {
-      const value = JSON.parse(text) as unknown;
-      if (typeof value !== "object" || value === null || Array.isArray(value))
-        throw new Error("Expected an object.");
+      const value = JSON.parse(text) as { schemaVersion?: unknown };
+      if (
+        typeof value !== "object" ||
+        value === null ||
+        Array.isArray(value) ||
+        value.schemaVersion !== 1
+      )
+        throw new Error("Expected a version 1 project object.");
     } catch {
       throw new UnsafeUploadError("INVALID_JSON");
     }
@@ -123,7 +151,11 @@ export async function parseSourceBuffer(
       schemaVersion: 1,
       paragraphCount: text.split(/\n\s*\n/gu).filter(Boolean).length,
     },
-    warnings: [],
+    warnings: containsBidiControls(
+      new TextDecoder("utf-8", { fatal: false }).decode(buffer),
+    )
+      ? ["Directional control characters were removed from extracted text."]
+      : [],
     parserVersion:
       mediaType === "text/markdown"
         ? "builtin-markdown-text@1"

@@ -58,9 +58,9 @@ export async function validateDocxArchive(
     maxRatio?: number;
   } = {},
 ): Promise<void> {
-  const maxEntries = limits.maxEntries ?? 2_000;
-  const maxUncompressedBytes = limits.maxUncompressedBytes ?? 50 * 1024 * 1024;
-  const maxRatio = limits.maxRatio ?? 100;
+  const maxEntries = limits.maxEntries ?? 100;
+  const maxUncompressedBytes = limits.maxUncompressedBytes ?? 20 * 1024 * 1024;
+  const maxRatio = limits.maxRatio ?? 20;
   const zip = await openZip(buffer).catch(() => {
     throw new UnsafeUploadError("INVALID_DOCX_ARCHIVE");
   });
@@ -69,7 +69,10 @@ export async function validateDocxArchive(
     let total = 0;
     let contentTypes = false;
     let documentXml = false;
+    let settled = false;
     const fail = (code: string) => {
+      if (settled) return;
+      settled = true;
       zip.close();
       reject(new UnsafeUploadError(code));
     };
@@ -89,17 +92,43 @@ export async function validateDocxArchive(
       if (
         normalized.startsWith("/") ||
         normalized.split("/").includes("..") ||
+        normalized.split("/").length > 10 ||
+        ((entry.externalFileAttributes >>> 16) & 0o170000) === 0o120000 ||
         (entry.generalPurposeBitFlag & 1) !== 0
       )
         return fail("UNSAFE_DOCX_ENTRY");
       const lower = normalized.toLowerCase();
-      if (lower.endsWith("vbaproject.bin") || lower.includes("/embeddings/"))
+      if (
+        lower.endsWith("vbaproject.bin") ||
+        lower.includes("/embeddings/") ||
+        /\.(?:zip|docx|docm)$/u.test(lower)
+      )
         return fail("ACTIVE_DOCX_CONTENT");
       if (normalized === "[Content_Types].xml") contentTypes = true;
       if (normalized === "word/document.xml") documentXml = true;
-      zip.readEntry();
+      if (lower.endsWith(".xml") || lower.endsWith(".rels")) {
+        zip.openReadStream(entry, (error, stream) => {
+          if (error || !stream) return fail("INVALID_DOCX_ARCHIVE");
+          const chunks: Buffer[] = [];
+          stream.on("data", (chunk: Buffer) => chunks.push(chunk));
+          stream.on("error", () => fail("INVALID_DOCX_ARCHIVE"));
+          stream.on("end", () => {
+            const xml = Buffer.concat(chunks).toString("utf8");
+            if (/<!DOCTYPE|<!ENTITY/iu.test(xml))
+              return fail("UNSAFE_DOCX_XML");
+            if (
+              lower.endsWith(".rels") &&
+              /TargetMode\s*=\s*["']External["']/iu.test(xml)
+            )
+              return fail("EXTERNAL_DOCX_RELATIONSHIP");
+            zip.readEntry();
+          });
+        });
+      } else zip.readEntry();
     });
     zip.on("end", () => {
+      if (settled) return;
+      settled = true;
       zip.close();
       if (!contentTypes || !documentXml)
         reject(new UnsafeUploadError("INVALID_DOCX_STRUCTURE"));
@@ -136,6 +165,16 @@ export async function detectSupportedMediaType(input: {
   } else throw new UnsafeUploadError("SIGNATURE_MISMATCH");
   if (detected !== extensionType)
     throw new UnsafeUploadError("EXTENSION_MISMATCH");
+  if (["text/markdown", "text/plain", "application/json"].includes(detected)) {
+    try {
+      const decoded = new TextDecoder("utf-8", { fatal: true }).decode(
+        input.bytes,
+      );
+      if (decoded.includes("\u0000")) throw new Error("NUL byte");
+    } catch {
+      throw new UnsafeUploadError("TEXT_BINARY_CONTENT");
+    }
+  }
   const declared = input.declaredMediaType.split(";")[0]!.trim().toLowerCase();
   if (declared !== detected && declared !== "application/octet-stream")
     throw new UnsafeUploadError("DECLARED_TYPE_MISMATCH");

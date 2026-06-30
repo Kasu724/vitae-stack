@@ -7,7 +7,7 @@ import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 
-import { SourceRepository } from "./source-repository";
+import { SourceDependencyError, SourceRepository } from "./source-repository";
 import { SourceService } from "./source-service";
 
 export async function deleteSourceAction(form: FormData): Promise<void> {
@@ -17,9 +17,15 @@ export async function deleteSourceAction(form: FormData): Promise<void> {
   if (typeof id !== "string") redirect("/sources");
   if (form.get("confirmation") !== "DELETE")
     redirect(`/sources/${id}?error=confirmation`);
-  await new SourceService(
-    new SourceRepository(getRuntimePool()),
-    readServerEnvironment(),
-  ).deleteBinaryAndRecord(principal, id);
+  try {
+    await new SourceService(
+      new SourceRepository(getRuntimePool()),
+      readServerEnvironment(),
+    ).deleteBinaryAndRecord(principal, id);
+  } catch (error) {
+    if (error instanceof SourceDependencyError)
+      redirect(`/sources/${id}?error=pending-extraction`);
+    throw error;
+  }
   redirect("/sources?notice=deleted");
 }

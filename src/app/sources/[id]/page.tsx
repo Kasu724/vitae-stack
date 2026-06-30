@@ -5,7 +5,9 @@ import { notFound, redirect } from "next/navigation";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { startExtractionAction } from "@/modules/extraction/actions";
 import { deleteSourceAction } from "@/modules/ingestion/actions";
+import { createJobFromSourceAction } from "@/modules/jobs/actions";
 import {
   SourceNotFoundError,
   SourceRepository,
@@ -61,6 +63,33 @@ export default async function SourcePage({
           </a>
         ) : null}
       </div>
+      {query.error === "extraction" ? (
+        <p
+          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
+          role="alert"
+        >
+          Fact proposals could not be prepared from this source. Check that it
+          contains extractable text, then try again.
+        </p>
+      ) : null}
+      {query.error === "pending-extraction" ? (
+        <p
+          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
+          role="alert"
+        >
+          This source has pending extraction proposals. Approve or reject every
+          proposal before deleting the source.
+        </p>
+      ) : null}
+      {query.error === "job-snapshot" ? (
+        <p
+          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
+          role="alert"
+        >
+          The job snapshot could not be created. Confirm the parsed text is
+          ready and provide a role title.
+        </p>
+      ) : null}
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
         aria-labelledby="parse-heading"
@@ -126,6 +155,55 @@ export default async function SourcePage({
             <pre className="mt-3 max-h-[40rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--border)] bg-[var(--background)] p-4 font-sans">
               {source.extracted_text}
             </pre>
+            {source.purpose === "job_description" ? (
+              <div className="mt-5 border-t border-[var(--border)] pt-5">
+                <h3 className="text-lg font-semibold">Create job snapshot</h3>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Review the parsed text above. Saving normalizes it into an
+                  immutable job revision; it does not treat job claims as your
+                  career evidence.
+                </p>
+                <form
+                  action={createJobFromSourceAction}
+                  className="mt-4 grid gap-3 sm:grid-cols-2"
+                >
+                  <input type="hidden" name="sourceId" value={source.id} />
+                  <label className="grid gap-1 font-medium">
+                    Role title
+                    <input
+                      className="field"
+                      name="title"
+                      required
+                      maxLength={200}
+                    />
+                  </label>
+                  <label className="grid gap-1 font-medium">
+                    Company
+                    <input className="field" name="company" maxLength={200} />
+                  </label>
+                  <button className="button w-fit sm:col-span-2" type="submit">
+                    Save job snapshot
+                  </button>
+                </form>
+              </div>
+            ) : (
+              <div className="mt-5 border-t border-[var(--border)] pt-5">
+                <h3 className="text-lg font-semibold">
+                  Prepare fact proposals
+                </h3>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  The deterministic fallback creates one unverified proposal per
+                  non-empty line. You will review every proposal before
+                  approval.
+                </p>
+                <form action={startExtractionAction} className="mt-4">
+                  <input type="hidden" name="sourceId" value={source.id} />
+                  <button className="button" type="submit">
+                    Review extracted facts
+                  </button>
+                </form>
+              </div>
+            )}
           </>
         ) : (
           <p className="mt-3">The source is quarantined.</p>
@@ -139,8 +217,10 @@ export default async function SourcePage({
           Delete source
         </h2>
         <p className="mt-2">
-          This deletes the stored binary and extracted text. It cannot be
-          undone.
+          This deletes the stored binary and extracted text. Completed review
+          decisions and approved evidence remain, with the source marked
+          unavailable. Pending extraction proposals must be resolved first. This
+          cannot be undone.
         </p>
         {query.error === "confirmation" ? (
           <p className="mt-3 font-semibold" role="alert">

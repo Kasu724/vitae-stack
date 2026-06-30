@@ -90,6 +90,14 @@ describe("document parsers", () => {
       parseSourceBuffer("text/plain", Buffer.from("Synthetic text")),
     ).resolves.toMatchObject({ text: "Synthetic text" });
     await expect(
+      parseSourceBuffer("text/plain", Buffer.from("safe\u202Etxt")),
+    ).resolves.toMatchObject({
+      text: "safetxt",
+      warnings: [
+        "Directional control characters were removed from extracted text.",
+      ],
+    });
+    await expect(
       parseSourceBuffer("application/json", Buffer.from('{"schemaVersion":1}')),
     ).resolves.toMatchObject({ text: '{"schemaVersion":1}' });
   });
@@ -110,6 +118,14 @@ describe("document parsers", () => {
       ok: true,
       result: { text: "Synthetic isolated text" },
     });
+    await expect(
+      runParserChild({
+        filePath,
+        mediaType: "text/plain",
+        maximumTextCharacters: 10_000,
+        timeoutMs: 1,
+      }),
+    ).resolves.toEqual({ ok: false, errorCode: "PARSER_TIMEOUT" });
   });
 
   it("returns stable safe error codes for invalid input", async () => {
@@ -123,6 +139,9 @@ describe("document parsers", () => {
     ).rejects.toMatchObject({
       code: "INVALID_JSON",
     });
+    await expect(
+      parseSourceBuffer("application/json", Buffer.from("{}")),
+    ).rejects.toMatchObject({ code: "INVALID_JSON" });
   });
 });
 
