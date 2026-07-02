@@ -6,6 +6,11 @@ import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { archiveJobAction, reviseJobAction } from "@/modules/jobs/actions";
 import { JobNotFoundError, JobRepository } from "@/modules/jobs/repository";
+import {
+  decideEvidenceMatchAction,
+  generateEvidenceMatchesAction,
+} from "@/modules/matching/actions";
+import { MatchingRepository } from "@/modules/matching/repository";
 import { ProviderConfigurationRepository } from "@/modules/providers/repository";
 import {
   addManualRequirementAction,
@@ -43,6 +48,13 @@ export default async function JobPage({
     new ProviderConfigurationRepository(pool).list(principal),
   ]);
   const requirementSet = requirementSets[0];
+  const matchMatrix =
+    requirementSet?.status === "reviewed"
+      ? await new MatchingRepository(pool).getLatestMatrix(
+          principal,
+          requirementSet.id,
+        )
+      : null;
   const aiProviders = providerConfigurations.filter(
     (provider) =>
       provider.status === "available" &&
@@ -68,7 +80,11 @@ export default async function JobPage({
                     ? "The reviewed requirements were saved as an immutable revision."
                     : query.notice === "requirement-correction"
                       ? "A correction draft was created from the reviewed requirements."
-                      : null;
+                      : query.notice === "matches-generated"
+                        ? "Deterministic evidence candidates and explicit gaps were generated."
+                        : query.notice === "match-updated"
+                          ? "The evidence selection was updated."
+                          : null;
 
   return (
     <main id="main-content" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -123,6 +139,17 @@ export default async function JobPage({
               : "The requirement review changed or the submitted value was invalid. Reload and try again."}
         </p>
       ) : null}
+      {typeof query.error === "string" &&
+      query.error.startsWith("matching-") ? (
+        <p
+          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
+          role="alert"
+        >
+          {query.error === "matching-generate"
+            ? "Evidence matching requires a reviewed requirement revision. Review the current requirements and try again."
+            : "The evidence selection changed or the fact is no longer eligible. Reload and review it again."}
+        </p>
+      ) : null}
 
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
@@ -135,7 +162,8 @@ export default async function JobPage({
           <span>Revision {current.revision_number}</span>
         </div>
         <p className="mt-2 text-sm text-[var(--muted)]">
-          Input: {current.input_method} · Checksum: {current.content_hash}
+          Input: {current.input_method} · Checksum:{" "}
+          <code className="break-all">{current.content_hash}</code>
         </p>
         {current.metadata.warnings.length ? (
           <div className="mt-4">
@@ -163,6 +191,206 @@ export default async function JobPage({
           {current.normalized_text}
         </pre>
       </section>
+
+      {requirementSet?.status === "reviewed" ? (
+        <section
+          className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
+          aria-labelledby="evidence-matrix-heading"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2
+                id="evidence-matrix-heading"
+                className="text-xl font-semibold"
+              >
+                Requirement-to-evidence matrix
+              </h2>
+              <p className="mt-2 text-sm text-[var(--muted)]">
+                Candidates use approved facts from active entries only. Scores
+                are deterministic lexical signals, not proof that a fact
+                supports a generated claim.
+              </p>
+            </div>
+            <form action={generateEvidenceMatchesAction}>
+              <input type="hidden" name="jobId" value={job.posting.id} />
+              <input
+                type="hidden"
+                name="requirementSetId"
+                value={requirementSet.id}
+              />
+              <button className="secondary-button" type="submit">
+                {matchMatrix ? "Recompute candidates" : "Generate candidates"}
+              </button>
+            </form>
+          </div>
+          {matchMatrix ? (
+            <div className="mt-5">
+              <p className="text-sm text-[var(--muted)]" role="status">
+                Match revision {matchMatrix.run.revision_number} ·{" "}
+                {matchMatrix.run.algorithm_version} ·{" "}
+                {matchMatrix.run.eligible_fact_count} eligible facts
+              </p>
+              <ol className="mt-4 grid gap-5">
+                {matchMatrix.requirements.map((requirement, index) => (
+                  <li
+                    key={requirement.id}
+                    className="rounded-lg border border-[var(--border)] p-4"
+                  >
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <h3 className="font-semibold">
+                        {index + 1}. {requirement.requirement_text}
+                      </h3>
+                      <span className="status-label">
+                        {requirement.candidates.length
+                          ? `${requirement.candidates.length} candidates`
+                          : "gap"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      {requirement.category.replaceAll("_", " ")} ·{" "}
+                      {requirement.priority}
+                    </p>
+                    {requirement.candidates.length ? (
+                      <ul className="mt-4 grid gap-3">
+                        {requirement.candidates.map((candidate) => {
+                          const eligible =
+                            candidate.fact_status === "approved" &&
+                            candidate.entry_status === "active";
+                          return (
+                            <li
+                              key={candidate.id}
+                              className="rounded-md bg-[var(--background)] p-4"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                  <p className="font-medium">
+                                    {candidate.display_text}
+                                  </p>
+                                  <p className="mt-1 text-sm text-[var(--muted)]">
+                                    Evidence {candidate.evidence_fact_id} ·{" "}
+                                    {candidate.fact_type} · source{" "}
+                                    {candidate.source_locator.label}
+                                  </p>
+                                </div>
+                                <span className="status-label">
+                                  {candidate.strength}
+                                </span>
+                              </div>
+                              <p className="mt-2 text-sm">
+                                {candidate.reason} Score{" "}
+                                {(candidate.score_basis_points / 100).toFixed(
+                                  0,
+                                )}
+                                %.
+                              </p>
+                              <p className="mt-1 text-sm text-[var(--muted)]">
+                                Signals:{" "}
+                                {candidate.signals.matchedTokens.join(", ") ||
+                                  "no lexical terms"}
+                              </p>
+                              {!eligible ? (
+                                <p className="mt-2 text-sm text-[var(--danger)]">
+                                  This fact is no longer eligible and cannot be
+                                  included in a new tailoring run.
+                                </p>
+                              ) : null}
+                              <div className="mt-3 flex flex-wrap items-center gap-3">
+                                <Link
+                                  href={`/career/${candidate.career_entry_id}`}
+                                  className="secondary-button"
+                                >
+                                  Inspect evidence
+                                </Link>
+                                <form action={decideEvidenceMatchAction}>
+                                  <input
+                                    type="hidden"
+                                    name="jobId"
+                                    value={job.posting.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="matchId"
+                                    value={candidate.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="decision"
+                                    value="included"
+                                  />
+                                  <button
+                                    className="secondary-button"
+                                    type="submit"
+                                    disabled={
+                                      !eligible ||
+                                      candidate.current_decision === "included"
+                                    }
+                                  >
+                                    {candidate.current_decision === "included"
+                                      ? "Included"
+                                      : "Include"}
+                                  </button>
+                                </form>
+                                <form action={decideEvidenceMatchAction}>
+                                  <input
+                                    type="hidden"
+                                    name="jobId"
+                                    value={job.posting.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="matchId"
+                                    value={candidate.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="decision"
+                                    value="excluded"
+                                  />
+                                  <button
+                                    className="secondary-button"
+                                    type="submit"
+                                    disabled={
+                                      candidate.current_decision === "excluded"
+                                    }
+                                  >
+                                    {candidate.current_decision === "excluded"
+                                      ? "Excluded"
+                                      : "Exclude"}
+                                  </button>
+                                </form>
+                                {candidate.current_decision ? (
+                                  <span className="text-sm" role="status">
+                                    User decision: {candidate.current_decision}
+                                  </span>
+                                ) : (
+                                  <span className="text-sm text-[var(--muted)]">
+                                    Not yet selected
+                                  </span>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="mt-4 rounded-md border border-dashed border-[var(--border)] p-4">
+                        No approved evidence met the deterministic candidate
+                        threshold. Keep this as an explicit gap or add and
+                        approve genuine career evidence.
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : (
+            <p className="mt-5 rounded-lg border border-dashed border-[var(--border)] p-5">
+              No match run exists for this reviewed requirement revision.
+              Generate candidates to see evidence and explicit gaps.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
