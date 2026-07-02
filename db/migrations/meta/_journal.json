@@ -92,6 +92,69 @@
       "when": 1782788324843,
       "tag": "0012_requirement-evidence-matching",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1782836033952,
+      "tag": "0013_resume-tailoring",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782836104199,
+      "tag": "0014_tailoring-task-results",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782836262089,
+      "tag": "0015_section-locks",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782838490160,
+      "tag": "0016_suggestion-decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1782839463005,
+      "tag": "0017_deterministic-ats",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1782853955185,
+      "tag": "0018_document-exports",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1782855733436,
+      "tag": "0019_portability-and-deletion",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1782944598581,
+      "tag": "0020_workspace-deletion-trigger-bypass",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1782947154850,
+      "tag": "0021_career-list-performance",
+      "breakpoints": true
     }
   ]
 }
