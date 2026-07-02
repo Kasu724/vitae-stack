@@ -1,6 +1,6 @@
 # Technical debt register
 
-No application exists, so there is no incurred implementation debt. The items below are deliberate follow-ups, not permission to weaken MVP gates.
+The modular monolith and M01–M20 product paths are implemented and locally validated. The items below remain deliberate post-MVP follow-ups, not permission to weaken release gates. External manual assistive-technology evidence and remote release-workflow results remain blockers in the active plan rather than accepted debt.
 
 | ID    | Deferred item                      | Why deferred                                                                              | Trigger / intended phase                        |
 | ----- | ---------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |

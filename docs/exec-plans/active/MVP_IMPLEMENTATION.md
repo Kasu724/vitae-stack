@@ -1,6 +1,6 @@
 # MVP implementation plan
 
-**Status:** In progress. M01–M05 were implemented and locally validated on 2026-06-29. M06–M08 are implemented locally but await PostgreSQL, browser, and Compose validation because the local Docker engine is unavailable. The reference GitHub Actions workflow exists but has not been executed remotely because no repository push is part of this work. Each milestone remains independently demoable and must preserve prior invariants.
+**Status (2026-07-01):** M01–M20 are implemented and locally validated. M21 automated, clean-Compose, recovery, and performance evidence passes; its external manual assistive-technology matrix remains open. M22 local release preparation is complete, but publication and remote workflow evidence remain maintainer-controlled. No release is claimed.
 
 ## M01 — Repository and development foundation
 
@@ -94,7 +94,7 @@
 
 ## M06 — Resume and cover-letter import
 
-**Implementation status:** In progress. Migration 0006, private filesystem storage, streaming/signature validation, bounded PDF/DOCX/Markdown/text/JSON parsers, no-network production sidecar, source preview/download/delete UI, and focused parser/security tests are implemented. Focused unit/parser/security gates and the production build pass locally. PostgreSQL integration, browser accessibility/E2E, clean migration, and Compose sidecar validation remain unverified in this continuation because the local Docker engine is unavailable; M06 is not complete until those gates pass.
+**Implementation status:** Complete locally. Migration 0006, private filesystem storage, streaming/signature validation, bounded PDF/DOCX/Markdown/text/JSON parsers, the no-network parser sidecar, and source preview/download/delete UI pass focused parser/security, PostgreSQL integration, browser E2E/axe, clean migration, cold-worker, resource-limit, and production Compose checks.
 
 - **Objective:** Build private artifact storage, quarantine, isolated PDF/DOCX/Markdown/text/JSON parsing, and source metadata.
 - **User-visible outcome:** allowed documents import with text/structure/locator preview and safe warnings.
@@ -112,7 +112,7 @@
 
 ## M07 — Extraction review and approval
 
-**Implementation status:** In progress. Migration 0007, workspace-scoped pending batches/proposals, deterministic normalized-line extraction, optimistic proposal edits, approve/reject/exact-duplicate merge, transactional counted bulk approval, immutable evidence creation, audit metadata redaction, and the responsive review UI are implemented. Unit tests, type checking, linting, Drizzle schema checks, documentation checks, and the production build pass locally. PostgreSQL integration, browser E2E/accessibility, clean migration, and supported Node 24 container gates remain unverified while the local Docker engine is unavailable. AI-01 provider integration remains correctly deferred to M12.
+**Implementation status:** Complete locally. Migration 0007, deterministic extraction, proposal review/merge, immutable evidence creation, redacted audit metadata, and the responsive review UI pass PostgreSQL integration, browser E2E/axe, clean migration, supported Node 24, and production build checks. AI-01 remains an optional provider path through M12; deterministic extraction keeps the MVP usable without it.
 
 - **Objective:** Add AI-01/provider-independent proposal ingestion and side-by-side approve/edit/reject/merge workflow.
 - **User-visible outcome:** imported facts enter the bank only after granular review.
@@ -130,7 +130,7 @@
 
 ## M08 — Job-description text and file ingestion
 
-**Implementation status:** In progress. Migration 0008, bounded deterministic normalization, pasted-text and isolated parsed-file inputs, immutable hash-addressed job revisions, optimistic corrections, archive/restore, input provenance, source-unavailable handling, workspace isolation, and responsive job screens are implemented. Job-description sources cannot enter career-fact extraction. Unit tests, type checking, linting, Drizzle checks, and the production build pass locally. PostgreSQL integration, browser E2E/accessibility, clean migration, supported Node 24, and Compose gates remain unverified while the local Docker engine is unavailable. URL input remains correctly scoped to M09.
+**Implementation status:** Complete locally. Migration 0008, pasted-text and isolated parsed-file inputs, immutable job revisions, corrections, archive/restore, provenance, source-unavailable handling, workspace isolation, and responsive job screens pass PostgreSQL integration, browser E2E/axe, clean migration, supported Node 24, Compose, and production build checks. URL input remains scoped to M09.
 
 - **Objective:** Accept pasted text and allowed files, normalize immutable job snapshots, and support safe correction/versioning.
 - **User-visible outcome:** users can create a job record without AI or URL retrieval.
@@ -148,7 +148,7 @@
 
 ## M09 — Secure URL ingestion
 
-**Implementation status:** In progress. Migration 0009, URL canonicalization, public IPv4/IPv6 classification, all-address DNS validation, TLS address pinning, redirect revalidation, connection/total timeouts, header/body/decompression-ratio/content-type limits, inert HTML extraction, authenticated UI, ten-per-workspace-hour rate accounting, idempotent database operations, private schema-validated queue, no-credential fetcher container, safe failures, and immutable URL job snapshots are implemented. Unit/security tests, type checking, linting, Drizzle checks, Compose configuration, and production build pass locally. PostgreSQL integration, isolated malicious network fixtures, browser E2E/accessibility, clean migration, supported Node 24, and live Compose gates remain unverified while Docker is unavailable; M09 is not complete.
+**Implementation status:** Complete locally. Migration 0009 and the isolated no-credential fetcher implement canonicalization, all-address DNS/IP policy, TLS pinning, redirect revalidation, bounded retrieval, inert extraction, rate accounting, idempotent queueing, safe failures, and immutable snapshots. PostgreSQL integration, isolated malicious-network SSRF fixtures, browser E2E/axe, clean migration, supported Node 24, live Compose, security, and production-build gates pass.
 
 - **Objective:** Implement isolated SSRF-hardened public HTTPS job retrieval and sanitized text extraction.
 - **User-visible outcome:** users can import compatible public static job pages or use clear paste/upload fallback.
@@ -166,7 +166,7 @@
 
 ## M10 — Job requirement analysis
 
-**Implementation status:** In progress. Migration 0011, deterministic/manual/AI-02 draft creation, closed output schema, exact source-span hard validation, user edit/accept/reject/manual-add review, immutable finalization, correction copy-forward, provider selection, safe fallback states, and responsive semantic UI are implemented. Formatting, lint, type, unit, migration-artifact/schema-drift, AI-02 synthetic evaluation, security, and production-build gates pass locally. PostgreSQL integration and browser E2E/accessibility remain unverified because the local Docker engine is unavailable; M10 is not complete until those gates pass.
+**Implementation status:** Complete locally. Migration 0011, deterministic/manual/AI-02 draft creation, closed-schema and exact-span validation, review/finalization, correction copy-forward, provider selection, fallback states, and responsive semantic UI pass PostgreSQL integration, browser E2E/axe, synthetic evaluation, schema-drift, security, and production-build gates.
 
 - **Objective:** Implement AI-02 task plus manual/deterministic review for structured required/preferred qualifications, responsibilities, terms, and ambiguities.
 - **User-visible outcome:** users inspect and correct source-linked job requirements.
@@ -184,6 +184,8 @@
 
 ## M11 — Requirement-to-evidence matching
 
+**Implementation status:** Complete locally. Migration 0012, append-only match runs/decisions, approved same-workspace retrieval, deterministic `lexical-evidence@1` classification, explicit gaps, lifecycle revalidation, evidence links, and the responsive matrix pass PostgreSQL integration, browser E2E/axe, schema-drift, evaluation-smoke, and production-build gates. Optional AI-03/04 reranking remains deliberately inactive.
+
 - **Objective:** Build deterministic candidate retrieval and matrix; optionally AI-03/04 rerank only allowed candidates.
 - **User-visible outcome:** each requirement shows direct/combined/weak/no evidence and user-controlled selections.
 - **Scope:** structured filters, lexical search, reasons/strength/conflicts/gaps, include/exclude.
@@ -200,7 +202,7 @@
 
 ## M12 — AI-provider abstraction
 
-**Implementation status:** In progress. Migration 0010, workspace-scoped provider settings, AES-256-GCM write-only credentials and environment references, public/private endpoint policy, pinned bounded HTTP transport, OpenAI-compatible and native Ollama adapters, AI-01–11 task registry, structured-output repair/hard-failure runner, transient retry/deadline/token controls, process-local request guard, fake provider, adapter contracts, and synthetic evaluation smoke tests are implemented. Formatting, lint, type, unit, contract, evaluation-smoke, migration-artifact, schema-drift, security, and production-build gates pass locally. PostgreSQL integration, browser E2E/accessibility, live opt-in provider contracts, and Compose validation remain unverified because the local Docker engine is unavailable; M12 is not complete until the non-live environment gates pass. Live provider tests remain operator opt-in and are not required to send career data.
+**Implementation status:** Complete locally. Migration 0010, encrypted write-only credentials/environment references, endpoint policy, bounded transport, OpenAI-compatible and Ollama adapters, AI-01–11 registry, schema repair/failure handling, retry/deadline/token controls, fake provider, and settings UI pass PostgreSQL integration, browser E2E/axe, adapter contracts, evaluation smoke, security, Compose, and production-build gates. Live-provider contracts remain operator opt-in and are not a release requirement.
 
 - **Objective:** Implement task registry, OpenAI-compatible and Ollama adapters, capability tests, encrypted credentials, schema/retry/failure framework.
 - **User-visible outcome:** users configure/test a provider, see destination/capabilities, and assign models to tasks without exposing keys.
@@ -218,6 +220,8 @@
 
 ## M13 — Evidence-grounded resume tailoring
 
+**Implementation status:** Complete locally. Migrations 0013–0015, typed run/suggestion/task/provenance storage, locks, setup disclosure, provider-neutral AI-05/06 orchestration, hard claim validation, immutable persistence, gaps, and evidence review pass PostgreSQL ownership/immutability tests, browser E2E/axe, synthetic safety evaluations, and production build. No live-provider quality claim is made.
+
 - **Objective:** Implement setup and AI-05/06 atomic resume suggestions with locks, requirements, claim spans, evidence validation, and explanations.
 - **User-visible outcome:** users receive reviewable grounded resume changes without automatic document mutation.
 - **Scope:** source version/fact selection, section/bullet operations, gaps, run manifest, lock enforcement.
@@ -233,6 +237,8 @@
 - **Rollback/recovery:** discard runs/suggestions without changing source; revoke problematic task version. **Docs:** tailoring/provenance/prompts/flows.
 
 ## M14 — Evidence-grounded cover-letter tailoring
+
+**Implementation status:** Complete locally. Cover-letter setup, AI-07 ID-only planning, AI-08 claim-covered drafting, deterministic salutation/closing framing, shared locks/run/provenance persistence, and review pass PostgreSQL integration, browser E2E/axe, synthetic safety evaluations, and production build. Company/role factual prose remains deliberately non-generated because the version provenance contract has no reviewed job-span claim source.
 
 - **Objective:** Implement AI-07/08 evidence-linked plan and paragraph suggestions using the same claim gate.
 - **User-visible outcome:** users can review a grounded letter outline/draft tied to job requirements and facts.
@@ -250,6 +256,8 @@
 
 ## M15 — Editing and suggestion review
 
+**Implementation status:** Complete locally. Migration 0016 and review actions implement explicit accept/reject/edit, atomic version batches, idempotent retry, stale/lock/evidence revalidation, supported claim transfer, conservative manual-edit invalidation, remediation, and accessible status inspection. PostgreSQL integration, browser E2E/axe, migration, and production-build gates pass.
+
 - **Objective:** Complete production editor, atomic/group review, provenance-aware manual edits, stale handling, undo/version save.
 - **User-visible outcome:** users accept/reject individual suggestions, edit freely, see support status, and recover versions.
 - **Scope:** operation application transaction, claim diff mapping, link/approve-as-fact, autosave conflict UI.
@@ -265,6 +273,8 @@
 - **Rollback/recovery:** version history restores content; drafts export as JSON before schema recovery. **Docs:** editor behavior/versioning/accessibility.
 
 ## M16 — Deterministic ATS analysis
+
+**Implementation status:** Complete locally. Migration 0017 and `ats-rules@1.0.0` implement all 15 weighted deterministic categories, applicability/coverage math, unsupported-claim blockers, immutable idempotent reports, workspace-scoped UI, and fixtures. ATS, PostgreSQL integration, PDF/DOCX parse-back, browser E2E/axe, clean migration, and production-build gates pass.
 
 - **Objective:** Implement versioned pure ATS rules, category math/coverage/blockers, findings UI, and optional AI-11 explanation.
 - **User-visible outcome:** reproducible estimated parsing/alignment/content report with rule-level remediation and limitations.
@@ -282,6 +292,8 @@
 
 ## M17 — Export pipeline
 
+**Implementation status:** Complete locally. Migration 0018, private expiring artifacts, strict evidence final gate, remediation responses, tagged PDF, semantic macro-free DOCX, labeled text formats, bounds, authorization, hash verification, and ≥98% ordered parse-back pass export, PostgreSQL integration, browser E2E/axe, clean migration, and production-build gates. Manual PDF/DOCX assistive-technology checks remain part of M21's external matrix.
+
 - **Objective:** Implement safe PDF, DOCX, Markdown, text, JSON exporters, final gate, private artifacts, parse-back/visual validation.
 - **User-visible outcome:** users download readable final supported documents or explicitly labeled permitted drafts.
 - **Scope:** fixed accessible templates, networkless render, format options, artifact expiry/save.
@@ -297,6 +309,8 @@
 - **Rollback/recovery:** disable affected format; delete partial objects; canonical versions remain. **Docs:** exporter/library limitations/deployment fonts.
 
 ## M18 — Settings, privacy, and data portability
+
+**Implementation status:** Complete locally. Versioned allowlisted JSON export/import, optional bytes, provider-secret exclusion, integrity validation, dry-run conflicts, privacy UI, source-unavailable markers, write freeze, content-free tombstones/receipts, synchronous deletion, and replay worker pass PostgreSQL round-trip/deletion, browser E2E/axe, clean migration, backup/restore replay, and Compose-worker gates.
 
 - **Objective:** Complete settings, task defaults/disclosures, archive export/import preview, record/source/workspace deletion and receipts.
 - **User-visible outcome:** users control providers/privacy, export all portable data, and permanently delete scoped/all data.
@@ -314,6 +328,8 @@
 
 ## M19 — Security hardening
 
+**Implementation status:** Complete locally. Per-request nonce CSP, browser headers, origin checks, bounded bodies, container capability removal, rate limits, redacted identifiers, secret/static-danger scanning, load smoke, commit-pinned CodeQL, image scanning, and SPDX generation are implemented. Security/SSRF, PostgreSQL abuse/concurrency, browser CSP, deployed load, Compose, and production-build gates pass locally. Remote CodeQL/image workflows and independent external review remain M22 maintainer evidence, not local product blockers.
+
 - **Objective:** Close the threat model with abuse tests, quotas/rates, CSP/headers, container/runtime hardening, SCA/secrets/SAST, and remediation.
 - **User-visible outcome:** safer defaults and clear recoverable security errors without leaked details.
 - **Scope:** T01–T16/ACASE-01–12, dependency/image review, permissions, egress, audit events.
@@ -329,6 +345,8 @@
 - **Rollback/recovery:** feature kill switches and previous compatible image; never rollback security migration into exposure. **Docs:** threat/risk/security policy.
 
 ## M20 — Accessibility and responsive hardening
+
+**Implementation status (2026-07-01):** Complete locally. Shared 44 px controls, contrast/forced-color tokens, editor feedback/recovery, focused portability results, and ATS mobile cards pass automated axe, keyboard, forced-color, reduced-motion, and 320 px reflow suites. In-app checks at a 320 px viewport and 400%-equivalent viewport found no document-level overflow on core screens. OQ-07 is resolved. Manual NVDA/VoiceOver and exported-document assistive-technology evidence remains an external M21 release gate.
 
 - **Objective:** Validate/remediate every major screen to WCAG 2.2 AA across reflow, keyboard, AT, contrast, motion, and export.
 - **User-visible outcome:** core workflows work without pointer and at narrow/zoomed layouts with clear status/evidence.
@@ -346,6 +364,8 @@
 
 ## M21 — End-to-end and recovery validation
 
+**Implementation status (2026-07-01):** Locally complete except for the external manual assistive-technology matrix. A clean 22-migration deployment, production Compose startup, cold parser/fetch/deletion workers, 50 PostgreSQL integration tests, 12 browser E2E tests, 11 automated accessibility tests, smoke, full static/security/domain gates, reference-scale authenticated load, parser recovery, and production build pass. An age-encrypted paired backup restored into fresh isolated volumes with 22 migrations, retained data/artifacts, deletion receipts, readiness, and smoke verified. NVDA/VoiceOver and PDF/DOCX assistive-technology rows remain unexecuted on their required platforms.
+
 - **Objective:** Exercise release-scale clean install, all user journeys, concurrency/faults, performance, upgrade/restore/delete replay, and traceability.
 - **User-visible outcome:** documented repeatable workflows survive expected failures without lost or leaked data.
 - **Scope:** AC-001–028, provider outage, parser crash, worker restart, storage/database disruption, performance budgets.
@@ -361,6 +381,8 @@
 - **Rollback/recovery:** exercise previous image and verified backup; record RTO observations. **Docs:** all current-state/operations/risks.
 
 ## M22 — Self-hosted MVP release
+
+**Implementation status (2026-07-01):** Local release preparation and deployment validation are complete. Version 0.1.0 metadata, notes, support policy, digest-pinned images, secret-required production overlay, commit-pinned Actions, tag gate, multi-architecture publication, scans, SPDX/checksum/provenance assets, attestations, and draft-only release workflow are present. Publication is blocked on the external M21 manual accessibility matrix and maintainer execution of protected remote workflows. No tag, package, image, attestation, or GitHub release has been published or remotely verified.
 
 - **Objective:** Produce the first signed, documented, reproducible AGPL self-hosted release.
 - **User-visible outcome:** operator can install, configure, back up, upgrade/rollback, and use release-ready MVP from published artifacts.

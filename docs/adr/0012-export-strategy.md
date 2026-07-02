@@ -1,6 +1,6 @@
 # ADR-0012: Render exports from canonical content using safe templates
 
-- **Status:** Accepted
+- **Status:** Accepted; PDF renderer and synchronous MVP execution amended by [ADR-0018](0018-tagged-pdf-and-docx-renderers.md)
 - **Date:** 2026-06-28
 
 ## Context

@@ -2,22 +2,29 @@
 
 The commands below are implemented; capability-specific coverage expands with its owning milestone. A gate may be reported as passing only when it was run in the current environment.
 
-| Gate           | Command                   | Current availability                                                      | PR expectation                                                           |
-| -------------- | ------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Formatting     | `pnpm format:check`       | Implemented                                                               | all tracked source/docs/config                                           |
-| Lint           | `pnpm lint`               | Implemented                                                               | zero errors and zero unbudgeted warnings                                 |
-| Type check     | `pnpm typecheck`          | Implemented                                                               | strict, zero errors                                                      |
-| Unit           | `pnpm test`               | Implemented                                                               | changed behavior and invariant coverage                                  |
-| Integration/DB | `pnpm test:integration`   | Implemented for migration, ownership, role, transaction, and lease rules  | PostgreSQL, migrations, isolation, jobs                                  |
-| Contract       | `pnpm test:contract`      | Implemented; M12 adds provider adapter contracts                          | API/provider/parser/storage schemas                                      |
-| AI evaluations | `pnpm test:evals --smoke` | Implemented synthetic provider/task smoke harness                         | task schemas, hard validators, injection and model thresholds            |
-| E2E            | `pnpm test:e2e`           | Implemented for the M01 shell                                             | changed critical paths                                                   |
-| Accessibility  | `pnpm test:a11y`          | Implemented for the M01 shell                                             | zero serious/critical automated issues plus required manual evidence     |
-| Smoke          | `pnpm test:smoke`         | Implemented; requires a running deployment or `PLAYWRIGHT_BASE_URL`       | deployment health and release-critical smoke paths                       |
-| Build          | `pnpm build`              | Implemented                                                               | reproducible production build                                            |
-| Migrations     | `pnpm db:check`           | Implemented migration-artifact and Drizzle journal checks                 | drift, forward migration, compatibility/recovery                         |
-| Security       | `pnpm security:check`     | Implemented secret-pattern and production dependency audit baseline       | SCA, secrets, SAST/config and regression subset                          |
-| Documentation  | `pnpm docs:check`         | Implemented link/current-state/placeholder baseline; expands continuously | links, requirement/milestone/test IDs, terminology, current-state claims |
+| Gate               | Command                   | Current availability                                                      | PR expectation                                                                                              |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Formatting         | `pnpm format:check`       | Implemented                                                               | all tracked source/docs/config                                                                              |
+| Lint               | `pnpm lint`               | Implemented                                                               | zero errors and zero unbudgeted warnings                                                                    |
+| Type check         | `pnpm typecheck`          | Implemented                                                               | strict, zero errors                                                                                         |
+| Unit               | `pnpm test`               | Implemented                                                               | changed behavior and invariant coverage                                                                     |
+| Integration/DB     | `pnpm test:integration`   | Implemented for migration, ownership, role, transaction, and lease rules  | PostgreSQL, migrations, isolation, jobs                                                                     |
+| Contract           | `pnpm test:contract`      | Implemented; M12 adds provider adapter contracts                          | API/provider/parser/storage schemas                                                                         |
+| AI evaluations     | `pnpm test:evals --smoke` | Implemented synthetic provider/task smoke harness                         | task schemas, hard validators, injection and model thresholds                                               |
+| E2E                | `pnpm test:e2e`           | Implemented for the primary journey and focused MVP workflows             | changed critical paths                                                                                      |
+| Accessibility      | `pnpm test:a11y`          | Implemented axe/keyboard/reflow coverage for release-critical workflows   | zero serious/critical automated issues plus required manual evidence                                        |
+| Smoke              | `pnpm test:smoke`         | Implemented; requires a running deployment or `PLAYWRIGHT_BASE_URL`       | deployment health and release-critical smoke paths                                                          |
+| Build              | `pnpm build`              | Implemented                                                               | reproducible production build                                                                               |
+| Migrations         | `pnpm db:check`           | Implemented migration-artifact and Drizzle journal checks                 | drift, forward migration, compatibility/recovery                                                            |
+| Security           | `pnpm security:check`     | Implemented secret-pattern and production dependency audit baseline       | SCA, secrets, SAST/config and regression subset                                                             |
+| Load smoke         | `pnpm test:load`          | Implemented; requires isolated base URL and access-restricted auth cookie | 200 authenticated reads of `LOAD_PATH` (dashboard by default) at concurrency 20, zero failures, p95 ≤500 ms |
+| Domain performance | `pnpm test:performance`   | Implemented synthetic ATS plus PDF/DOCX render/parse-back probe           | ATS p95 ≤2 s; PDF and DOCX p95 ≤10 s                                                                        |
+| ATS rules          | `pnpm test:ats`           | Implemented deterministic category/math/blocker fixture suite             | score bounds, applicability, repeatability, rule findings                                                   |
+| Exports            | `pnpm test:exports`       | Implemented render/parse-back/structure/injection fixture suite           | PDF/DOCX structure, text coverage, blockers, draft labeling                                                 |
+| Portability        | `pnpm test:portability`   | Implemented archive schema, allowlist, secret, integrity fixture suite    | archive schema, hashes, secret exclusion, dry-run/round-trip                                                |
+| Deletion           | `pnpm test:deletion`      | Implemented recent-auth and tombstone unit fixture suite                  | freeze, retry, cascade, receipt, restore replay                                                             |
+| Documentation      | `pnpm docs:check`         | Implemented link/current-state/placeholder baseline; expands continuously | links, requirement/milestone/test IDs, terminology, current-state claims                                    |
+| Notices            | `pnpm notices:check`      | Implemented lockfile-resolved dependency inventory                        | package/version/license/upstream inventory is current                                                       |
 
 Required checks are branch-protected once implemented. Critical security, cross-tenant, unsupported-claim, deletion, export-injection, and migration failures cannot be waived. Other temporary exceptions require maintainer approval, issue, rationale, compensating evidence, and expiry.
 

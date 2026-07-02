@@ -13,3 +13,9 @@ Required families:
 Golden tests assert stable rule IDs, locations, applicability, raw effects, category math, caps, overall math, evaluated coverage, and blockers. Property tests cover score bounds, deterministic ordering, no NaN/division by zero, invariance to harmless whitespace, and monotonicity only where the rule declares it. Export parse-back fixtures run in supported OS/container environments to control font/render drift.
 
 Changing a golden expectation requires a ruleset version change, reviewer rationale, migration note, and regenerated report snapshots—not a blind snapshot update.
+
+## Implemented M16 coverage
+
+`tests/ats/engine.test.ts` currently proves the 100-point/15-category registry, complete-category applicability, deterministic repeat, direct versus combined evidence credit, independent unsupported-claim blocking, low-coverage score suppression, and score bounds under adversarial repetition. `tests/integration/ats.integration.test.ts` exercises clean-schema persistence, complete input pinning, idempotent reuse, workspace isolation, and database immutability. The browser journey generates and reads a report, while the 320 CSS px accessibility journey covers the report view.
+
+The export-only parse-back families (image-only PDF, glyph loss, rendered reading order, hidden export text, corrupt generated DOCX, and platform font drift) belong to M17 and must be added to `test:exports`; they are not claimed as passing in M16.

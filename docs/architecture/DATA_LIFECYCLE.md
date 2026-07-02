@@ -24,6 +24,8 @@ Exports use private temporary storage, become downloadable by short-lived author
 
 Workspace deletion is a durable, idempotent job: freeze writes, enumerate rows/keys, delete artifacts, delete relational aggregate, verify absence, issue receipt. Active deletion SLA is 24 hours; encrypted operator backups expire within 30 days. See [retention policy](../security/DATA_RETENTION_AND_DELETION.md).
 
+M18 persists the operation outside the workspace aggregate and writes a content-free tombstone to private storage before active erasure. The deletion worker retries partial failure and replays tombstones after restore. Portability schema version 1 supports dry-run and empty-workspace import; see [data portability](DATA_PORTABILITY.md).
+
 ## Implemented Career Information Bank lifecycle
 
 M04 implements manual proposals, approval, supersession, withdrawal, archive, and permanent entry deletion. Approval records the actor, timestamp, typed value, source locator, and immutable UUID. A correction inserts a new fact that references the old fact and then marks the old fact superseded. Withdrawal excludes a fact from the approved-evidence query. Entry deletion first presents counts for facts, proposals, and skill links, requires an explicit `DELETE` confirmation, and removes the workspace-scoped graph in one transaction. Audit metadata contains identifiers and counts but no fact, entry, goal, or preference text.
