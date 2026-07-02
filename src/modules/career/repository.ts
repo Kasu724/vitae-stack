@@ -58,6 +58,7 @@ export interface EvidenceFactRecord {
   status: "approved" | "superseded" | "withdrawn";
   supersedes_fact_id: string | null;
   approved_at: Date;
+  source_available: boolean;
 }
 
 export interface FactProposalRecord {
@@ -129,29 +130,64 @@ export class CareerRepository {
       type?: string;
       status?: "active" | "archived";
       tag?: string;
+      limit?: number;
+      offset?: number;
     } = {},
   ): Promise<CareerEntryRecord[]> {
     const result = await this.pool.query<CareerEntryRecord>(
       `SELECT e.id, e.type, e.title, e.organization, e.location, e.description,
-              e.start_date::text, e.start_date_precision, e.end_date::text,
-              e.end_date_precision, e.is_current, e.tags, e.status, e.revision,
-              count(DISTINCT f.id) FILTER (WHERE f.status = 'approved')::int AS approved_fact_count,
-              count(DISTINCT p.id) FILTER (WHERE p.status = 'pending')::int AS pending_proposal_count,
-              EXISTS (SELECT 1 FROM career_entries duplicate
-                      WHERE duplicate.workspace_id=e.workspace_id AND duplicate.id<>e.id
-                        AND lower(duplicate.title)=lower(e.title)
-                        AND coalesce(lower(duplicate.organization),'')=coalesce(lower(e.organization),'')) AS possible_duplicate
+               e.start_date::text, e.start_date_precision, e.end_date::text,
+               e.end_date_precision, e.is_current, e.tags, e.status, e.revision,
+               (SELECT count(*)::int FROM evidence_facts f
+                WHERE f.career_entry_id=e.id AND f.workspace_id=e.workspace_id
+                  AND f.status='approved') AS approved_fact_count,
+               (SELECT count(*)::int FROM fact_proposals p
+                WHERE p.career_entry_id=e.id AND p.workspace_id=e.workspace_id
+                  AND p.status='pending') AS pending_proposal_count,
+               EXISTS (SELECT 1 FROM career_entries duplicate
+                       WHERE duplicate.workspace_id=e.workspace_id AND duplicate.id<>e.id
+                         AND lower(duplicate.title)=lower(e.title)
+                         AND coalesce(lower(duplicate.organization),'')=coalesce(lower(e.organization),'')) AS possible_duplicate
        FROM career_entries e
-       LEFT JOIN evidence_facts f ON f.career_entry_id = e.id AND f.workspace_id = e.workspace_id
-       LEFT JOIN fact_proposals p ON p.career_entry_id = e.id AND p.workspace_id = e.workspace_id
        WHERE e.workspace_id = $1
          AND e.status = $2
          AND ($3::text IS NULL OR e.type::text = $3)
          AND ($4::text IS NULL OR $4 = ANY(e.tags))
          AND ($5::text IS NULL OR concat_ws(' ', e.title, e.organization, e.location, e.description) ILIKE '%' || $5 || '%'
               OR EXISTS (SELECT 1 FROM evidence_facts sf WHERE sf.workspace_id = e.workspace_id AND sf.career_entry_id = e.id AND sf.display_text ILIKE '%' || $5 || '%'))
-       GROUP BY e.id
-       ORDER BY e.updated_at DESC, e.id`,
+       ORDER BY e.updated_at DESC, e.id
+       LIMIT $6 OFFSET $7`,
+      [
+        principal.workspaceId,
+        filters.status ?? "active",
+        filters.type || null,
+        filters.tag?.toLowerCase() || null,
+        filters.query?.trim() || null,
+        filters.limit ?? null,
+        filters.offset ?? 0,
+      ],
+    );
+    return result.rows;
+  }
+
+  public async countEntries(
+    principal: WorkspacePrincipal,
+    filters: {
+      query?: string;
+      type?: string;
+      status?: "active" | "archived";
+      tag?: string;
+    } = {},
+  ): Promise<number> {
+    const result = await this.pool.query<{ count: number }>(
+      `SELECT count(*)::int AS count
+       FROM career_entries e
+       WHERE e.workspace_id = $1
+         AND e.status = $2
+         AND ($3::text IS NULL OR e.type::text = $3)
+         AND ($4::text IS NULL OR $4 = ANY(e.tags))
+         AND ($5::text IS NULL OR concat_ws(' ', e.title, e.organization, e.location, e.description) ILIKE '%' || $5 || '%'
+              OR EXISTS (SELECT 1 FROM evidence_facts sf WHERE sf.workspace_id = e.workspace_id AND sf.career_entry_id = e.id AND sf.display_text ILIKE '%' || $5 || '%'))`,
       [
         principal.workspaceId,
         filters.status ?? "active",
@@ -160,7 +196,7 @@ export class CareerRepository {
         filters.query?.trim() || null,
       ],
     );
-    return result.rows;
+    return result.rows[0]?.count ?? 0;
   }
 
   public async createEntry(
@@ -228,7 +264,14 @@ export class CareerRepository {
     if (!entry.rows[0]) throw new CareerNotFoundError();
     const [facts, proposals] = await Promise.all([
       this.pool.query<EvidenceFactRecord>(
-        `SELECT id,type,value,display_text,source_locator,status,supersedes_fact_id,approved_at FROM evidence_facts WHERE career_entry_id=$1 AND workspace_id=$2 ORDER BY created_at DESC`,
+        `SELECT f.id,f.type,f.value,f.display_text,f.source_locator,f.status,f.supersedes_fact_id,f.approved_at,
+                CASE WHEN f.source_locator->>'kind' <> 'document' THEN true
+                     ELSE EXISTS (
+                       SELECT 1 FROM source_documents s
+                       WHERE s.id=(f.source_locator->>'sourceDocumentId')::uuid
+                         AND s.workspace_id=f.workspace_id AND s.status<>'deleted'
+                     ) END source_available
+         FROM evidence_facts f WHERE f.career_entry_id=$1 AND f.workspace_id=$2 ORDER BY f.created_at DESC`,
         [id, principal.workspaceId],
       ),
       this.pool.query<FactProposalRecord>(

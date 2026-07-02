@@ -1,4 +1,12 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 
 const storageKeyPattern = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:bin|json)$/u;
@@ -57,6 +65,33 @@ export class FilesystemArtifactStore {
   public async delete(key: string): Promise<void> {
     await rm(this.resolve(key), { force: true });
   }
+
+  public async listKeysOlderThan(
+    ageMs: number,
+    now = Date.now(),
+  ): Promise<string[]> {
+    const keys: string[] = [];
+    const workspaces = await readdir(this.root, { withFileTypes: true }).catch(
+      () => [],
+    );
+    for (const workspace of workspaces) {
+      if (!workspace.isDirectory() || !/^[0-9a-f-]{36}$/u.test(workspace.name))
+        continue;
+      const directory = path.join(this.root, workspace.name);
+      const files = await readdir(directory, { withFileTypes: true }).catch(
+        () => [],
+      );
+      for (const file of files) {
+        const key = `${workspace.name}/${file.name}`;
+        if (!file.isFile() || !storageKeyPattern.test(key)) continue;
+        const details = await stat(path.join(directory, file.name)).catch(
+          () => null,
+        );
+        if (details && now - details.mtimeMs >= ageMs) keys.push(key);
+      }
+    }
+    return keys.sort();
+  }
 }
 
 export function sourceStorageKey(
@@ -71,4 +106,18 @@ export function parserMessageKey(
   sourceId: string,
 ): string {
   return `${workspaceId}/${sourceId}.json`;
+}
+
+export function exportArtifactStorageKey(
+  workspaceId: string,
+  artifactId: string,
+): string {
+  return `${workspaceId}/${artifactId}.bin`;
+}
+
+export function portabilityBlobStorageKey(
+  workspaceId: string,
+  resourceId: string,
+): string {
+  return `${workspaceId}/${resourceId}.bin`;
 }

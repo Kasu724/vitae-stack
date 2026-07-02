@@ -166,6 +166,28 @@ describe("private source lifecycle", () => {
       bytes: Buffer.from("Synthetic deletion fixture"),
     });
     const source = await repository.get(first, id);
+    const entry = await runtimePool.query<{ id: string }>(
+      `INSERT INTO career_entries (workspace_id,career_profile_id,type,title)
+       SELECT $1,id,'custom','Retained source evidence' FROM career_profiles
+       WHERE workspace_id=$1 RETURNING id`,
+      [first.workspaceId],
+    );
+    const fact = await runtimePool.query<{ id: string }>(
+      `INSERT INTO evidence_facts
+         (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id)
+       VALUES ($1,$2,'statement',$3::jsonb,'Retained fact',$4::jsonb,$5) RETURNING id`,
+      [
+        first.workspaceId,
+        entry.rows[0]!.id,
+        JSON.stringify({ kind: "text", text: "Retained fact" }),
+        JSON.stringify({
+          kind: "document",
+          label: "Synthetic source",
+          sourceDocumentId: id,
+        }),
+        first.userId,
+      ],
+    );
     await service.deleteBinaryAndRecord(first, id);
     await expect(repository.get(first, id)).rejects.toBeInstanceOf(
       SourceNotFoundError,
@@ -173,5 +195,19 @@ describe("private source lifecycle", () => {
     await expect(
       access(path.join(storageRoot, source.storage_key)),
     ).rejects.toBeDefined();
+    expect(
+      await runtimePool.query(
+        "SELECT 1 FROM evidence_facts WHERE id=$1 AND workspace_id=$2",
+        [fact.rows[0]!.id, first.workspaceId],
+      ),
+    ).toHaveProperty("rowCount", 1);
+    expect(
+      await runtimePool.query(
+        "SELECT status,extracted_text FROM source_documents WHERE id=$1 AND workspace_id=$2",
+        [id, first.workspaceId],
+      ),
+    ).toMatchObject({
+      rows: [{ status: "deleted", extracted_text: null }],
+    });
   });
 });

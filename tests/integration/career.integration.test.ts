@@ -96,6 +96,14 @@ describe("Career Information Bank lifecycle", () => {
         (entry) => entry.id,
       ),
     ).toContain(id);
+    expect(await repository.countEntries(first, { query: "private" })).toBe(1);
+    expect(
+      await repository.listEntries(first, {
+        query: "private",
+        limit: 1,
+        offset: 1,
+      }),
+    ).toEqual([]);
     expect(await repository.listEntries(second, { query: "private" })).toEqual(
       [],
     );

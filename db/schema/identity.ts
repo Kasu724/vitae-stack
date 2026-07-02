@@ -37,6 +37,10 @@ export const workspaces = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "restrict" }),
     name: text("name").notNull(),
+    deletionRequestedAt: timestamp("deletion_requested_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     ...mutableTimestamps(),
   },
   (table) => [index("workspaces_owner_user_idx").on(table.ownerUserId)],
