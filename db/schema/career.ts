@@ -123,6 +123,17 @@ export const careerEntries = pgTable(
       table.status,
       table.type,
     ),
+    index("career_entries_workspace_status_updated_idx").on(
+      table.workspaceId,
+      table.status,
+      table.updatedAt,
+      table.id,
+    ),
+    index("career_entries_duplicate_lookup_idx").on(
+      table.workspaceId,
+      sql`lower(${table.title})`,
+      sql`coalesce(lower(${table.organization}), '')`,
+    ),
     index("career_entries_tags_idx").using("gin", table.tags),
     foreignKey({
       name: "career_entries_profile_workspace_fk",
@@ -221,6 +232,11 @@ export const evidenceFacts = pgTable(
       table.status,
       table.type,
     ),
+    index("evidence_facts_entry_status_idx").on(
+      table.workspaceId,
+      table.careerEntryId,
+      table.status,
+    ),
     foreignKey({
       name: "evidence_facts_entry_workspace_fk",
       columns: [table.careerEntryId, table.workspaceId],
@@ -278,6 +294,11 @@ export const factProposals = pgTable(
       table.workspaceId,
       table.status,
       table.createdAt,
+    ),
+    index("fact_proposals_entry_status_idx").on(
+      table.workspaceId,
+      table.careerEntryId,
+      table.status,
     ),
     foreignKey({
       name: "fact_proposals_entry_workspace_fk",

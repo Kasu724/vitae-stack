@@ -205,6 +205,41 @@ describe("document library and versioning", () => {
     ).rejects.toMatchObject({ code: "23503" });
   });
 
+  it("tracks new manual text conservatively and permits explicit nonfactual classification", async () => {
+    const id = await repository.create(first, {
+      kind: "cover_letter",
+      title: "Manual classification fixture",
+    });
+    const initial = await repository.get(first, id);
+    const content = structuredClone(initial.currentVersion.content);
+    content.sections.find(
+      (section) => section.type === "salutation",
+    )!.blocks[0]!.text = "Dear hiring team,";
+    await repository.commitVersion(first, {
+      documentId: id,
+      baseVersionId: initial.currentVersion.id,
+      content,
+    });
+    const manualClaim = (await repository.listClaims(first, id))[0]!;
+    expect(manualClaim).toMatchObject({
+      text: "Dear hiring team,",
+      status: "unverified",
+    });
+    await repository.markClaimNonfactual(first, {
+      documentId: id,
+      claimId: manualClaim.id,
+    });
+    expect(await repository.listClaims(first, id)).toMatchObject([
+      { text: "Dear hiring team,", status: "nonfactual", evidence: [] },
+    ]);
+    await expect(
+      repository.markClaimNonfactual(second, {
+        documentId: id,
+        claimId: manualClaim.id,
+      }),
+    ).rejects.toBeInstanceOf(DocumentNotFoundError);
+  });
+
   it("preserves unchanged provenance and invalidates a manually changed factual span", async () => {
     const id = await repository.create(first, {
       kind: "resume",
@@ -214,7 +249,7 @@ describe("document library and versioning", () => {
     const supportedContent = structuredClone(initial.currentVersion.content);
     const block = supportedContent.sections[1]!.blocks[0]!;
     block.text = "Supported synthetic claim";
-    const supportedVersionId = await repository.commitVersion(first, {
+    let supportedVersionId = await repository.commitVersion(first, {
       documentId: id,
       baseVersionId: initial.currentVersion.id,
       content: supportedContent,
@@ -229,15 +264,14 @@ describe("document library and versioning", () => {
        VALUES ($1,$2,'statement','{"kind":"text","text":"Supported synthetic claim"}','Supported synthetic claim','{"kind":"manual","label":"Manual"}',$3) RETURNING id`,
       [first.workspaceId, entry.rows[0]!.id, first.userId],
     );
-    const claim = await runtimePool.query<{ id: string }>(
-      `INSERT INTO generated_claims (workspace_id,version_id,stable_block_id,start_offset,end_offset,text_hash,status)
-       VALUES ($1,$2,$3,0,$4,'sha256:synthetic-supported','supported') RETURNING id`,
-      [first.workspaceId, supportedVersionId, block.id, block.text.length],
-    );
-    await runtimePool.query(
-      `INSERT INTO claim_evidence (workspace_id,claim_id,evidence_fact_id) VALUES ($1,$2,$3)`,
-      [first.workspaceId, claim.rows[0]!.id, fact.rows[0]!.id],
-    );
+    const claim = (await repository.listClaims(first, id)).find(
+      (item) => item.text === block.text,
+    )!;
+    supportedVersionId = await repository.supportClaimWithEvidence(first, {
+      documentId: id,
+      claimId: claim.id,
+      evidenceFactId: fact.rows[0]!.id,
+    });
 
     const unchangedVersionId = await repository.commitVersion(first, {
       documentId: id,

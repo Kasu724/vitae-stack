@@ -35,6 +35,7 @@ export const claimStatus = pgEnum("generated_claim_status", [
   "nonfactual",
 ]);
 export const documentLockTarget = pgEnum("document_lock_target", [
+  "section",
   "block",
   "claim",
   "fact",
