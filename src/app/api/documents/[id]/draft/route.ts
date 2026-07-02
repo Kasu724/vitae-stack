@@ -3,6 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
 import { getRuntimePool } from "@/infrastructure/database/runtime";
+import { readServerEnvironment } from "@/infrastructure/config/environment";
+import { isTrustedRequestOrigin } from "@/modules/auth/auth-request-handler";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { canonicalDocumentSchema } from "@/modules/documents/document-schema";
 import {
@@ -21,6 +23,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const environment = readServerEnvironment();
+  if (!isTrustedRequestOrigin(request, environment.BETTER_AUTH_URL))
+    return NextResponse.json({ code: "UNTRUSTED_ORIGIN" }, { status: 403 });
+  const declaredLength = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declaredLength) && declaredLength > 1024 * 1024)
+    return NextResponse.json({ code: "DOCUMENT_TOO_LARGE" }, { status: 413 });
   const principal = await getCurrentPrincipal(await headers());
   if (!principal)
     return NextResponse.json(

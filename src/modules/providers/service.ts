@@ -171,6 +171,7 @@ export class ProviderConfigurationService {
     id: string,
     model: string,
   ): Promise<boolean> {
+    await this.repository.consumeRateLimit(principal, "provider-test", 10);
     const config = await this.repository.getPrivate(principal, id);
     let available = false;
     let usage = false;
@@ -210,7 +211,10 @@ export class ProviderConfigurationService {
     principal: WorkspacePrincipal,
     configurationId: string,
     input: Omit<StructuredTaskInput<T>, "model">,
-  ): Promise<StructuredTaskResult<T>> {
+  ): Promise<
+    StructuredTaskResult<T> & { providerKind: "openai_compatible" | "ollama" }
+  > {
+    await this.repository.consumeRateLimit(principal, "provider-task", 60);
     const config = await this.repository.getPrivate(principal, configurationId);
     const model = config.task_assignments[input.taskId];
     if (
@@ -219,11 +223,12 @@ export class ProviderConfigurationService {
       !model
     )
       throw new ProviderCapabilityError();
-    return providerRequestGuard.run(configurationId, () =>
+    const result = await providerRequestGuard.run(configurationId, () =>
       new StructuredTaskRunner(this.adapter(config)).run({
         ...input,
         model,
       }),
     );
+    return { ...result, providerKind: config.kind };
   }
 }

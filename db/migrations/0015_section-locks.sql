@@ -1,0 +1,1 @@
+ALTER TYPE "public"."document_lock_target" ADD VALUE 'section' BEFORE 'block';

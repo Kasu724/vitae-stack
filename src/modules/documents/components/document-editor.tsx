@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CanonicalDocument } from "../document-schema";
 import { commitDocumentVersionAction } from "../actions";
@@ -20,7 +20,9 @@ export function DocumentEditor({
 }) {
   const [content, setContent] = useState(initialContent);
   const [status, setStatus] = useState("All changes saved as a draft.");
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const changed = useRef(false);
+  const latestContent = useRef(content);
   const revision = useRef(initialDraftRevision);
   const queue = useRef(Promise.resolve());
 
@@ -29,6 +31,7 @@ export function DocumentEditor({
     setStatus("Draft changes pending.");
     const timeout = window.setTimeout(() => {
       const snapshot = structuredClone(content);
+      const snapshotText = JSON.stringify(snapshot);
       queue.current = queue.current.then(async () => {
         setStatus("Saving draft…");
         const response = await fetch(`/api/documents/${documentId}/draft`, {
@@ -52,17 +55,44 @@ export function DocumentEditor({
         }
         const result = (await response.json()) as { revision: number };
         revision.current = result.revision;
-        setStatus("Draft saved.");
+        if (JSON.stringify(latestContent.current) === snapshotText) {
+          changed.current = false;
+          setHasUnsavedChanges(false);
+          setStatus("Draft saved.");
+        }
       });
     }, 800);
     return () => window.clearTimeout(timeout);
   }, [baseVersionId, content, documentId]);
 
+  useEffect(() => {
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      if (!hasUnsavedChanges) return;
+      event.preventDefault();
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [hasUnsavedChanges]);
+
+  const wordCount = useMemo(
+    () =>
+      content.sections
+        .flatMap((section) => section.blocks)
+        .reduce(
+          (count, block) =>
+            count + (block.text.trim().match(/\S+/gu)?.length ?? 0),
+          0,
+        ),
+    [content],
+  );
+
   function updateBlock(sectionIndex: number, blockIndex: number, text: string) {
     changed.current = true;
+    setHasUnsavedChanges(true);
     setContent((current) => {
       const next = structuredClone(current);
       next.sections[sectionIndex]!.blocks[blockIndex]!.text = text;
+      latestContent.current = next;
       return next;
     });
   }
@@ -71,6 +101,10 @@ export function DocumentEditor({
     <div>
       <p className="notice" role="status" aria-live="polite">
         {status}
+      </p>
+      <p className="mt-3 text-sm text-[var(--muted)]">
+        {wordCount.toLocaleString()} words. Browser undo and redo remain
+        available while focus is in a text field.
       </p>
       <div className="mt-5 grid gap-5">
         {content.sections.map((section, sectionIndex) => (
@@ -104,7 +138,11 @@ export function DocumentEditor({
           </section>
         ))}
       </div>
-      <form action={commitDocumentVersionAction} className="mt-5">
+      <form
+        action={commitDocumentVersionAction}
+        className="mt-5"
+        onSubmit={() => setHasUnsavedChanges(false)}
+      >
         <input type="hidden" name="documentId" value={documentId} />
         <input type="hidden" name="baseVersionId" value={baseVersionId} />
         <input type="hidden" name="content" value={JSON.stringify(content)} />

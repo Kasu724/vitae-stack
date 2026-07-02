@@ -30,8 +30,9 @@ export default async function DocumentsPage({
       </nav>
       <h1 className="mt-5 text-3xl font-bold">Document library</h1>
       <p className="mt-2 text-[var(--muted)]">
-        Resumes and cover letters use immutable versions. Imports and rich
-        export arrive in later milestones.
+        Resumes and cover letters use immutable versions. Import sources, review
+        extracted facts, tailor against evidence, and create private exports
+        without rewriting version history.
       </p>
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"

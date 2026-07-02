@@ -5,6 +5,7 @@ import type {
   ModelTaskAssignments,
 } from "../../../db/schema/providers";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
+import { consumeApplicationRateLimit } from "@/infrastructure/security/rate-limit";
 
 import type { CredentialEnvelope } from "./credential-envelope";
 import type { ProviderKind } from "./domain";
@@ -68,6 +69,19 @@ async function audit(
 
 export class ProviderConfigurationRepository {
   public constructor(private readonly pool: Pool) {}
+
+  public async consumeRateLimit(
+    principal: WorkspacePrincipal,
+    scope: "provider-test" | "provider-task",
+    limit: number,
+  ): Promise<void> {
+    await consumeApplicationRateLimit(this.pool, {
+      scope,
+      subject: principal.userId,
+      limit,
+      windowMs: 60 * 60 * 1_000,
+    });
+  }
 
   public async list(
     principal: WorkspacePrincipal,

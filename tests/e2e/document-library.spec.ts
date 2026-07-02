@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
-  syntheticAuthUser,
+  signInSyntheticUser,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -13,11 +13,7 @@ test("user saves an autosaved draft, creates a version, compares, and restores c
   page,
 }) => {
   const title = `Synthetic resume ${Date.now()}`;
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/u);
+  await signInSyntheticUser(page);
   await page.getByRole("link", { name: "Open document library" }).click();
   await page.getByLabel("Title").fill(title);
   await page.getByRole("button", { name: "Create document" }).click();
