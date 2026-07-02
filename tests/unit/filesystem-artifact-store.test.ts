@@ -61,4 +61,16 @@ describe("private filesystem artifact store", () => {
       ok: true,
     });
   });
+
+  it("enumerates only aged opaque keys for orphan reconciliation", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "vitae-orphans-"));
+    temporaryDirectories.push(root);
+    const store = new FilesystemArtifactStore(root);
+    const key = `${crypto.randomUUID()}/${crypto.randomUUID()}.bin`;
+    await store.putExclusive(key, Buffer.from("orphan fixture"));
+    expect(await store.listKeysOlderThan(60_000, Date.now())).toEqual([]);
+    expect(await store.listKeysOlderThan(60_000, Date.now() + 61_000)).toEqual([
+      key,
+    ]);
+  });
 });

@@ -28,7 +28,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ code: "UNTRUSTED_ORIGIN" }, { status: 403 });
   const principal = await getCurrentPrincipal(await headers());
   if (!principal)
-    return NextResponse.redirect(new URL("/sign-in", request.url), 303);
+    return NextResponse.redirect(
+      new URL("/sign-in", environment.BETTER_AUTH_URL),
+      303,
+    );
   try {
     const upload = await readBoundedMultipartUpload(
       request,
@@ -44,7 +47,10 @@ export async function POST(request: NextRequest) {
       declaredMediaType: upload.mediaType || "application/octet-stream",
       bytes: upload.bytes,
     });
-    return NextResponse.redirect(new URL(`/sources/${id}`, request.url), 303);
+    return NextResponse.redirect(
+      new URL(`/sources/${id}`, environment.BETTER_AUTH_URL),
+      303,
+    );
   } catch (error) {
     const code =
       error instanceof UnsafeUploadError
@@ -53,7 +59,10 @@ export async function POST(request: NextRequest) {
           ? "UPLOAD_RATE_LIMIT"
           : "UPLOAD_FAILED";
     return NextResponse.redirect(
-      new URL(`/sources?error=${encodeURIComponent(code)}`, request.url),
+      new URL(
+        `/sources?error=${encodeURIComponent(code)}`,
+        environment.BETTER_AUTH_URL,
+      ),
       303,
     );
   }

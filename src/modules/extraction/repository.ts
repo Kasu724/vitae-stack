@@ -189,7 +189,13 @@ export class ExtractionRepository {
     if (!batch.rows[0]) throw new ExtractionNotFoundError();
     const [proposals, entries] = await Promise.all([
       this.pool.query<ExtractionProposalRecord>(
-        `SELECT id,batch_id,target_career_entry_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,status,duplicate_of_fact_id,approved_fact_id,revision FROM extraction_proposals WHERE batch_id=$1 AND workspace_id=$2 ORDER BY created_at,id`,
+        `SELECT id,batch_id,target_career_entry_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,status,duplicate_of_fact_id,approved_fact_id,revision
+         FROM extraction_proposals
+         WHERE batch_id=$1 AND workspace_id=$2
+         ORDER BY CASE
+           WHEN source_locator->>'section' ~ '^Line [0-9]+$'
+           THEN split_part(source_locator->>'section',' ',2)::int
+         END NULLS LAST,created_at,id`,
         [batchId, principal.workspaceId],
       ),
       this.pool.query<{ id: string; title: string; type: string }>(
