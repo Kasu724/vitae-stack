@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:24.17.0-bookworm-slim AS base
+FROM node:24.17.0-bookworm-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN npm install --global corepack@0.35.0 && corepack enable && corepack prepare pnpm@11.9.0 --activate
@@ -20,7 +20,7 @@ RUN groupadd --system --gid 1001 nodejs \
   && mkdir -p /var/lib/vitae/artifacts /var/lib/vitae/parser-queue \
   && chown -R parser:nodejs /var/lib/vitae
 USER parser
-CMD ["pnpm", "parser:worker"]
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/parser-worker.ts"]
 
 FROM build AS job-fetcher
 RUN groupadd --system --gid 1001 nodejs \
@@ -28,9 +28,17 @@ RUN groupadd --system --gid 1001 nodejs \
   && mkdir -p /var/lib/vitae/job-fetch-queue \
   && chown -R fetcher:nodejs /var/lib/vitae/job-fetch-queue
 USER fetcher
-CMD ["pnpm", "job-fetch:worker"]
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/job-fetch-worker.ts"]
 
-FROM node:24.17.0-bookworm-slim AS runtime
+FROM build AS deletion-worker
+RUN groupadd --system --gid 1001 nodejs \
+  && useradd --system --uid 1001 --gid nodejs deleter \
+  && mkdir -p /var/lib/vitae/artifacts /var/lib/vitae/parser-queue /var/lib/vitae/job-fetch-queue \
+  && chown -R deleter:nodejs /var/lib/vitae
+USER deleter
+CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/workspace-deletion-worker.ts"]
+
+FROM node:24.17.0-bookworm-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532 AS runtime
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0

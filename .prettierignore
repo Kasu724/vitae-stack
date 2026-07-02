@@ -5,3 +5,5 @@ playwright-report
 test-results
 pnpm-lock.yaml
 LICENSE
+.gitattributes
+scripts/operations/*.sh

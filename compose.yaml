@@ -2,11 +2,13 @@ name: vitae-stack
 
 services:
   postgres:
-    image: postgres:18.4-bookworm
+    image: postgres:18.4-bookworm@sha256:9479eac93922431e8a512b016d7362ae264f4ba139f840891b51f02931e450db
     environment:
       POSTGRES_DB: vitae
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres-admin-dev-only
+      VITAE_OWNER_PASSWORD: ${VITAE_OWNER_PASSWORD:-vitae-owner-dev-only}
+      VITAE_APP_PASSWORD: ${VITAE_APP_PASSWORD:-vitae-app-dev-only}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d vitae"]
       interval: 2s
@@ -67,6 +69,8 @@ services:
       - job-fetch-queue:/var/lib/vitae/job-fetch-queue
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - backend
 
@@ -76,10 +80,11 @@ services:
       target: parser
     environment:
       NODE_ENV: production
+      GOMAXPROCS: "2"
       ARTIFACT_STORAGE_ROOT: /var/lib/vitae/artifacts
       PARSER_QUEUE_ROOT: /var/lib/vitae/parser-queue
     network_mode: none
-    mem_limit: 384m
+    mem_limit: 512m
     cpus: 1.0
     pids_limit: 64
     ulimits:
@@ -121,6 +126,40 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+
+  deletion-worker:
+    build:
+      context: .
+      target: deletion-worker
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://vitae_app:vitae-app-dev-only@postgres:5432/vitae
+      ARTIFACT_STORAGE_ROOT: /var/lib/vitae/artifacts
+      PARSER_QUEUE_ROOT: /var/lib/vitae/parser-queue
+      JOB_FETCH_QUEUE_ROOT: /var/lib/vitae/job-fetch-queue
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    ulimits:
+      nofile:
+        soft: 256
+        hard: 256
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - artifact-data:/var/lib/vitae/artifacts
+      - parser-queue:/var/lib/vitae/parser-queue
+      - job-fetch-queue:/var/lib/vitae/job-fetch-queue
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
 
   migrate:
     profiles: ["tools"]
