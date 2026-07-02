@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM node:24.17.0-bookworm-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532 AS base
+FROM node:26.4.0-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN npm install --global corepack@0.35.0 && corepack enable && corepack prepare pnpm@11.9.0 --activate
@@ -38,7 +38,7 @@ RUN groupadd --system --gid 1001 nodejs \
 USER deleter
 CMD ["node", "node_modules/tsx/dist/cli.mjs", "scripts/workspace-deletion-worker.ts"]
 
-FROM node:24.17.0-bookworm-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532 AS runtime
+FROM node:26.4.0-bookworm-slim@sha256:b16ca7b4dcfb20184e1c70f9ee30c6a75ed1da669cfafd6d2add4761b123d79f AS runtime
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
