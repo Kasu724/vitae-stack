@@ -85,10 +85,40 @@ for (let number = 1; number <= 28; number += 1) {
   if (!acceptance.includes(id))
     failures.push(`acceptance criteria missing ${id}`);
 }
+
+const tracedAcceptance = new Set();
+for (const sequence of traceability.matchAll(
+  /AC-\d{3}(?:(?:\s*[–-]\s*|,\s*)(?:AC-)?\d{3})*/gu,
+)) {
+  for (const chunk of sequence[0].replaceAll("AC-", "").split(",")) {
+    const [firstText, lastText] = chunk.split(/[–-]/u);
+    const first = Number(firstText.trim());
+    const last = Number(lastText?.trim() ?? firstText.trim());
+    for (let number = first; number <= last; number += 1) {
+      tracedAcceptance.add(number);
+    }
+  }
+}
+for (let number = 1; number <= 28; number += 1) {
+  if (!tracedAcceptance.has(number)) {
+    failures.push(`traceability missing AC-${String(number).padStart(3, "0")}`);
+  }
+}
 for (let number = 1; number <= 22; number += 1) {
   const id = `## M${String(number).padStart(2, "0")}`;
   if (!plan.includes(id))
     failures.push(`execution plan missing ${id.slice(3)}`);
+}
+const milestoneSections = plan.split(/^## M/gu).slice(1);
+for (const [index, section] of milestoneSections.entries()) {
+  const id = `M${String(index + 1).padStart(2, "0")}`;
+  for (const field of [
+    "Required tests:",
+    "Validation commands:",
+    "Completion criteria:",
+  ]) {
+    if (!section.includes(field)) failures.push(`${id} missing ${field}`);
+  }
 }
 
 if (failures.length > 0) {
