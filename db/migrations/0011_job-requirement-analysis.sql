@@ -37,12 +37,12 @@ CREATE TABLE "job_requirements" (
 	CONSTRAINT "job_requirements_source_triplet" CHECK (("job_requirements"."source_start" IS NULL AND "job_requirements"."source_end" IS NULL AND "job_requirements"."source_text" IS NULL) OR ("job_requirements"."source_start" >= 0 AND "job_requirements"."source_end" > "job_requirements"."source_start" AND "job_requirements"."source_text" IS NOT NULL AND length("job_requirements"."source_text") > 0))
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "job_requirement_sets_id_workspace_unique" ON "job_requirement_sets" USING btree ("id","workspace_id");--> statement-breakpoint
 ALTER TABLE "job_requirement_sets" ADD CONSTRAINT "job_requirement_sets_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_requirement_sets" ADD CONSTRAINT "job_requirement_sets_created_by_user_id_users_id_fk" FOREIGN KEY ("created_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_requirement_sets" ADD CONSTRAINT "job_requirement_sets_job_revision_workspace_fk" FOREIGN KEY ("job_posting_revision_id","workspace_id") REFERENCES "public"."job_posting_revisions"("id","workspace_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_requirement_sets" ADD CONSTRAINT "job_requirement_sets_parent_workspace_fk" FOREIGN KEY ("parent_set_id","workspace_id") REFERENCES "public"."job_requirement_sets"("id","workspace_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "job_requirements" ADD CONSTRAINT "job_requirements_set_workspace_fk" FOREIGN KEY ("requirement_set_id","workspace_id") REFERENCES "public"."job_requirement_sets"("id","workspace_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "job_requirement_sets_id_workspace_unique" ON "job_requirement_sets" USING btree ("id","workspace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "job_requirement_sets_revision_unique" ON "job_requirement_sets" USING btree ("job_posting_revision_id","revision_number");--> statement-breakpoint
 CREATE INDEX "job_requirement_sets_job_status_idx" ON "job_requirement_sets" USING btree ("job_posting_revision_id","status","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "job_requirements_id_workspace_unique" ON "job_requirements" USING btree ("id","workspace_id");--> statement-breakpoint

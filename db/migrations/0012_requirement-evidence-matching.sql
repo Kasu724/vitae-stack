@@ -43,6 +43,9 @@ CREATE TABLE "requirement_match_runs" (
 	CONSTRAINT "requirement_match_runs_hash_format" CHECK ("requirement_match_runs"."input_hash" ~ '^sha256:[0-9a-f]{64}$')
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "requirement_evidence_matches_id_workspace_unique" ON "requirement_evidence_matches" USING btree ("id","workspace_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "requirement_match_runs_context_unique" ON "requirement_match_runs" USING btree ("id","workspace_id","requirement_set_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "job_requirements_id_workspace_set_unique" ON "job_requirements" USING btree ("id","workspace_id","requirement_set_id");--> statement-breakpoint
 ALTER TABLE "requirement_evidence_decisions" ADD CONSTRAINT "requirement_evidence_decisions_decided_by_user_id_users_id_fk" FOREIGN KEY ("decided_by_user_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "requirement_evidence_decisions" ADD CONSTRAINT "requirement_evidence_decisions_match_workspace_fk" FOREIGN KEY ("match_id","workspace_id") REFERENCES "public"."requirement_evidence_matches"("id","workspace_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "requirement_evidence_matches" ADD CONSTRAINT "requirement_evidence_matches_run_context_fk" FOREIGN KEY ("match_run_id","workspace_id","requirement_set_id") REFERENCES "public"."requirement_match_runs"("id","workspace_id","requirement_set_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -53,14 +56,11 @@ ALTER TABLE "requirement_match_runs" ADD CONSTRAINT "requirement_match_runs_crea
 ALTER TABLE "requirement_match_runs" ADD CONSTRAINT "requirement_match_runs_set_workspace_fk" FOREIGN KEY ("requirement_set_id","workspace_id") REFERENCES "public"."job_requirement_sets"("id","workspace_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "requirement_evidence_decisions_match_revision_unique" ON "requirement_evidence_decisions" USING btree ("match_id","revision_number");--> statement-breakpoint
 CREATE INDEX "requirement_evidence_decisions_workspace_created_idx" ON "requirement_evidence_decisions" USING btree ("workspace_id","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "requirement_evidence_matches_id_workspace_unique" ON "requirement_evidence_matches" USING btree ("id","workspace_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "requirement_evidence_matches_candidate_unique" ON "requirement_evidence_matches" USING btree ("match_run_id","requirement_id","evidence_fact_id");--> statement-breakpoint
 CREATE INDEX "requirement_evidence_matches_requirement_score_idx" ON "requirement_evidence_matches" USING btree ("requirement_id","score_basis_points");--> statement-breakpoint
 CREATE UNIQUE INDEX "requirement_match_runs_id_workspace_unique" ON "requirement_match_runs" USING btree ("id","workspace_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "requirement_match_runs_context_unique" ON "requirement_match_runs" USING btree ("id","workspace_id","requirement_set_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "requirement_match_runs_revision_unique" ON "requirement_match_runs" USING btree ("requirement_set_id","revision_number");--> statement-breakpoint
 CREATE INDEX "requirement_match_runs_set_created_idx" ON "requirement_match_runs" USING btree ("requirement_set_id","created_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "job_requirements_id_workspace_set_unique" ON "job_requirements" USING btree ("id","workspace_id","requirement_set_id");
 --> statement-breakpoint
 CREATE FUNCTION protect_matching_history() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
