@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
-  syntheticAuthUser,
+  signInSyntheticUser,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -13,10 +13,7 @@ test("user configures a provider without exposing a credential", async ({
   page,
 }) => {
   const marker = Date.now();
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signInSyntheticUser(page);
   await page.getByRole("link", { name: "Configure model providers" }).click();
 
   await page.getByLabel("Display name").fill(`Synthetic provider ${marker}`);
@@ -32,9 +29,14 @@ test("user configures a provider without exposing a credential", async ({
       "Provider configuration saved. The credential cannot be viewed.",
     ),
   ).toBeVisible();
-  await expect(page.getByText(`Synthetic provider ${marker}`)).toBeVisible();
+  const configuredProvider = page.getByRole("listitem").filter({
+    has: page.getByRole("heading", { name: `Synthetic provider ${marker}` }),
+  });
+  await expect(configuredProvider).toBeVisible();
   await expect(
-    page.getByText("Environment reference AI_PROVIDER_SYNTHETIC_KEY"),
+    configuredProvider.getByText(
+      "Environment reference AI_PROVIDER_SYNTHETIC_KEY",
+    ),
   ).toBeVisible();
   await expect(page.getByLabel("Credential (write-only)")).toHaveValue("");
   await expect(page.locator("body")).not.toContainText("synthetic-secret");

@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
-  syntheticAuthUser,
+  signInSyntheticUser,
+  waitForSourceReady,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -14,11 +15,7 @@ test("source import and untrusted preview meet automated WCAG checks at 320px", 
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/u);
+  await signInSyntheticUser(page);
   await page.goto("/sources");
   expect(
     (
@@ -27,12 +24,16 @@ test("source import and untrusted preview meet automated WCAG checks at 320px", 
         .analyze()
     ).violations,
   ).toEqual([]);
-  await page.getByLabel("Document").setInputFiles({
-    name: "a11y-source.md",
-    mimeType: "text/markdown",
-    buffer: Buffer.from("# Synthetic source\n\nUnverified text"),
-  });
+  await page
+    .getByRole("region", { name: "Import a document" })
+    .getByLabel("Document")
+    .setInputFiles({
+      name: "a11y-source.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Synthetic source\n\nUnverified text"),
+    });
   await page.getByRole("button", { name: "Upload and parse" }).click();
+  await waitForSourceReady(page);
   expect(
     (
       await new AxeBuilder({ page })

@@ -1,8 +1,12 @@
 import { expect, test } from "@playwright/test";
 
+import { createDatabaseConnection } from "@/infrastructure/database/connection";
+
 import {
   ensureSyntheticAuthUser,
+  signInSyntheticUser,
   syntheticAuthUser,
+  waitForSourceReady,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -13,10 +17,41 @@ test("user saves pasted and file-based immutable job snapshots", async ({
   page,
 }) => {
   const marker = Date.now();
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  const connection = createDatabaseConnection(
+    process.env.DATABASE_URL ??
+      "postgresql://vitae_app:vitae-app-dev-only@127.0.0.1:5432/vitae",
+  );
+  try {
+    const context = await connection.pool.query<{
+      user_id: string;
+      workspace_id: string;
+      profile_id: string;
+    }>(
+      `SELECT u.id user_id,w.id workspace_id,p.id profile_id FROM users u JOIN workspace_memberships m ON m.user_id=u.id JOIN workspaces w ON w.id=m.workspace_id JOIN career_profiles p ON p.workspace_id=w.id WHERE u.email=$1 LIMIT 1`,
+      [syntheticAuthUser.email],
+    );
+    const fixture = context.rows[0]!;
+    const entry = await connection.pool.query<{ id: string }>(
+      `INSERT INTO career_entries (workspace_id,career_profile_id,type,title,description) VALUES ($1,$2,'project',$3,'Synthetic E2E matching fixture') RETURNING id`,
+      [fixture.workspace_id, fixture.profile_id, `Matching fixture ${marker}`],
+    );
+    await connection.pool.query(
+      `INSERT INTO evidence_facts (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id) VALUES ($1,$2,'statement',$3::jsonb,'Build corrected synthetic systems',$4::jsonb,$5)`,
+      [
+        fixture.workspace_id,
+        entry.rows[0]!.id,
+        JSON.stringify({
+          kind: "text",
+          text: "Build corrected synthetic systems",
+        }),
+        JSON.stringify({ kind: "manual", label: "Synthetic E2E fixture" }),
+        fixture.user_id,
+      ],
+    );
+  } finally {
+    await connection.pool.end();
+  }
+  await signInSyntheticUser(page);
   await page.getByRole("link", { name: "Add a job description" }).click();
 
   await page.getByLabel("Role title").first().fill(`Synthetic role ${marker}`);
@@ -54,8 +89,22 @@ test("user saves pasted and file-based immutable job snapshots", async ({
     ),
   ).toBeVisible();
   await expect(
-    page.getByText("Build corrected synthetic systems"),
+    page
+      .getByLabel("Current normalized snapshot")
+      .getByText("Build corrected synthetic systems", { exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Generate candidates" }).click();
+  await expect(
+    page.getByText(
+      "Deterministic evidence candidates and explicit gaps were generated.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByText(/lexical-evidence@1/u)).toBeVisible();
+  await page
+    .getByRole("button", { name: "Include", exact: true })
+    .first()
+    .click();
+  await expect(page.getByText("User decision: included").first()).toBeVisible();
 
   await page.goto("/jobs");
   await page.getByLabel("Job-description file").setInputFiles({
@@ -66,6 +115,7 @@ test("user saves pasted and file-based immutable job snapshots", async ({
     ),
   });
   await page.getByRole("button", { name: "Upload and review file" }).click();
+  await waitForSourceReady(page);
   await expect(
     page.getByText(/does not treat job claims as your career evidence/u),
   ).toBeVisible();

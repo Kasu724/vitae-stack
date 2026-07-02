@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
+  signInSyntheticUser,
   syntheticAuthUser,
 } from "../helpers/synthetic-auth";
 
@@ -12,10 +13,7 @@ test.beforeAll(async () => {
 test("password user signs in, enters the owned workspace, and signs out", async ({
   page,
 }) => {
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signInSyntheticUser(page);
 
   await expect(
     page.getByRole("heading", {

@@ -64,11 +64,23 @@ export default async function DashboardPage() {
           <Link href="/jobs" className="secondary-button inline-block">
             Add a job description
           </Link>
+          <Link href="/ats" className="secondary-button inline-block">
+            Run estimated ATS analysis
+          </Link>
+          <Link href="/exports" className="secondary-button inline-block">
+            Export a document
+          </Link>
           <Link
             href="/settings/providers"
             className="secondary-button inline-block"
           >
             Configure model providers
+          </Link>
+          <Link
+            href="/settings/privacy"
+            className="secondary-button inline-block"
+          >
+            Privacy and data controls
           </Link>
         </div>
       </section>
