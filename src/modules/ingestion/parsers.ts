@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import mammoth from "mammoth";
 
 import type { SupportedMediaType } from "./file-validation";
@@ -13,6 +15,13 @@ export interface ParsedSource {
   warnings: string[];
   parserVersion: string;
 }
+
+const pdfStandardFontDataUrl = `${path.join(
+  process.cwd(),
+  "node_modules",
+  "pdfjs-dist",
+  "standard_fonts",
+)}/`;
 
 function boundedText(text: string, maximum: number): string {
   const cleaned = text
@@ -48,11 +57,15 @@ export async function parseSourceBuffer(
   maximumTextCharacters = 500_000,
 ): Promise<ParsedSource> {
   if (mediaType === "application/pdf") {
+    // PDF.js loads this adapter dynamically in Node. Importing it explicitly
+    // keeps the native package and its platform binary in standalone builds.
+    await import("@napi-rs/canvas");
     const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
     const task = pdfjs.getDocument({
       data: new Uint8Array(buffer),
       disableAutoFetch: true,
       disableFontFace: true,
+      standardFontDataUrl: pdfStandardFontDataUrl,
       useWorkerFetch: false,
     });
     let document;

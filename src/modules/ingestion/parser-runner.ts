@@ -48,6 +48,7 @@ export async function runParserChild(input: {
       {
         cwd: process.cwd(),
         env: {
+          GOMAXPROCS: process.env.GOMAXPROCS ?? "2",
           NODE_ENV: process.env.NODE_ENV ?? "production",
           PATH: process.env.PATH ?? "",
         },
@@ -74,7 +75,11 @@ export async function runParserChild(input: {
     child.on("error", () =>
       finish({ ok: false, errorCode: "PARSER_START_FAILED" }),
     );
-    child.on("close", () => {
+    child.on("close", (code) => {
+      if (code !== 0 && chunks.length === 0) {
+        finish({ ok: false, errorCode: "PARSER_CHILD_FAILED" });
+        return;
+      }
       try {
         finish(
           childResultSchema.parse(

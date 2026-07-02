@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { authClient } from "../client";
 
@@ -9,6 +9,13 @@ export function SignInForm() {
   const router = useRouter();
   const [error, setError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (error) {
+      errorRef.current?.focus();
+    }
+  }, [error]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,12 +52,14 @@ export function SignInForm() {
           Email
         </label>
         <input
-          className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
+          className="field mt-2"
           id="email"
           name="email"
           type="email"
           autoComplete="username"
           inputMode="email"
+          aria-describedby={error ? "sign-in-error" : undefined}
+          aria-invalid={error ? true : undefined}
           required
         />
       </div>
@@ -59,24 +68,29 @@ export function SignInForm() {
           Password
         </label>
         <input
-          className="mt-2 w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2"
+          className="field mt-2"
           id="password"
           name="password"
           type="password"
           autoComplete="current-password"
+          aria-describedby={error ? "sign-in-error" : undefined}
+          aria-invalid={error ? true : undefined}
           required
         />
       </div>
       {error ? (
         <p
-          className="rounded-lg border border-red-700 bg-red-50 p-3 text-sm text-red-900"
+          className="rounded-lg border border-[var(--danger)] bg-[var(--surface)] p-3 text-sm text-[var(--danger)]"
+          id="sign-in-error"
+          ref={errorRef}
           role="alert"
+          tabIndex={-1}
         >
           {error}
         </p>
       ) : null}
       <button
-        className="rounded-lg bg-[var(--foreground)] px-5 py-2.5 font-semibold text-[var(--background)] disabled:opacity-60"
+        className="button disabled:opacity-60"
         type="submit"
         disabled={submitting}
       >

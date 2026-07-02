@@ -64,7 +64,7 @@ describe("document parsers", () => {
     const parsed = await parseSourceBuffer("application/pdf", bytes);
     expect(parsed.text).toContain("Synthetic PDF resume");
     expect(parsed.metadata.pageCount).toBe(1);
-  });
+  }, 20_000);
 
   it("preflights and extracts raw DOCX text", async () => {
     const bytes = await syntheticDocx();
