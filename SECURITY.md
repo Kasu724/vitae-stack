@@ -1,8 +1,14 @@
 # Security policy
 
-## Current state and supported versions
+## Supported versions
 
-The repository contains plans only; there is no released application or supported runtime version. Once releases exist, the latest minor release will receive security fixes and the support table will be updated here.
+Git tags and published GitHub releases are authoritative; a source checkout or version field alone does not prove that a release was published. The latest patch in the current `0.1.x` minor line receives security fixes after the first 0.1.0 release. Unreleased `main`, older patches, and modified images are not supported release artifacts.
+
+| Version                           | Security support                           |
+| --------------------------------- | ------------------------------------------ |
+| Latest published `0.1.x` patch    | Supported                                  |
+| Older `0.1.x` patches             | Upgrade to the latest patch                |
+| Unreleased branches/custom builds | Best effort; reproduce on a signed release |
 
 ## Reporting a vulnerability
 

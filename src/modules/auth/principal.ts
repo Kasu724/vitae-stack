@@ -4,6 +4,7 @@ import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 
 import { getAuth } from "./server";
+import { DeletionTombstoneStore } from "@/modules/privacy/tombstone-store";
 import {
   ensureTrustedLocalPrincipal,
   type WorkspacePrincipal,
@@ -16,7 +17,14 @@ export async function getCurrentPrincipal(
   const pool = getRuntimePool();
 
   if (environment.AUTH_MODE === "trusted-local") {
-    return ensureTrustedLocalPrincipal(pool);
+    const principal = await ensureTrustedLocalPrincipal(pool);
+    if (
+      await new DeletionTombstoneStore(environment.ARTIFACT_STORAGE_ROOT).has(
+        principal.workspaceId,
+      )
+    )
+      return null;
+    return principal;
   }
 
   const session = await getAuth().api.getSession({ headers: requestHeaders });
@@ -30,6 +38,12 @@ export async function getCurrentPrincipal(
   );
   const workspace = membership.rows[0];
   if (!workspace) return null;
+  if (
+    await new DeletionTombstoneStore(environment.ARTIFACT_STORAGE_ROOT).has(
+      workspace.workspace_id,
+    )
+  )
+    return null;
 
   return {
     authenticatedAt: new Date(session.session.createdAt),

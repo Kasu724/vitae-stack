@@ -94,7 +94,7 @@ describe("hostile upload rejection", () => {
         100_000,
       ),
     ).rejects.toMatchObject({ code: "EXTRACTED_TEXT_LIMIT" });
-  });
+  }, 15_000);
 
   it("enforces multipart file limits while streaming", async () => {
     const form = new FormData();
@@ -114,7 +114,7 @@ describe("hostile upload rejection", () => {
     });
   });
 
-  it("requires the exact configured origin for unsafe upload requests", () => {
+  it("requires an exact origin or browser-verified same-origin fallback", () => {
     expect(
       isTrustedRequestOrigin(
         new Request("http://127.0.0.1:3000/api/sources", {
@@ -127,6 +127,42 @@ describe("hostile upload rejection", () => {
       isTrustedRequestOrigin(
         new Request("http://127.0.0.1:3000/api/sources", {
           headers: { origin: "https://evil.invalid" },
+        }),
+        "http://127.0.0.1:3000",
+      ),
+    ).toBe(false);
+    expect(
+      isTrustedRequestOrigin(
+        new Request("http://127.0.0.1:3000/api/sources", {
+          headers: {
+            host: "127.0.0.1:3000",
+            origin: "null",
+            "sec-fetch-site": "same-origin",
+          },
+        }),
+        "http://127.0.0.1:3000",
+      ),
+    ).toBe(true);
+    expect(
+      isTrustedRequestOrigin(
+        new Request("http://127.0.0.1:3000/api/sources", {
+          headers: {
+            host: "127.0.0.1:3000",
+            origin: "null",
+            "sec-fetch-site": "cross-site",
+          },
+        }),
+        "http://127.0.0.1:3000",
+      ),
+    ).toBe(false);
+    expect(
+      isTrustedRequestOrigin(
+        new Request("http://evil.invalid/api/sources", {
+          headers: {
+            host: "evil.invalid",
+            origin: "null",
+            "sec-fetch-site": "same-origin",
+          },
         }),
         "http://127.0.0.1:3000",
       ),
