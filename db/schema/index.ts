@@ -8,3 +8,7 @@ export * from "./matching";
 export * from "./operations";
 export * from "./providers";
 export * from "./sources";
+export * from "./tailoring";
+export * from "./ats";
+export * from "./exports";
+export * from "./privacy";

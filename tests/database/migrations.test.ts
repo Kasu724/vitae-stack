@@ -28,6 +28,15 @@ describe("database migration artifacts", () => {
       "0010_model-provider-configuration.sql",
       "0011_job-requirement-analysis.sql",
       "0012_requirement-evidence-matching.sql",
+      "0013_resume-tailoring.sql",
+      "0014_tailoring-task-results.sql",
+      "0015_section-locks.sql",
+      "0016_suggestion-decisions.sql",
+      "0017_deterministic-ats.sql",
+      "0018_document-exports.sql",
+      "0019_portability-and-deletion.sql",
+      "0020_workspace-deletion-trigger-bypass.sql",
+      "0021_career-list-performance.sql",
     ]);
 
     for (const migrationFile of migrationFiles) {
