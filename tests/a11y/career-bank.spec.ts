@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
-  syntheticAuthUser,
+  signInSyntheticUser,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -14,11 +14,7 @@ test("career bank and entry editor meet automated WCAG A/AA checks at narrow wid
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/u);
+  await signInSyntheticUser(page);
   await page.goto("/career");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Career Information Bank",

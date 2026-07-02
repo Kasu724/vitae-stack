@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
-  syntheticAuthUser,
+  signInSyntheticUser,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -14,10 +14,7 @@ test("job input and revision review meet automated WCAG checks at 320px", async 
   page,
 }) => {
   await page.setViewportSize({ width: 320, height: 900 });
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signInSyntheticUser(page);
   await page.goto("/jobs");
   expect(
     (
@@ -32,6 +29,14 @@ test("job input and revision review meet automated WCAG checks at 320px", async 
     .fill("Synthetic accessible job text");
   await page.getByRole("button", { name: "Save job snapshot" }).click();
   await page.getByRole("button", { name: "Enter manually" }).click();
+  await page
+    .getByLabel("Requirement", { exact: true })
+    .fill(`Unmatched a11y requirement ${Date.now()}`);
+  await page.getByRole("button", { name: "Add accepted requirement" }).click();
+  await page
+    .getByRole("button", { name: "Finalize reviewed requirements" })
+    .click();
+  await page.getByRole("button", { name: "Generate candidates" }).click();
   expect(
     (
       await new AxeBuilder({ page })

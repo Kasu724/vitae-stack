@@ -9,15 +9,15 @@ export default function HomePage() {
       className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-16"
     >
       <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-        M02 database foundation
+        Self-hosted career documents
       </p>
       <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
         Vitae Stack
       </h1>
       <p className="mt-6 max-w-2xl text-lg text-[var(--muted)]">
-        A privacy-first platform for evidence-grounded resumes and cover
-        letters. Product workflows are being implemented milestone by milestone
-        and are not available in this foundation build.
+        Maintain approved career evidence, compare it with reviewed job
+        requirements, tailor resumes and cover letters, inspect every factual
+        claim, and export documents or your complete portable data.
       </p>
       <section
         className="mt-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6"
@@ -34,11 +34,11 @@ export default function HomePage() {
         </ul>
       </section>
       <p className="mt-8 text-sm text-[var(--muted)]">
-        Implementation status and requirements are maintained in the repository
-        documentation.
+        You choose what evidence and experiences to include, and every proposed
+        document change remains reviewable before it creates a version.
       </p>
       <Link
-        className="mt-8 w-fit rounded-lg bg-[var(--foreground)] px-5 py-2.5 font-semibold text-[var(--background)]"
+        className="button mt-8 w-fit"
         href={authenticationMode === "password" ? "/sign-in" : "/dashboard"}
       >
         {authenticationMode === "password" ? "Sign in" : "Open local workspace"}

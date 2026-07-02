@@ -9,7 +9,7 @@
   --border: #c7d0df;
   --action: #155eef;
   --action-text: #ffffff;
-  --focus: #f59e0b;
+  --focus: #6d28d9;
   --danger: #b42318;
 }
 
@@ -131,6 +131,27 @@ a {
 }
 
 @media (forced-colors: active) {
+  .button,
+  .secondary-button,
+  .danger-button,
+  .status-label,
+  .field {
+    border-color: ButtonText;
+  }
+
+  .button,
+  .secondary-button,
+  .danger-button {
+    background: ButtonFace;
+    color: ButtonText;
+  }
+
+  .button:disabled,
+  .secondary-button:disabled,
+  .danger-button:disabled {
+    color: GrayText;
+  }
+
   :focus-visible {
     outline-color: Highlight;
   }

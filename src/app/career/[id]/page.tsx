@@ -336,7 +336,10 @@ export default async function CareerEntryPage({
                   </div>
                   <div>
                     <dt className="inline font-semibold">Source: </dt>
-                    <dd className="inline">{fact.source_locator.label}</dd>
+                    <dd className="inline">
+                      {fact.source_locator.label}
+                      {fact.source_available ? "" : " (source unavailable)"}
+                    </dd>
                   </div>
                   <div>
                     <dt className="inline font-semibold">Approved: </dt>

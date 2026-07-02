@@ -4,7 +4,11 @@ test("foundation shell and health endpoint are available", async ({
   page,
   request,
 }) => {
-  await page.goto("/");
+  const documentResponse = await page.goto("/");
+  const policy = documentResponse?.headers()["content-security-policy"];
+  expect(policy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/u);
+  expect(policy).not.toContain("'unsafe-inline'");
+  expect(documentResponse?.headers()["x-content-type-options"]).toBe("nosniff");
   await expect(
     page.getByRole("heading", { level: 1, name: "Vitae Stack" }),
   ).toBeVisible();

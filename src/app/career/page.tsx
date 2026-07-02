@@ -11,6 +11,7 @@ import {
 import { CareerRepository } from "@/modules/career/repository";
 
 export const dynamic = "force-dynamic";
+const pageSize = 25;
 
 export default async function CareerBankPage({
   searchParams,
@@ -22,13 +23,36 @@ export default async function CareerBankPage({
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : "";
   const type = typeof params.type === "string" ? params.type : "";
-  const status = params.status === "archived" ? "archived" : "active";
+  const status: "active" | "archived" =
+    params.status === "archived" ? "archived" : "active";
+  const requestedPage =
+    typeof params.page === "string" ? Number.parseInt(params.page, 10) : 1;
+  const page =
+    Number.isSafeInteger(requestedPage) && requestedPage > 0
+      ? Math.min(requestedPage, 10_000)
+      : 1;
   const repository = new CareerRepository(getRuntimePool());
-  const [entries, skills, settings] = await Promise.all([
-    repository.listEntries(principal, { query, type, status }),
+  const filters = { query, type, status };
+  const [entries, totalEntries, skills, settings] = await Promise.all([
+    repository.listEntries(principal, {
+      ...filters,
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    }),
+    repository.countEntries(principal, filters),
     repository.listSkills(principal),
     repository.getProfileSettings(principal),
   ]);
+  const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  const pageHref = (targetPage: number) => {
+    const next = new URLSearchParams();
+    if (query) next.set("q", query);
+    if (type) next.set("type", type);
+    if (status !== "active") next.set("status", status);
+    if (targetPage > 1) next.set("page", String(targetPage));
+    const suffix = next.toString();
+    return suffix ? "/career?" + suffix : "/career";
+  };
   return (
     <main id="main-content" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <nav aria-label="Breadcrumb">
@@ -80,7 +104,7 @@ export default async function CareerBankPage({
         </button>
       </form>
       <p className="mt-5 text-sm text-[var(--muted)]" role="status">
-        {entries.length} {entries.length === 1 ? "entry" : "entries"}
+        {totalEntries} {totalEntries === 1 ? "entry" : "entries"}
       </p>
       {entries.length === 0 ? (
         <section className="mt-4 rounded-xl border border-dashed border-[var(--border)] p-8">
@@ -127,6 +151,26 @@ export default async function CareerBankPage({
           ))}
         </ul>
       )}
+      {totalPages > 1 ? (
+        <nav
+          aria-label="Career entry pages"
+          className="mt-6 flex flex-wrap items-center gap-4"
+        >
+          {page > 1 ? (
+            <Link className="secondary-button" href={pageHref(page - 1)}>
+              Previous page
+            </Link>
+          ) : null}
+          <span>
+            Page {Math.min(page, totalPages)} of {totalPages}
+          </span>
+          {page < totalPages ? (
+            <Link className="secondary-button" href={pageHref(page + 1)}>
+              Next page
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
       <div className="mt-10 grid gap-6 lg:grid-cols-2">
         <section
           className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"

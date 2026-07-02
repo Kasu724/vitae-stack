@@ -237,7 +237,7 @@ export default async function SourcePage({
             <input className="field" name="confirmation" autoComplete="off" />
           </label>
           <button className="danger-button" type="submit">
-            Permanently delete source
+            Delete source bytes
           </button>
         </form>
       </section>

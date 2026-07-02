@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import type { ReactNode } from "react";
 
 import "./globals.css";
@@ -8,9 +9,10 @@ export const metadata: Metadata = {
   description: "Privacy-first, evidence-grounded career documents",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  await connection();
   return (
     <html lang="en">
       <body>

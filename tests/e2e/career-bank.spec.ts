@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   ensureSyntheticAuthUser,
-  syntheticAuthUser,
+  signInSyntheticUser,
 } from "../helpers/synthetic-auth";
 
 test.beforeAll(async () => {
@@ -13,10 +13,7 @@ test("user creates an entry and explicitly approves grounded evidence", async ({
   page,
 }) => {
   const title = `Synthetic E2E project ${Date.now()}`;
-  await page.goto("/sign-in");
-  await page.getByLabel("Email").fill(syntheticAuthUser.email);
-  await page.getByLabel("Password").fill(syntheticAuthUser.password);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await signInSyntheticUser(page);
   await page
     .getByRole("link", { name: "Open Career Information Bank" })
     .click();
