@@ -1,0 +1,42 @@
+name: vitae-stack
+
+# Merge after compose.yaml and always use --no-build:
+# docker compose -f compose.yaml -f compose.production.yaml --env-file .env.production up --no-build
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      VITAE_OWNER_PASSWORD: ${VITAE_OWNER_PASSWORD:?Set VITAE_OWNER_PASSWORD}
+      VITAE_APP_PASSWORD: ${VITAE_APP_PASSWORD:?Set VITAE_APP_PASSWORD}
+    ports: !reset []
+
+  app:
+    image: ${VITAE_APP_IMAGE:?Set VITAE_APP_IMAGE to a verified digest reference}
+    pull_policy: always
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:?Set APP_BASE_URL}
+      DATABASE_URL: ${VITAE_DATABASE_URL:?Set VITAE_DATABASE_URL}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${APP_BASE_URL:?Set APP_BASE_URL}
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY:?Set CREDENTIAL_ENCRYPTION_KEY}
+      CREDENTIAL_KEY_VERSION: ${CREDENTIAL_KEY_VERSION:-1}
+
+  parser:
+    image: ${VITAE_PARSER_IMAGE:?Set VITAE_PARSER_IMAGE to a verified digest reference}
+    pull_policy: always
+
+  job-fetcher:
+    image: ${VITAE_JOB_FETCHER_IMAGE:?Set VITAE_JOB_FETCHER_IMAGE to a verified digest reference}
+    pull_policy: always
+
+  deletion-worker:
+    image: ${VITAE_DELETION_WORKER_IMAGE:?Set VITAE_DELETION_WORKER_IMAGE to a verified digest reference}
+    pull_policy: always
+    environment:
+      DATABASE_URL: ${VITAE_DATABASE_URL:?Set VITAE_DATABASE_URL}
+
+  migrate:
+    image: ${VITAE_TOOLS_IMAGE:?Set VITAE_TOOLS_IMAGE to a verified digest reference}
+    pull_policy: always
+    environment:
+      DATABASE_MIGRATION_URL: ${VITAE_MIGRATION_DATABASE_URL:?Set VITAE_MIGRATION_DATABASE_URL}
