@@ -18,6 +18,6 @@ Commit messages should be imperative and scoped, for example `docs(adr): decide 
 
 ## Review standard
 
-Maintainers evaluate correctness, evidence grounding, tenant isolation, privacy, accessibility, operational simplicity, testability, and backward compatibility. A feature is not complete because a happy-path UI exists. Generated factual content, destructive actions, URL/file ingestion, and secrets require explicit abuse-case coverage.
+Maintainers evaluate correctness, evidence grounding, tenant isolation, privacy, operational simplicity, testability, and backward compatibility. A feature is not complete because a happy-path UI exists. Generated factual content, destructive actions, URL/file ingestion, and secrets require explicit abuse-case coverage.
 
 By participating, contributors agree to the [Code of Conduct](CODE_OF_CONDUCT.md). Contributions are accepted under the repository license; contributors certify they have the right to submit them.
