@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { Pool } from "pg";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
 
 import { FilesystemArtifactStore } from "@/infrastructure/artifacts/filesystem-store";
 import type { ServerEnvironment } from "@/infrastructure/config/environment-schema";
@@ -290,7 +290,12 @@ export class WorkspaceDeletionService {
       const client = await this.pool.connect();
       try {
         await client.query("BEGIN");
-        await client.query("SET LOCAL vitae.workspace_deletion = 'on'");
+        // Several immutable history tables contain self-references (for
+        // example, a derived claim points at its source claim). Defer FK
+        // evaluation so the complete workspace aggregate can be erased in
+        // one transaction without mutating immutable rows first.
+        await client.query("PRAGMA defer_foreign_keys=ON");
+        client.authorizeWorkspaceDeletion();
         const urlImports = await client.query(
           "DELETE FROM job_url_imports WHERE workspace_id=$1",
           [operation.workspace_id],

@@ -41,7 +41,7 @@ export default async function SourcesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const query = await searchParams;
   const sources = await new SourceRepository(getRuntimePool()).list(principal);
   const errorCode = typeof query.error === "string" ? query.error : null;

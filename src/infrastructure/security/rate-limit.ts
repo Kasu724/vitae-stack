@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { Pool } from "pg";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
 
 export const APPLICATION_RATE_LIMIT_SCOPES = [
   "provider-test",

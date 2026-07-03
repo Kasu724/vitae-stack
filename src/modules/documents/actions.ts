@@ -17,7 +17,7 @@ function text(form: FormData, key: string): string {
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   return { principal, repository: new DocumentRepository(getRuntimePool()) };
 }
 

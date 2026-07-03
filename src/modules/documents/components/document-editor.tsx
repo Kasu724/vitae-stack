@@ -28,7 +28,6 @@ export function DocumentEditor({
 
   useEffect(() => {
     if (!changed.current) return;
-    setStatus("Draft changes pending.");
     const timeout = window.setTimeout(() => {
       const snapshot = structuredClone(content);
       const snapshotText = JSON.stringify(snapshot);
@@ -89,6 +88,7 @@ export function DocumentEditor({
   function updateBlock(sectionIndex: number, blockIndex: number, text: string) {
     changed.current = true;
     setHasUnsavedChanges(true);
+    setStatus("Draft changes pending.");
     setContent((current) => {
       const next = structuredClone(current);
       next.sections[sectionIndex]!.blocks[blockIndex]!.text = text;

@@ -3,9 +3,11 @@ node_modules/
 .next/
 out/
 dist/
+.release/
 coverage/
 playwright-report/
 test-results/
+/tmp/
 *.tsbuildinfo
 
 # Secrets and local configuration
@@ -17,9 +19,10 @@ test-results/
 *.key
 
 # Private runtime data
-var/
-uploads/
-exports/
+.vitae-stack/
+/var/
+/uploads/
+/exports/
 *.sqlite
 *.sqlite-*
 

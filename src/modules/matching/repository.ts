@@ -1,9 +1,9 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import type {
   EvidenceValue,
   SourceLocatorValue,
-} from "../../../db/schema/career";
+} from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
 import {
@@ -234,10 +234,11 @@ export class MatchingRepository {
        FROM requirement_evidence_matches m
        JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
        JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
-       LEFT JOIN LATERAL (
-         SELECT decision,revision_number FROM requirement_evidence_decisions
-         WHERE match_id=m.id AND workspace_id=m.workspace_id ORDER BY revision_number DESC LIMIT 1
-       ) d ON true
+       LEFT JOIN requirement_evidence_decisions d ON d.id=(
+         SELECT latest.id FROM requirement_evidence_decisions latest
+         WHERE latest.match_id=m.id AND latest.workspace_id=m.workspace_id
+         ORDER BY latest.revision_number DESC LIMIT 1
+       )
        WHERE m.match_run_id=$1 AND m.workspace_id=$2
        ORDER BY m.requirement_id,m.score_basis_points DESC,m.evidence_fact_id`,
       [run.rows[0].id, principal.workspaceId],

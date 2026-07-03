@@ -40,10 +40,6 @@ body:
       description: OS, browser, deployment mode, database/storage/provider type; redact hosts and secrets.
     validations: { required: true }
   - type: textarea
-    id: accessibility
-    attributes:
-      label: Accessibility and assistive technology impact
-  - type: textarea
     id: safe_diagnostics
     attributes:
       label: Safe diagnostics

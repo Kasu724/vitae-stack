@@ -1,14 +1,12 @@
 // @vitest-environment node
 
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
-import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabaseConnection } from "@/infrastructure/database/connection";
-import { migrateDatabase } from "@/infrastructure/database/migration";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  createSqliteTestDatabase,
+  type SqliteTestDatabase,
+} from "../helpers/sqlite-test-database";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import {
   DocumentConflictError,
@@ -16,8 +14,7 @@ import {
   DocumentRepository,
 } from "@/modules/documents/repository";
 
-let container: StartedPostgreSqlContainer;
-let ownerPool: Pool;
+let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
 let repository: DocumentRepository;
 let first: WorkspacePrincipal;
@@ -42,35 +39,24 @@ async function principal(label: string): Promise<WorkspacePrincipal> {
     "INSERT INTO career_profiles (workspace_id,display_name) VALUES ($1,$2)",
     [workspaceId, label],
   );
-  return { authenticatedAt: new Date(), mode: "password", userId, workspaceId };
+  return {
+    authenticatedAt: new Date(),
+    mode: "trusted-local",
+    userId,
+    workspaceId,
+  };
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:18.4-bookworm")
-    .withDatabase("vitae_documents_test")
-    .withUsername("postgres")
-    .withPassword("synthetic-admin-password")
-    .start();
-  ownerPool = new Pool({ connectionString: container.getConnectionUri() });
-  await ownerPool.query(
-    "CREATE ROLE vitae_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'synthetic-runtime-password'",
-  );
-  await ownerPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
-  const migration = createDatabaseConnection(container.getConnectionUri());
-  await migrateDatabase(migration.database);
-  await migration.pool.end();
-  runtimePool = new Pool({
-    connectionString: `postgresql://vitae_app:synthetic-runtime-password@${container.getHost()}:${container.getPort()}/${container.getDatabase()}`,
-  });
+  testDatabase = await createSqliteTestDatabase("documents");
+  runtimePool = testDatabase.pool;
   repository = new DocumentRepository(runtimePool);
   first = await principal("document-first");
   second = await principal("document-second");
 }, 120_000);
 
 afterAll(async () => {
-  await runtimePool?.end();
-  await ownerPool?.end();
-  await container?.stop();
+  await testDatabase?.cleanup();
 });
 
 describe("document library and versioning", () => {
@@ -189,11 +175,11 @@ describe("document library and versioning", () => {
       [first.workspaceId, record.currentVersion.id, block.id],
     );
     expect(claim.rows[0]?.id).toBeTruthy();
-    const otherFact = await ownerPool.query<{ id: string }>(
+    const otherFact = await runtimePool.query<{ id: string }>(
       `INSERT INTO career_entries (workspace_id,career_profile_id,type,title) SELECT workspace_id,id,'custom','Other' FROM career_profiles WHERE workspace_id=$1 RETURNING id`,
       [second.workspaceId],
     );
-    const fact = await ownerPool.query<{ id: string }>(
+    const fact = await runtimePool.query<{ id: string }>(
       `INSERT INTO evidence_facts (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id) VALUES ($1,$2,'statement','{"kind":"text","text":"other"}','other','{"kind":"manual","label":"Manual"}',$3) RETURNING id`,
       [second.workspaceId, otherFact.rows[0]!.id, second.userId],
     );

@@ -1,27 +1,25 @@
-import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import path from "node:path";
 
-import * as schema from "../../../db/schema";
+import { SqlitePool } from "./sqlite-pool";
 
-export type Database = NodePgDatabase<typeof schema>;
+export type Database = SqlitePool;
 
 export interface DatabaseConnection {
   database: Database;
-  pool: Pool;
+  pool: SqlitePool;
 }
 
 export function createDatabaseConnection(
-  connectionString: string,
-  options: { maxConnections?: number } = {},
+  databasePath: string,
+  _options: { maxConnections?: number } = {},
 ): DatabaseConnection {
-  const pool = new Pool({
-    connectionString,
-    max: options.maxConnections ?? 10,
-    allowExitOnIdle: true,
-  });
+  void _options;
+  const resolvedPath =
+    databasePath === ":memory:" ? databasePath : path.resolve(databasePath);
+  const pool = new SqlitePool(resolvedPath);
 
   return {
-    database: drizzle(pool, { schema }),
+    database: pool,
     pool,
   };
 }

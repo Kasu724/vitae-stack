@@ -18,8 +18,7 @@ test("user saves pasted and file-based immutable job snapshots", async ({
 }) => {
   const marker = Date.now();
   const connection = createDatabaseConnection(
-    process.env.DATABASE_URL ??
-      "postgresql://vitae_app:vitae-app-dev-only@127.0.0.1:5432/vitae",
+    process.env.DATABASE_PATH ?? "./var/vitae.sqlite",
   );
   try {
     const context = await connection.pool.query<{

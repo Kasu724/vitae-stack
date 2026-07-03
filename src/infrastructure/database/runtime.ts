@@ -1,7 +1,5 @@
 import "server-only";
 
-import type { Pool } from "pg";
-
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 
 import {
@@ -9,6 +7,7 @@ import {
   type Database,
   type DatabaseConnection,
 } from "./connection";
+import type { Pool } from "./sqlite-pool";
 
 const runtimeGlobal = globalThis as typeof globalThis & {
   vitaeRuntimeConnection?: DatabaseConnection;
@@ -18,7 +17,7 @@ function getRuntimeConnection(): DatabaseConnection {
   if (!runtimeGlobal.vitaeRuntimeConnection) {
     const environment = readServerEnvironment();
     runtimeGlobal.vitaeRuntimeConnection = createDatabaseConnection(
-      environment.DATABASE_URL,
+      environment.DATABASE_PATH,
     );
   }
 

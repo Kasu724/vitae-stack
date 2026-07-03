@@ -7,12 +7,9 @@ import {
 
 describe("deterministic evidence matching", () => {
   it("normalizes terms and excludes common words", () => {
-    expect(lexicalTokens("Build accessible systems with PostgreSQL")).toEqual([
-      "build",
-      "accessible",
-      "systems",
-      "postgresql",
-    ]);
+    expect(lexicalTokens("Build maintainable systems with PostgreSQL")).toEqual(
+      ["build", "maintainable", "systems", "postgresql"],
+    );
   });
 
   it("classifies direct skill, combined evidence, weak evidence, and gaps", () => {
@@ -21,7 +18,7 @@ describe("deterministic evidence matching", () => {
         { id: "req-skill", text: "Experience with PostgreSQL" },
         {
           id: "req-combined",
-          text: "secure accessible distributed systems",
+          text: "secure maintainable distributed systems",
         },
         { id: "req-gap", text: "Kubernetes cluster administration" },
       ],
@@ -35,8 +32,8 @@ describe("deterministic evidence matching", () => {
         {
           id: "fact-a",
           type: "statement",
-          displayText: "Secure accessible interfaces",
-          value: { kind: "text", text: "Secure accessible interfaces" },
+          displayText: "Secure maintainable interfaces",
+          value: { kind: "text", text: "Secure maintainable interfaces" },
         },
         {
           id: "fact-b",

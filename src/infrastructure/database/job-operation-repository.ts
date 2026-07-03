@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool } from "./sqlite-pool";
 
 export interface LeasedJobOperation {
   id: string;
@@ -47,33 +47,19 @@ export class JobOperationRepository {
     }
 
     const result = await this.pool.query<JobOperationRow>(
-      `WITH candidate AS (
-         SELECT id
-         FROM job_operations
-         WHERE state = 'pending'
-           AND available_at <= now()
-           AND attempt < max_attempts
-         ORDER BY available_at, created_at, id
-         FOR UPDATE SKIP LOCKED
-         LIMIT 1
-       )
-       UPDATE job_operations AS operation
+      `UPDATE job_operations
        SET state = 'running',
-           attempt = operation.attempt + 1,
+           attempt = attempt + 1,
            lease_owner = $1,
            lease_expires_at = now() + ($2 * interval '1 millisecond'),
-           started_at = COALESCE(operation.started_at, now()),
+           started_at = COALESCE(started_at, now()),
            updated_at = now()
-       FROM candidate
-       WHERE operation.id = candidate.id
-       RETURNING operation.id,
-                 operation.workspace_id,
-                 operation.operation_type,
-                 operation.input_hash,
-                 operation.attempt,
-                 operation.max_attempts,
-                 operation.lease_owner,
-                 operation.lease_expires_at`,
+       WHERE id = (
+         SELECT id FROM job_operations
+         WHERE state='pending' AND available_at<=now() AND attempt<max_attempts
+         ORDER BY available_at,created_at,id LIMIT 1
+       )
+       RETURNING id,workspace_id,operation_type,input_hash,attempt,max_attempts,lease_owner,lease_expires_at`,
       [workerId, leaseDurationMs],
     );
 

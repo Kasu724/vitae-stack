@@ -12,7 +12,7 @@ import { SourceService } from "./source-service";
 
 export async function deleteSourceAction(form: FormData): Promise<void> {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const id = form.get("sourceId");
   if (typeof id !== "string") redirect("/sources");
   if (form.get("confirmation") !== "DELETE")

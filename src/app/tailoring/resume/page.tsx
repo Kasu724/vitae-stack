@@ -20,7 +20,7 @@ export default async function ResumeTailoringSetupPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const query = await searchParams;
   const documentId =
     typeof query.documentId === "string" ? query.documentId : null;

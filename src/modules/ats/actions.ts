@@ -15,7 +15,7 @@ function text(form: FormData, key: string): string {
 
 export async function generateAtsReportAction(form: FormData): Promise<void> {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const documentId = text(form, "documentId");
   let reportId: string;
   try {

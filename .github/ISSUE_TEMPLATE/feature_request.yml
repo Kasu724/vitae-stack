@@ -23,7 +23,7 @@ body:
   - type: textarea
     id: principles
     attributes:
-      label: Evidence, privacy, security, accessibility, and portability impact
+      label: Evidence, privacy, security, and portability impact
       description: Explain data/provider changes and how unsupported claims remain blocked.
     validations: { required: true }
   - type: textarea

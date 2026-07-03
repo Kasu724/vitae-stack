@@ -31,7 +31,7 @@ function fixture(): {
 } {
   const first =
     "Built distributed TypeScript services in 2024, improving onboarding by 20%.";
-  const second = "Led accessible product delivery with security reviews.";
+  const second = "Led maintainable product delivery with security reviews.";
   return {
     document: {
       schemaVersion: 1,
@@ -69,7 +69,7 @@ function fixture(): {
       },
       {
         id: ids.preferred,
-        text: "accessible product delivery",
+        text: "maintainable product delivery",
         category: "preferred_qualification",
         priority: "preferred",
       },

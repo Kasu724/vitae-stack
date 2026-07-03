@@ -9,6 +9,10 @@ const ignored = new Set([
   "coverage",
   "playwright-report",
   "test-results",
+  "dist",
+  ".release",
+  "tmp",
+  "var",
 ]);
 
 async function walk(directory) {
@@ -75,12 +79,12 @@ const traceability = await readFile(
   "utf8",
 );
 
-for (let number = 1; number <= 30; number += 1) {
+for (let number = 1; number <= 29; number += 1) {
   const id = `PR-${String(number).padStart(3, "0")}`;
   if (!requirements.includes(id)) failures.push(`requirements missing ${id}`);
   if (!traceability.includes(id)) failures.push(`traceability missing ${id}`);
 }
-for (let number = 1; number <= 28; number += 1) {
+for (let number = 1; number <= 27; number += 1) {
   const id = `AC-${String(number).padStart(3, "0")}`;
   if (!acceptance.includes(id))
     failures.push(`acceptance criteria missing ${id}`);
@@ -99,7 +103,7 @@ for (const sequence of traceability.matchAll(
     }
   }
 }
-for (let number = 1; number <= 28; number += 1) {
+for (let number = 1; number <= 27; number += 1) {
   if (!tracedAcceptance.has(number)) {
     failures.push(`traceability missing AC-${String(number).padStart(3, "0")}`);
   }

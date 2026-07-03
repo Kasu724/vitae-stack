@@ -13,7 +13,7 @@
 
 - Evidence/provenance:
 - Security/privacy/secrets/logging:
-- Accessibility/responsive behavior:
+- Responsive behavior:
 - Provider/storage/deployment lock-in:
 
 ## Verification
@@ -22,11 +22,11 @@
 
 - [ ] Formatting/lint/type checks
 - [ ] Unit/integration/contract tests as applicable
-- [ ] E2E/accessibility/security tests as applicable
+- [ ] E2E/security tests as applicable
 - [ ] Production build/migration/docs checks as applicable
 - [ ] Synthetic fixtures only; no real user data or secrets
 - [ ] Documentation and traceability updated
 
 ## Screenshots or artifacts
 
-<!-- Use synthetic data, include keyboard/zoom/error states when UI changes, and redact identifiers. -->
+<!-- Use synthetic data, include narrow-screen and error states when UI changes, and redact identifiers. -->

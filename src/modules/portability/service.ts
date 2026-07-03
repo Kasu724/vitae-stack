@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import {
   exportArtifactStorageKey,
@@ -90,7 +90,6 @@ function transformRow(
 
 function insertionRow(row: PortableRow, table: PortableTable): PortableRow {
   if (table === "documents") return { ...row, current_version_id: null };
-  if (table === "job_postings") return { ...row, current_revision_id: null };
   return row;
 }
 
@@ -143,9 +142,14 @@ async function insertRecord(
   table: PortableTable,
   row: PortableRow,
 ): Promise<void> {
+  const columns = Object.keys(row);
+  if (columns.length === 0) throw new PortabilityValidationError();
+  const identifiers = columns.map(
+    (column) => `"${column.replaceAll('"', '""')}"`,
+  );
   await client.query(
-    `INSERT INTO "${table}" SELECT * FROM jsonb_populate_record(NULL::"${table}", $1::jsonb)`,
-    [JSON.stringify(row)],
+    `INSERT INTO "${table}" (${identifiers.join(",")}) VALUES (${columns.map((_, index) => `$${index + 1}`).join(",")})`,
+    columns.map((column) => row[column]),
   );
 }
 
@@ -171,13 +175,19 @@ export class PortabilityService {
         tables[table] = [];
         continue;
       }
-      const result = await this.pool.query<{ row: PortableRow }>(
-        `SELECT to_jsonb(t) row FROM "${table}" t WHERE workspace_id=$1 ORDER BY to_jsonb(t)::text`,
+      const result = await this.pool.query<PortableRow>(
+        `SELECT * FROM "${table}" WHERE workspace_id=$1`,
         [principal.workspaceId],
       );
-      tables[table] = result.rows.map(({ row }) =>
-        table === "model_provider_configurations" ? sanitizeProvider(row) : row,
-      );
+      tables[table] = result.rows
+        .map((row) =>
+          table === "model_provider_configurations"
+            ? sanitizeProvider(row)
+            : row,
+        )
+        .sort((left, right) =>
+          JSON.stringify(left).localeCompare(JSON.stringify(right)),
+        );
     }
 
     const blobs: PortabilityArchive["blobs"] = [];
@@ -427,13 +437,6 @@ export class PortabilityService {
             await client.query(
               "UPDATE documents SET current_version_id=$1 WHERE id=$2 AND workspace_id=$3",
               [row.current_version_id, row.id, principal.workspaceId],
-            );
-        }
-        for (const row of tableRows(archive, "job_postings")) {
-          if (row.current_revision_id)
-            await client.query(
-              "UPDATE job_postings SET current_revision_id=$1 WHERE id=$2 AND workspace_id=$3",
-              [row.current_revision_id, row.id, principal.workspaceId],
             );
         }
         await client.query(

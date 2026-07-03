@@ -3,14 +3,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 
 import { getRuntimePool } from "@/infrastructure/database/runtime";
-import { SignOutButton } from "@/modules/auth/components/sign-out-button";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
 
   const result = await getRuntimePool().query<{
     user_name: string;
@@ -25,20 +24,17 @@ export default async function DashboardPage() {
     [principal.userId, principal.workspaceId],
   );
   const account = result.rows[0];
-  if (!account) redirect("/sign-in");
+  if (!account) redirect("/");
 
   return (
     <main id="main-content" className="mx-auto max-w-4xl px-6 py-12">
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-            {account.workspace_name}
+            Personal workspace
           </p>
-          <h1 className="mt-2 text-3xl font-bold">
-            Welcome, {account.user_name}
-          </h1>
+          <h1 className="mt-2 text-3xl font-bold">Welcome to Vitae Stack</h1>
         </div>
-        {principal.mode === "password" ? <SignOutButton /> : null}
       </header>
       <section
         className="mt-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6"
@@ -48,8 +44,8 @@ export default async function DashboardPage() {
           Workspace ready
         </h2>
         <p className="mt-3 text-[var(--muted)]">
-          Authentication and workspace isolation are active. Build verified,
-          reusable evidence before creating career documents.
+          Your workspace and documents are stored in this local installation.
+          Build verified, reusable evidence before creating career documents.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
           <Link href="/career" className="button inline-block">

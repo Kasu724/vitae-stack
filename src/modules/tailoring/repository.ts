@@ -1,7 +1,9 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
-import type { EvidenceValue } from "../../../db/schema/career";
-import type { TailoringRunManifest } from "../../../db/schema/tailoring";
+import type {
+  EvidenceValue,
+  TailoringRunManifest,
+} from "@/infrastructure/database/value-types";
 import {
   canonicalDocumentSchema,
   type CanonicalDocument,
@@ -230,7 +232,7 @@ export class TailoringRepository {
       ),
       this.pool.query<ResumeSetupData["jobs"][number]>(
         `SELECT DISTINCT j.id,j.title,j.company FROM job_postings j
-         JOIN LATERAL (SELECT id FROM job_posting_revisions WHERE job_posting_id=j.id AND workspace_id=j.workspace_id ORDER BY revision_number DESC LIMIT 1) r ON true
+         JOIN job_posting_revisions r ON r.id=(SELECT latest.id FROM job_posting_revisions latest WHERE latest.job_posting_id=j.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
          JOIN job_requirement_sets s ON s.job_posting_revision_id=r.id AND s.workspace_id=j.workspace_id AND s.status='reviewed'
          JOIN requirement_match_runs m ON m.requirement_set_id=s.id AND m.workspace_id=s.workspace_id
          WHERE j.workspace_id=$1 AND j.status='active' ORDER BY j.title,j.id`,
@@ -318,9 +320,9 @@ export class TailoringRepository {
       }>(
         `SELECT r.id job_revision_id,r.normalized_text,r.content_hash job_hash,s.id requirement_set_id,m.id match_run_id
          FROM job_postings j
-         JOIN LATERAL (SELECT id,normalized_text,content_hash FROM job_posting_revisions WHERE job_posting_id=j.id AND workspace_id=j.workspace_id ORDER BY revision_number DESC LIMIT 1) r ON true
-         JOIN LATERAL (SELECT id FROM job_requirement_sets WHERE job_posting_revision_id=r.id AND workspace_id=j.workspace_id AND status='reviewed' ORDER BY revision_number DESC LIMIT 1) s ON true
-         JOIN LATERAL (SELECT id FROM requirement_match_runs WHERE requirement_set_id=s.id AND workspace_id=j.workspace_id ORDER BY revision_number DESC LIMIT 1) m ON true
+         JOIN job_posting_revisions r ON r.id=(SELECT latest.id FROM job_posting_revisions latest WHERE latest.job_posting_id=j.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
+         JOIN job_requirement_sets s ON s.id=(SELECT latest.id FROM job_requirement_sets latest WHERE latest.job_posting_revision_id=r.id AND latest.workspace_id=j.workspace_id AND latest.status='reviewed' ORDER BY latest.revision_number DESC LIMIT 1)
+         JOIN requirement_match_runs m ON m.id=(SELECT latest.id FROM requirement_match_runs latest WHERE latest.requirement_set_id=s.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
          WHERE j.id=$1 AND j.workspace_id=$2 AND j.status='active'`,
         [input.jobId, principal.workspaceId],
       );
@@ -329,7 +331,7 @@ export class TailoringRepository {
       const provider = await client.query<{
         task_assignments: Record<string, string>;
       }>(
-        `SELECT task_assignments FROM model_provider_configurations WHERE id=$1 AND workspace_id=$2 AND status='available' AND capabilities->>'structuredOutput'='true'`,
+        `SELECT task_assignments FROM model_provider_configurations WHERE id=$1 AND workspace_id=$2 AND status='available' AND json_extract(capabilities,'$.structuredOutput')=1`,
         [input.providerConfigurationId, principal.workspaceId],
       );
       const requiredTasks =
@@ -364,7 +366,7 @@ export class TailoringRepository {
          FROM requirement_evidence_matches m
          JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id AND f.status='approved'
          JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id AND e.status='active'
-         JOIN LATERAL (SELECT decision FROM requirement_evidence_decisions WHERE match_id=m.id AND workspace_id=m.workspace_id ORDER BY revision_number DESC LIMIT 1) d ON true
+         JOIN requirement_evidence_decisions d ON d.id=(SELECT latest.id FROM requirement_evidence_decisions latest WHERE latest.match_id=m.id AND latest.workspace_id=m.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
          WHERE m.match_run_id=$1 AND m.workspace_id=$2 AND m.strength IN ('direct','combined') AND d.decision='included' AND f.career_entry_id=ANY($3::uuid[])
          ORDER BY f.id,m.requirement_id`,
         [jobRow.match_run_id, principal.workspaceId, selectedEntries],

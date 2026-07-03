@@ -15,12 +15,7 @@ export default async function RootLayout({
   await connection();
   return (
     <html lang="en">
-      <body>
-        <a className="skip-link" href="#main-content">
-          Skip to main content
-        </a>
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

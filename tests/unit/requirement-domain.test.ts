@@ -14,7 +14,7 @@ describe("job requirement domain", () => {
       "Preferred qualifications:",
       "- Experience with PostgreSQL",
       "Responsibilities:",
-      "- Build accessible systems",
+      "- Build maintainable systems",
     ].join("\n");
     const proposals = extractDeterministicRequirements(snapshot);
     expect(proposals).toHaveLength(3);

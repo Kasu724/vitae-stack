@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default async function PrivacySettingsPage() {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const environment = readServerEnvironment();
   return (
     <main id="main-content" className="mx-auto max-w-5xl px-4 py-10 sm:px-6">

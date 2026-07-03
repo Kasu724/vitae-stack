@@ -1,4 +1,0 @@
-CREATE INDEX "career_entries_workspace_status_updated_idx" ON "career_entries" USING btree ("workspace_id","status","updated_at","id");--> statement-breakpoint
-CREATE INDEX "career_entries_duplicate_lookup_idx" ON "career_entries" USING btree ("workspace_id",lower("title"),coalesce(lower("organization"), ''));--> statement-breakpoint
-CREATE INDEX "evidence_facts_entry_status_idx" ON "evidence_facts" USING btree ("workspace_id","career_entry_id","status");--> statement-breakpoint
-CREATE INDEX "fact_proposals_entry_status_idx" ON "fact_proposals" USING btree ("workspace_id","career_entry_id","status");

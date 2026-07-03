@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 

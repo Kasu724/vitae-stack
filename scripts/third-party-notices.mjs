@@ -55,10 +55,19 @@ const unique = packages.filter(
     `${entry.name}@${entry.version}` !==
       `${packages[index - 1].name}@${packages[index - 1].version}`,
 );
+const bundledAssets = [
+  {
+    license: "OFL-1.1",
+    name: "Noto Sans Regular font",
+    upstream:
+      "https://github.com/notofonts/latin-greek-cyrillic/releases/tag/NotoSans-v2.015",
+    version: "2.015",
+  },
+];
 const lines = [
   "# Third-party notices",
   "",
-  "This generated inventory covers dependency packages resolved by the pinned pnpm lockfile, including build/test packages present in release tools or worker build layers. Package names, versions, declared licenses, and upstream project links are informational; the corresponding license files distributed inside dependency packages remain authoritative. This is not legal advice.",
+  "This generated inventory covers dependency packages resolved by the pinned pnpm lockfile, including build/test packages present in release tools or worker build layers, plus repository-bundled third-party assets. Package names, versions, declared licenses, and upstream project links are informational; the corresponding distributed license files remain authoritative. This is not legal advice.",
   "",
   "Regenerate with `pnpm notices:generate` after a production dependency change and verify with `pnpm notices:check`.",
   "",
@@ -72,6 +81,15 @@ const lines = [
       : "Not declared";
     return `| \`${label}\` | ${license} | ${upstream} |`;
   }),
+  "",
+  "## Repository-bundled assets",
+  "",
+  "| Asset | Version | Declared license | Upstream |",
+  "| ----- | ------- | ---------------- | -------- |",
+  ...bundledAssets.map(
+    (asset) =>
+      `| ${asset.name} | ${asset.version} | ${asset.license} | [source](${asset.upstream}) |`,
+  ),
   "",
 ];
 const generated = await format(`${lines.join("\n")}\n`, {

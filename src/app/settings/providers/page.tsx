@@ -38,7 +38,7 @@ export default async function ProviderSettingsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const query = await searchParams;
   const configurations = await new ProviderConfigurationRepository(
     getRuntimePool(),

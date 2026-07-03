@@ -36,7 +36,9 @@ export function DataControls() {
       }),
     });
     if (!response.ok) {
-      setStatus("The archive could not be created. Sign in again and retry.");
+      setStatus(
+        "The archive could not be created. Return to the local workspace and retry.",
+      );
       return;
     }
     const url = URL.createObjectURL(await response.blob());
@@ -114,7 +116,7 @@ export function DataControls() {
         <h2 className="text-xl font-semibold">Export all portable data</h2>
         <p className="mt-2 text-[var(--muted)]">
           The JSON archive includes records, document history, provenance, and
-          settings. Credentials, sessions, and secret values are never included.
+          settings. Credentials and secret values are never included.
         </p>
         <form onSubmit={download} className="mt-4 grid gap-3">
           <label className="flex items-start gap-2">

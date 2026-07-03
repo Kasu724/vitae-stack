@@ -1,6 +1,6 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
-import type { JobRequirementAnalysisMetadata } from "../../../db/schema/jobs";
+import type { JobRequirementAnalysisMetadata } from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
 import {

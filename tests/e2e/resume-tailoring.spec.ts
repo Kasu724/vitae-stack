@@ -8,20 +8,16 @@ import {
 import { seedSyntheticTailoringRun } from "../helpers/synthetic-tailoring";
 
 let fixture: Awaited<ReturnType<typeof seedSyntheticTailoringRun>>;
-const tailoringUser = {
-  ...syntheticAuthUser,
-  email: `e2e-tailoring-${Date.now()}@example.test`,
-};
 
 test.beforeAll(async () => {
-  await ensureSyntheticAuthUser(tailoringUser);
-  fixture = await seedSyntheticTailoringRun({ email: tailoringUser.email });
+  await ensureSyntheticAuthUser();
+  fixture = await seedSyntheticTailoringRun({ email: syntheticAuthUser.email });
 });
 
 test("user inspects a resume suggestion and its exact approved evidence", async ({
   page,
 }) => {
-  await signInSyntheticUser(page, tailoringUser);
+  await signInSyntheticUser(page);
   await page.goto(`/tailoring/runs/${fixture.runId}`);
   await expect(
     page.getByRole("heading", { level: 1, name: "Resume suggestions" }),
@@ -91,7 +87,7 @@ test("user inspects a resume suggestion and its exact approved evidence", async 
 test("user inspects a grounded cover-letter paragraph without invented company claims", async ({
   page,
 }) => {
-  await signInSyntheticUser(page, tailoringUser);
+  await signInSyntheticUser(page);
   await page.goto(`/tailoring/runs/${fixture.coverLetterRunId}`);
   await expect(
     page.getByRole("heading", {

@@ -19,10 +19,12 @@ if (!process.argv.includes("--confirm-synthetic")) {
 }
 
 const email = argument("email") ?? "trusted-local@vitae.invalid";
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required.");
+const databasePath = process.env.DATABASE_PATH;
+if (!databasePath) throw new Error("DATABASE_PATH is required.");
 
-const connection = createDatabaseConnection(databaseUrl, { maxConnections: 2 });
+const connection = createDatabaseConnection(databasePath, {
+  maxConnections: 2,
+});
 try {
   const identity = await connection.pool.query<{
     user_id: string;
@@ -39,7 +41,7 @@ try {
   const owner = identity.rows[0];
   if (!owner) {
     throw new Error(
-      `No owner account exists for ${email}. Start trusted-local mode once or bootstrap a password account first.`,
+      `No local workspace exists for ${email}. Start the application once before seeding synthetic data.`,
     );
   }
 
@@ -55,8 +57,7 @@ try {
   } else {
     const principal: WorkspacePrincipal = {
       authenticatedAt: new Date(),
-      mode:
-        email === "trusted-local@vitae.invalid" ? "trusted-local" : "password",
+      mode: "trusted-local",
       userId: owner.user_id,
       workspaceId: owner.workspace_id,
     };
@@ -123,11 +124,11 @@ try {
         description: "Fictional award example.",
         startDate: "2023",
         endDate: "",
-        fact: "Received a synthetic award for accessible documentation.",
+        fact: "Received a synthetic award for maintainable documentation.",
         factType: "accomplishment" as const,
         value: {
           kind: "text" as const,
-          text: "Received a synthetic award for accessible documentation.",
+          text: "Received a synthetic award for maintainable documentation.",
         },
       },
     ];
@@ -231,7 +232,7 @@ try {
       text: [
         "Required: build reliable TypeScript systems.",
         "Improve batch processing performance.",
-        "Document evidence and accessibility decisions.",
+        "Document evidence and interface decisions.",
       ].join("\n"),
       idempotencyKey: "synthetic-seed-job-v1",
     });

@@ -9,6 +9,10 @@ const ignored = new Set([
   "coverage",
   "playwright-report",
   "test-results",
+  "dist",
+  ".release",
+  "tmp",
+  "var",
   "LICENSE",
 ]);
 const suspicious = [
@@ -63,12 +67,7 @@ for (const file of await walk(root)) {
   if (relative.startsWith(".github/workflows/")) {
     for (const [index, line] of text.split(/\r?\n/u).entries()) {
       const use = line.match(/^\s*-?\s*uses:\s*([^\s#]+)/u)?.[1];
-      if (
-        use &&
-        !use.startsWith("./") &&
-        !/^docker:\/\//u.test(use) &&
-        !/@[0-9a-f]{40}$/u.test(use)
-      ) {
+      if (use && !use.startsWith("./") && !/@[0-9a-f]{40}$/u.test(use)) {
         failures.push(
           `${relative}:${index + 1} uses an action without a full commit SHA`,
         );
@@ -80,16 +79,6 @@ for (const file of await walk(root)) {
       if (rule.pattern.test(text))
         failures.push(`${relative} contains possible ${rule.name}`);
     }
-  }
-}
-
-const dockerfile = await readFile(path.join(root, "Dockerfile"), "utf8");
-for (const [index, line] of dockerfile.split(/\r?\n/u).entries()) {
-  const image = line.match(/^FROM\s+(\S+)/u)?.[1];
-  if (image?.includes(":") && !/@sha256:[0-9a-f]{64}$/u.test(image)) {
-    failures.push(
-      `Dockerfile:${index + 1} external base image is not digest pinned`,
-    );
   }
 }
 

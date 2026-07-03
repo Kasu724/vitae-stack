@@ -5,7 +5,7 @@ import { z } from "zod";
 export const PORTABILITY_SCHEMA_VERSION = 1 as const;
 export const PORTABILITY_MAX_BYTES = 50 * 1024 * 1024;
 
-/** FK-safe order. Identity, sessions, credentials, audit events, rate limits,
+/** FK-safe order. Local identity, credentials, audit events, rate limits,
  * ephemeral jobs, and deletion receipts are intentionally excluded. */
 export const PORTABLE_TABLES = [
   "career_profiles",

@@ -119,7 +119,7 @@ export default async function ExtractionReviewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const { id } = await params;
   const query = await searchParams;
   let review;

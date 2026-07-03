@@ -4,24 +4,21 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
-import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  createSqliteTestDatabase,
+  type SqliteTestDatabase,
+} from "../helpers/sqlite-test-database";
 import { FilesystemArtifactStore } from "@/infrastructure/artifacts/filesystem-store";
-import { createDatabaseConnection } from "@/infrastructure/database/connection";
-import { migrateDatabase } from "@/infrastructure/database/migration";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { contentHash } from "@/modules/documents/hash";
 import { DocumentRepository } from "@/modules/documents/repository";
 import { UnsupportedExportClaimsError } from "@/modules/exports/domain";
 import { ExportNotFoundError, ExportService } from "@/modules/exports/service";
 
-let container: StartedPostgreSqlContainer;
-let ownerPool: Pool;
+let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
 let storageRoot: string;
 let service: ExportService;
@@ -47,29 +44,15 @@ async function principal(label: string): Promise<WorkspacePrincipal> {
   );
   return {
     authenticatedAt: new Date(),
-    mode: "password",
+    mode: "trusted-local",
     userId: user.rows[0]!.id,
     workspaceId: workspace.rows[0]!.id,
   };
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:18.4-bookworm")
-    .withDatabase("vitae_exports_test")
-    .withUsername("postgres")
-    .withPassword("synthetic-admin-password")
-    .start();
-  ownerPool = new Pool({ connectionString: container.getConnectionUri() });
-  await ownerPool.query(
-    "CREATE ROLE vitae_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'synthetic-runtime-password'",
-  );
-  await ownerPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
-  const migration = createDatabaseConnection(container.getConnectionUri());
-  await migrateDatabase(migration.database);
-  await migration.pool.end();
-  runtimePool = new Pool({
-    connectionString: `postgresql://vitae_app:synthetic-runtime-password@${container.getHost()}:${container.getPort()}/${container.getDatabase()}`,
-  });
+  testDatabase = await createSqliteTestDatabase("exports");
+  runtimePool = testDatabase.pool;
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "vitae-exports-"));
   service = new ExportService(
     runtimePool,
@@ -80,9 +63,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await runtimePool?.end();
-  await ownerPool?.end();
-  await container?.stop();
+  await testDatabase?.cleanup();
   if (storageRoot) await rm(storageRoot, { recursive: true, force: true });
 });
 
@@ -99,7 +80,7 @@ describe("private document export artifacts", () => {
     const experience = content.sections.find(
       (section) => section.type === "experience",
     )!;
-    experience.blocks[0]!.text = "Built accessible synthetic systems.";
+    experience.blocks[0]!.text = "Built maintainable synthetic systems.";
     let versionId = await documents.commitVersion(first, {
       documentId,
       baseVersionId: initial.currentVersion.id,
@@ -113,7 +94,7 @@ describe("private document export artifacts", () => {
     );
     for (const claimText of [
       "alex@example.test",
-      "Built accessible synthetic systems.",
+      "Built maintainable synthetic systems.",
     ]) {
       const currentClaim = (await documents.listClaims(first, documentId)).find(
         (claim) => claim.text === claimText,

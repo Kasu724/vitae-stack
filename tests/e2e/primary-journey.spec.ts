@@ -9,9 +9,8 @@ import {
 import { seedSyntheticTailoringRun } from "../helpers/synthetic-tailoring";
 
 const primaryUser: SyntheticAuthUser = {
-  email: `primary-journey-${Date.now()}@example.test`,
-  name: "Primary Journey Synthetic Owner",
-  password: "synthetic-primary-journey-password-123",
+  email: "trusted-local@vitae.invalid",
+  name: "Local user",
 };
 let fixture: Awaited<ReturnType<typeof seedSyntheticTailoringRun>>;
 
@@ -171,5 +170,8 @@ test("release-critical user journey preserves grounding through export and delet
     .click();
   await expect(page.getByRole("status")).toContainText("completed");
   await page.goto("/dashboard");
-  await expect(page).toHaveURL(/\/sign-in$/u);
+  await expect(page).toHaveURL(/\/dashboard$/u);
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Welcome to Vitae Stack" }),
+  ).toBeVisible();
 });

@@ -21,7 +21,8 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "corepack pnpm exec next dev --hostname 127.0.0.1",
+        command:
+          "corepack pnpm db:migrate && corepack pnpm exec next dev --hostname 127.0.0.1",
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

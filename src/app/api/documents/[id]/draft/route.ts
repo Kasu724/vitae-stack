@@ -24,7 +24,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const environment = readServerEnvironment();
-  if (!isTrustedRequestOrigin(request, environment.BETTER_AUTH_URL))
+  if (!isTrustedRequestOrigin(request, environment.APP_BASE_URL))
     return NextResponse.json({ code: "UNTRUSTED_ORIGIN" }, { status: 403 });
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > 1024 * 1024)

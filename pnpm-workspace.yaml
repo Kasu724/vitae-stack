@@ -2,7 +2,7 @@ packages:
   - "."
 
 overrides:
-  "esbuild@<=0.24.2": 0.25.12
+  "esbuild@<=0.25.12": 0.28.1
   postcss: 8.5.10
 
 allowBuilds:

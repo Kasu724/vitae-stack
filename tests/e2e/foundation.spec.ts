@@ -12,9 +12,6 @@ test("foundation shell and health endpoint are available", async ({
   await expect(
     page.getByRole("heading", { level: 1, name: "Vitae Stack" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Skip to main content" }),
-  ).toHaveAttribute("href", "#main-content");
 
   const response = await request.get("/api/health");
   expect(response.ok()).toBe(true);

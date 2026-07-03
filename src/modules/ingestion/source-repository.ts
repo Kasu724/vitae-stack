@@ -1,4 +1,4 @@
-import type { Pool } from "pg";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import type { ParsedSource } from "./parsers";

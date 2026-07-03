@@ -1,14 +1,12 @@
 // @vitest-environment node
 
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
-import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabaseConnection } from "@/infrastructure/database/connection";
-import { migrateDatabase } from "@/infrastructure/database/migration";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  createSqliteTestDatabase,
+  type SqliteTestDatabase,
+} from "../helpers/sqlite-test-database";
 import { AtsInputNotFoundError, AtsRepository } from "@/modules/ats/repository";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { DocumentRepository } from "@/modules/documents/repository";
@@ -17,8 +15,7 @@ import { MatchingRepository } from "@/modules/matching/repository";
 import { RequirementRepository } from "@/modules/requirements/repository";
 import { RequirementAnalysisService } from "@/modules/requirements/service";
 
-let container: StartedPostgreSqlContainer;
-let ownerPool: Pool;
+let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
 let first: WorkspacePrincipal;
 let second: WorkspacePrincipal;
@@ -42,37 +39,21 @@ async function principal(label: string): Promise<WorkspacePrincipal> {
   );
   return {
     authenticatedAt: new Date(),
-    mode: "password",
+    mode: "trusted-local",
     userId: user.rows[0]!.id,
     workspaceId: workspace.rows[0]!.id,
   };
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:18.4-bookworm")
-    .withDatabase("vitae_ats_test")
-    .withUsername("postgres")
-    .withPassword("synthetic-admin-password")
-    .start();
-  ownerPool = new Pool({ connectionString: container.getConnectionUri() });
-  await ownerPool.query(
-    "CREATE ROLE vitae_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'synthetic-runtime-password'",
-  );
-  await ownerPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
-  const migration = createDatabaseConnection(container.getConnectionUri());
-  await migrateDatabase(migration.database);
-  await migration.pool.end();
-  runtimePool = new Pool({
-    connectionString: `postgresql://vitae_app:synthetic-runtime-password@${container.getHost()}:${container.getPort()}/${container.getDatabase()}`,
-  });
+  testDatabase = await createSqliteTestDatabase("ats");
+  runtimePool = testDatabase.pool;
   first = await principal("ats-first");
   second = await principal("ats-second");
 }, 120_000);
 
 afterAll(async () => {
-  await runtimePool?.end();
-  await ownerPool?.end();
-  await container?.stop();
+  await testDatabase?.cleanup();
 });
 
 describe("persisted deterministic ATS reports", () => {

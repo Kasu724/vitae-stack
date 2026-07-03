@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
@@ -156,7 +156,7 @@ export class CareerRepository {
          AND ($5::text IS NULL OR concat_ws(' ', e.title, e.organization, e.location, e.description) ILIKE '%' || $5 || '%'
               OR EXISTS (SELECT 1 FROM evidence_facts sf WHERE sf.workspace_id = e.workspace_id AND sf.career_entry_id = e.id AND sf.display_text ILIKE '%' || $5 || '%'))
        ORDER BY e.updated_at DESC, e.id
-       LIMIT $6 OFFSET $7`,
+       LIMIT COALESCE($6,-1) OFFSET $7`,
       [
         principal.workspaceId,
         filters.status ?? "active",
@@ -751,7 +751,7 @@ export class CareerRepository {
       let removed = 1;
       while (removed > 0) {
         const result = await client.query(
-          `DELETE FROM evidence_facts f WHERE f.career_entry_id=$1 AND f.workspace_id=$2 AND NOT EXISTS (SELECT 1 FROM evidence_facts child WHERE child.supersedes_fact_id=f.id AND child.workspace_id=f.workspace_id)`,
+          `DELETE FROM evidence_facts WHERE career_entry_id=$1 AND workspace_id=$2 AND NOT EXISTS (SELECT 1 FROM evidence_facts child WHERE child.supersedes_fact_id=evidence_facts.id AND child.workspace_id=evidence_facts.workspace_id)`,
           [entryId, principal.workspaceId],
         );
         removed = result.rowCount ?? 0;

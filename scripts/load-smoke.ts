@@ -1,22 +1,13 @@
-import { readFile } from "node:fs/promises";
-
 export {};
 
 const baseUrl = process.env.LOAD_BASE_URL;
-const cookieFile = process.env.LOAD_AUTH_COOKIE_FILE;
-if (!baseUrl || !cookieFile) {
+if (!baseUrl) {
   process.stderr.write(
-    "LOAD_BASE_URL and LOAD_AUTH_COOKIE_FILE are required for an isolated authenticated deployment.\n",
+    "LOAD_BASE_URL is required for an isolated local deployment.\n",
   );
   process.exitCode = 2;
 } else {
   const target = new URL(process.env.LOAD_PATH ?? "/dashboard", baseUrl);
-  const cookie = (await readFile(cookieFile, "utf8")).trim();
-  if (!/^[^=;\s]+=[^;\r\n]+(?:;\s*[^=;\s]+=[^;\r\n]+)*$/u.test(cookie)) {
-    throw new Error(
-      "LOAD_AUTH_COOKIE_FILE must contain only one Cookie request-header value.",
-    );
-  }
   const requestCount = 200;
   const concurrency = 20;
   const durations: number[] = [];
@@ -30,7 +21,6 @@ if (!baseUrl || !cookieFile) {
         const started = performance.now();
         try {
           const response = await fetch(target, {
-            headers: { cookie },
             redirect: "error",
             signal: AbortSignal.timeout(2_000),
           });

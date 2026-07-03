@@ -9,7 +9,7 @@ import {
 
 const principal: WorkspacePrincipal = {
   authenticatedAt: new Date("2026-06-29T00:00:00Z"),
-  mode: "password",
+  mode: "trusted-local",
   sessionId: "00000000-0000-4000-8000-000000000001",
   userId: "00000000-0000-4000-8000-000000000002",
   workspaceId: "00000000-0000-4000-8000-000000000003",
@@ -25,7 +25,7 @@ describe("workspace authorization", () => {
     ).toThrow(AuthorizationError);
   });
 
-  it("requires a fresh password session for sensitive operations", () => {
+  it("does not require an account session in loopback-only local mode", () => {
     expect(() =>
       requireRecentAuthentication(
         principal,
@@ -37,8 +37,8 @@ describe("workspace authorization", () => {
       requireRecentAuthentication(
         principal,
         15 * 60 * 1000,
-        new Date("2026-06-29T00:15:01Z"),
+        new Date("2027-06-29T00:15:01Z"),
       ),
-    ).toThrow(AuthorizationError);
+    ).not.toThrow();
   });
 });

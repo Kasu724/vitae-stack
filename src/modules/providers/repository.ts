@@ -1,9 +1,9 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import type {
   ModelProviderCapabilities,
   ModelTaskAssignments,
-} from "../../../db/schema/providers";
+} from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { consumeApplicationRateLimit } from "@/infrastructure/security/rate-limit";
 

@@ -1,6 +1,6 @@
-import type { Pool } from "pg";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
 
-export type AuthenticationMode = "password" | "trusted-local";
+export type AuthenticationMode = "trusted-local";
 
 export interface WorkspacePrincipal {
   authenticatedAt: Date;
@@ -27,16 +27,13 @@ export function requireWorkspaceAccess(
 }
 
 export function requireRecentAuthentication(
-  principal: WorkspacePrincipal,
-  maximumAgeMs = 15 * 60 * 1000,
-  now = new Date(),
+  _principal: WorkspacePrincipal,
+  _maximumAgeMs = 15 * 60 * 1000,
+  _now = new Date(),
 ): void {
-  if (
-    principal.mode === "password" &&
-    now.getTime() - principal.authenticatedAt.getTime() > maximumAgeMs
-  ) {
-    throw new AuthorizationError();
-  }
+  void _maximumAgeMs;
+  void _now;
+  // Loopback-only local mode has no account session to reauthenticate.
 }
 
 export async function provisionPersonalWorkspace(

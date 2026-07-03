@@ -1,9 +1,9 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import type {
   EvidenceValue,
   SourceLocatorValue,
-} from "../../../db/schema/career";
+} from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import {
   extractionProposalEditSchema,
@@ -194,7 +194,7 @@ export class ExtractionRepository {
          WHERE batch_id=$1 AND workspace_id=$2
          ORDER BY CASE
            WHEN source_locator->>'section' ~ '^Line [0-9]+$'
-           THEN split_part(source_locator->>'section',' ',2)::int
+           THEN CAST(split_part(source_locator->>'section',' ',2) AS INTEGER)
          END NULLS LAST,created_at,id`,
         [batchId, principal.workspaceId],
       ),

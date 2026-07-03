@@ -19,7 +19,7 @@ export default async function CareerBankPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const params = await searchParams;
   const query = typeof params.q === "string" ? params.q : "";
   const type = typeof params.type === "string" ? params.type : "";

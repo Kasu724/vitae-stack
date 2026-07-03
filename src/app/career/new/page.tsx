@@ -9,7 +9,7 @@ import { EntryForm } from "@/modules/career/components/entry-form";
 export const dynamic = "force-dynamic";
 
 export default async function NewCareerEntryPage() {
-  if (!(await getCurrentPrincipal(await headers()))) redirect("/sign-in");
+  if (!(await getCurrentPrincipal(await headers()))) redirect("/");
   return (
     <main id="main-content" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <nav aria-label="Breadcrumb">

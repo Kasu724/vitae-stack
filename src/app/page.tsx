@@ -1,15 +1,13 @@
 import Link from "next/link";
 
 export default function HomePage() {
-  const authenticationMode =
-    process.env.AUTH_MODE === "trusted-local" ? "trusted-local" : "password";
   return (
     <main
       id="main-content"
       className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-16"
     >
       <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-        Self-hosted career documents
+        Local career documents
       </p>
       <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
         Vitae Stack
@@ -30,18 +28,15 @@ export default function HomePage() {
           <li>Generated factual claims must cite approved evidence.</li>
           <li>Unsupported claims cannot enter a final export.</li>
           <li>ATS feedback is an explainable estimate, never a guarantee.</li>
-          <li>Default deployment remains self-hostable.</li>
+          <li>Your records and documents remain in your local data folder.</li>
         </ul>
       </section>
       <p className="mt-8 text-sm text-[var(--muted)]">
         You choose what evidence and experiences to include, and every proposed
         document change remains reviewable before it creates a version.
       </p>
-      <Link
-        className="button mt-8 w-fit"
-        href={authenticationMode === "password" ? "/sign-in" : "/dashboard"}
-      >
-        {authenticationMode === "password" ? "Sign in" : "Open local workspace"}
+      <Link className="button mt-8 w-fit" href="/dashboard">
+        Open local workspace
       </Link>
     </main>
   );

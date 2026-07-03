@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { isTrustedLocalRequest } from "@/infrastructure/security/trusted-local-request";
+
 export function contentSecurityPolicy(
   nonce: string,
   development: boolean,
@@ -22,6 +24,15 @@ export function contentSecurityPolicy(
 }
 
 export function proxy(request: NextRequest) {
+  if (!isTrustedLocalRequest(request.headers, request.nextUrl, false)) {
+    return new NextResponse(
+      "Trusted-local mode accepts loopback requests only.",
+      {
+        status: 403,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
+  }
   const nonce = btoa(crypto.randomUUID());
   const policy = contentSecurityPolicy(
     nonce,
@@ -38,7 +49,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      source: "/((?!_next/static|_next/image|favicon.ico).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

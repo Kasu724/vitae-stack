@@ -24,14 +24,11 @@ const purposeSchema = z.enum([
 
 export async function POST(request: NextRequest) {
   const environment = readServerEnvironment();
-  if (!isTrustedRequestOrigin(request, environment.BETTER_AUTH_URL))
+  if (!isTrustedRequestOrigin(request, environment.APP_BASE_URL))
     return NextResponse.json({ code: "UNTRUSTED_ORIGIN" }, { status: 403 });
   const principal = await getCurrentPrincipal(await headers());
   if (!principal)
-    return NextResponse.redirect(
-      new URL("/sign-in", environment.BETTER_AUTH_URL),
-      303,
-    );
+    return NextResponse.redirect(new URL("/", environment.APP_BASE_URL), 303);
   try {
     const upload = await readBoundedMultipartUpload(
       request,
@@ -48,7 +45,7 @@ export async function POST(request: NextRequest) {
       bytes: upload.bytes,
     });
     return NextResponse.redirect(
-      new URL(`/sources/${id}`, environment.BETTER_AUTH_URL),
+      new URL(`/sources/${id}`, environment.APP_BASE_URL),
       303,
     );
   } catch (error) {
@@ -61,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.redirect(
       new URL(
         `/sources?error=${encodeURIComponent(code)}`,
-        environment.BETTER_AUTH_URL,
+        environment.APP_BASE_URL,
       ),
       303,
     );

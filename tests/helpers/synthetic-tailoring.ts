@@ -25,8 +25,7 @@ export async function seedSyntheticTailoringRun(
   jobId: string;
 }> {
   const connection = createDatabaseConnection(
-    process.env.DATABASE_URL ??
-      "postgresql://vitae_app:vitae-app-dev-only@127.0.0.1:5432/vitae",
+    process.env.DATABASE_PATH ?? "./var/vitae.sqlite",
     { maxConnections: 2 },
   );
   try {
@@ -41,7 +40,7 @@ export async function seedSyntheticTailoringRun(
       throw new Error("Synthetic browser user is missing.");
     const principal: WorkspacePrincipal = {
       authenticatedAt: new Date(),
-      mode: "password",
+      mode: "trusted-local",
       userId: identity.rows[0].user_id,
       workspaceId: identity.rows[0].workspace_id,
     };

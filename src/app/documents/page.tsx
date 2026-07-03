@@ -15,7 +15,7 @@ export default async function DocumentsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const query = await searchParams;
   const status = query.status === "archived" ? "archived" : "active";
   const documents = await new DocumentRepository(getRuntimePool()).list(

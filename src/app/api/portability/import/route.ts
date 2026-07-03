@@ -22,7 +22,7 @@ import {
 
 export async function POST(request: NextRequest) {
   const environment = readServerEnvironment();
-  if (!isTrustedRequestOrigin(request, environment.BETTER_AUTH_URL))
+  if (!isTrustedRequestOrigin(request, environment.APP_BASE_URL))
     return NextResponse.json({ code: "UNTRUSTED_ORIGIN" }, { status: 403 });
   const principal = await getCurrentPrincipal(await headers());
   if (!principal)

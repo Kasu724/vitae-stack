@@ -9,20 +9,20 @@ import { describe, expect, it } from "vitest";
 import { requireRecentAuthentication } from "@/modules/auth/workspace-access";
 import { DeletionTombstoneStore } from "@/modules/privacy/tombstone-store";
 
-describe("destructive operation authentication", () => {
-  it("requires a recent password authentication while allowing local console mode", () => {
+describe("destructive operation confirmation", () => {
+  it("allows the sole loopback-local principal without an account session", () => {
     expect(() =>
       requireRecentAuthentication(
         {
           authenticatedAt: new Date("2026-06-30T10:00:00Z"),
-          mode: "password",
+          mode: "trusted-local",
           userId: crypto.randomUUID(),
           workspaceId: crypto.randomUUID(),
         },
         15 * 60 * 1000,
         new Date("2026-06-30T11:00:00Z"),
       ),
-    ).toThrow();
+    ).not.toThrow();
     expect(() =>
       requireRecentAuthentication({
         authenticatedAt: new Date(0),

@@ -17,11 +17,13 @@ if (!process.argv.includes("--confirm-synthetic-scale")) {
     "Refusing to create the reference-size fixture without --confirm-synthetic-scale.",
   );
 }
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL is required.");
+const databasePath = process.env.DATABASE_PATH;
+if (!databasePath) throw new Error("DATABASE_PATH is required.");
 const email = argument("email") ?? "trusted-local@vitae.invalid";
 
-const connection = createDatabaseConnection(databaseUrl, { maxConnections: 1 });
+const connection = createDatabaseConnection(databasePath, {
+  maxConnections: 1,
+});
 const client = await connection.pool.connect();
 try {
   const identity = await client.query<{
@@ -141,7 +143,7 @@ try {
     }
 
     for (let jobNumber = 1; jobNumber <= 50; jobNumber += 1) {
-      const text = `Synthetic role ${jobNumber}. Required: TypeScript, evidence controls, accessible interfaces, and reliable batch processing.`;
+      const text = `Synthetic role ${jobNumber}. Required: TypeScript, evidence controls, maintainable interfaces, and reliable batch processing.`;
       const posting = await client.query<{ id: string }>(
         `INSERT INTO job_postings (workspace_id,title,company)
          VALUES ($1,$2,'Synthetic Performance Employer') RETURNING id`,

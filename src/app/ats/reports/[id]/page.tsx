@@ -22,7 +22,7 @@ export default async function AtsReportPage({
   params: Promise<{ id: string }>;
 }) {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const { id } = await params;
   let view;
   try {

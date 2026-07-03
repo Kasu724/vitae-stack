@@ -7,7 +7,7 @@ import type { TailoringRepository } from "../../src/modules/tailoring/repository
 
 const principal: WorkspacePrincipal = {
   authenticatedAt: new Date(),
-  mode: "password",
+  mode: "trusted-local",
   userId: "01000000-0000-4000-8000-000000000001",
   workspaceId: "02000000-0000-4000-8000-000000000001",
 };

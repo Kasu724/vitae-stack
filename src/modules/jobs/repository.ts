@@ -1,6 +1,6 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
-import type { JobRevisionMetadata } from "../../../db/schema/jobs";
+import type { JobRevisionMetadata } from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import type { FetchedJobDescription } from "@/modules/job-fetch/fetcher";
 
@@ -97,7 +97,7 @@ export class JobRepository {
     const result = await this.pool.query<JobPostingRecord>(
       `SELECT j.id,j.title,j.company,j.status,j.revision,j.updated_at,r.id current_revision_id,r.revision_number current_revision_number
        FROM job_postings j
-       JOIN LATERAL (SELECT id,revision_number FROM job_posting_revisions WHERE job_posting_id=j.id AND workspace_id=j.workspace_id ORDER BY revision_number DESC LIMIT 1) r ON true
+       JOIN job_posting_revisions r ON r.id=(SELECT latest.id FROM job_posting_revisions latest WHERE latest.job_posting_id=j.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
        WHERE j.workspace_id=$1 AND j.status=$2 ORDER BY j.updated_at DESC,j.id`,
       [principal.workspaceId, status],
     );
@@ -274,7 +274,7 @@ export class JobRepository {
     const posting = await this.pool.query<JobPostingRecord>(
       `SELECT j.id,j.title,j.company,j.status,j.revision,j.updated_at,r.id current_revision_id,r.revision_number current_revision_number
        FROM job_postings j
-       JOIN LATERAL (SELECT id,revision_number FROM job_posting_revisions WHERE job_posting_id=j.id AND workspace_id=j.workspace_id ORDER BY revision_number DESC LIMIT 1) r ON true
+       JOIN job_posting_revisions r ON r.id=(SELECT latest.id FROM job_posting_revisions latest WHERE latest.job_posting_id=j.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
        WHERE j.id=$1 AND j.workspace_id=$2`,
       [id, principal.workspaceId],
     );

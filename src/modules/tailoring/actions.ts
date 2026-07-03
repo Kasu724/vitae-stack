@@ -26,7 +26,7 @@ export async function startResumeTailoringAction(
   form: FormData,
 ): Promise<void> {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const documentId = text(form, "documentId");
   const tone = text(form, "tone");
   const targetLength = text(form, "targetLength");
@@ -61,7 +61,7 @@ export async function startCoverLetterTailoringAction(
   form: FormData,
 ): Promise<void> {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const documentId = text(form, "documentId");
   const tone = text(form, "tone");
   const targetLength = text(form, "targetLength");
@@ -96,7 +96,7 @@ export async function startCoverLetterTailoringAction(
 
 export async function reviewTailoringRunAction(form: FormData): Promise<void> {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const runId = text(form, "runId");
   const documentId = text(form, "documentId");
   const suggestionIds = form

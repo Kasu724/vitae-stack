@@ -1,14 +1,12 @@
 // @vitest-environment node
 
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
-import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabaseConnection } from "@/infrastructure/database/connection";
-import { migrateDatabase } from "@/infrastructure/database/migration";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  createSqliteTestDatabase,
+  type SqliteTestDatabase,
+} from "../helpers/sqlite-test-database";
 import {
   CareerConflictError,
   CareerNotFoundError,
@@ -16,8 +14,7 @@ import {
 } from "@/modules/career/repository";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
-let container: StartedPostgreSqlContainer;
-let ownerPool: Pool;
+let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
 let repository: CareerRepository;
 let first: WorkspacePrincipal;
@@ -44,38 +41,22 @@ async function createPrincipal(label: string): Promise<WorkspacePrincipal> {
   );
   return {
     authenticatedAt: new Date(),
-    mode: "password",
+    mode: "trusted-local",
     userId,
     workspaceId,
   };
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:18.4-bookworm")
-    .withDatabase("vitae_career_test")
-    .withUsername("postgres")
-    .withPassword("synthetic-admin-password")
-    .start();
-  ownerPool = new Pool({ connectionString: container.getConnectionUri() });
-  await ownerPool.query(
-    "CREATE ROLE vitae_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'synthetic-runtime-password'",
-  );
-  await ownerPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
-  const migration = createDatabaseConnection(container.getConnectionUri());
-  await migrateDatabase(migration.database);
-  await migration.pool.end();
-  runtimePool = new Pool({
-    connectionString: `postgresql://vitae_app:synthetic-runtime-password@${container.getHost()}:${container.getPort()}/${container.getDatabase()}`,
-  });
+  testDatabase = await createSqliteTestDatabase("career");
+  runtimePool = testDatabase.pool;
   repository = new CareerRepository(runtimePool);
   first = await createPrincipal("career-first");
   second = await createPrincipal("career-second");
 }, 120_000);
 
 afterAll(async () => {
-  await runtimePool?.end();
-  await ownerPool?.end();
-  await container?.stop();
+  await testDatabase?.cleanup();
 });
 
 describe("Career Information Bank lifecycle", () => {

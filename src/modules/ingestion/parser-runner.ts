@@ -34,28 +34,34 @@ export async function runParserChild(input: {
 }): Promise<ParserProcessResult> {
   const tsxCli = path.resolve("node_modules/tsx/dist/cli.mjs");
   const childScript = path.resolve("scripts/parser-child.ts");
-  return new Promise((resolve) => {
-    const child = spawn(
-      process.execPath,
-      [
+  const packagedChild = process.env.PARSER_CHILD_PATH;
+  const childArguments = packagedChild
+    ? [
+        "--max-old-space-size=192",
+        path.resolve(packagedChild),
+        input.filePath,
+        input.mediaType,
+        String(input.maximumTextCharacters),
+      ]
+    : [
         "--max-old-space-size=192",
         tsxCli,
         childScript,
         input.filePath,
         input.mediaType,
         String(input.maximumTextCharacters),
-      ],
-      {
-        cwd: process.cwd(),
-        env: {
-          GOMAXPROCS: process.env.GOMAXPROCS ?? "2",
-          NODE_ENV: process.env.NODE_ENV ?? "production",
-          PATH: process.env.PATH ?? "",
-        },
-        stdio: ["ignore", "pipe", "ignore"] as const,
-        windowsHide: true,
+      ];
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, childArguments, {
+      cwd: process.cwd(),
+      env: {
+        GOMAXPROCS: process.env.GOMAXPROCS ?? "2",
+        NODE_ENV: process.env.NODE_ENV ?? "production",
+        PATH: process.env.PATH ?? "",
       },
-    );
+      stdio: ["ignore", "pipe", "ignore"] as const,
+      windowsHide: true,
+    });
     const chunks: Buffer[] = [];
     let byteCount = 0;
     let settled = false;

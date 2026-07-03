@@ -20,7 +20,7 @@ function text(form: FormData, key: string): string {
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());
-  if (!principal) redirect("/sign-in");
+  if (!principal) redirect("/");
   const pool = getRuntimePool();
   const repository = new RequirementRepository(pool);
   const providers = new ProviderConfigurationService(

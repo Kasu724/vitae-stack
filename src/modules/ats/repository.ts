@@ -1,4 +1,4 @@
-import type { Pool, PoolClient } from "pg";
+import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import { canonicalDocumentSchema } from "@/modules/documents/document-schema";
 import { contentHash } from "@/modules/documents/hash";
@@ -129,18 +129,9 @@ export class AtsRepository {
       this.pool.query<AtsSetupData["jobs"][number]>(
         `SELECT DISTINCT j.id,j.title,j.company
          FROM job_postings j
-         JOIN LATERAL (
-           SELECT r.id FROM job_posting_revisions r
-           WHERE r.job_posting_id=j.id AND r.workspace_id=j.workspace_id
-           ORDER BY r.revision_number DESC LIMIT 1
-         ) revision ON true
-         JOIN LATERAL (
-           SELECT s.id FROM job_requirement_sets s
-           WHERE s.job_posting_revision_id=revision.id AND s.workspace_id=j.workspace_id AND s.status='reviewed'
-           ORDER BY s.revision_number DESC LIMIT 1
-         ) requirement_set ON true
-         JOIN requirement_match_runs match_run
-           ON match_run.requirement_set_id=requirement_set.id AND match_run.workspace_id=j.workspace_id
+         JOIN job_posting_revisions revision ON revision.id=(SELECT r.id FROM job_posting_revisions r WHERE r.job_posting_id=j.id AND r.workspace_id=j.workspace_id ORDER BY r.revision_number DESC LIMIT 1)
+         JOIN job_requirement_sets requirement_set ON requirement_set.id=(SELECT s.id FROM job_requirement_sets s WHERE s.job_posting_revision_id=revision.id AND s.workspace_id=j.workspace_id AND s.status='reviewed' ORDER BY s.revision_number DESC LIMIT 1)
+         JOIN requirement_match_runs match_run ON match_run.id=(SELECT m.id FROM requirement_match_runs m WHERE m.requirement_set_id=requirement_set.id AND m.workspace_id=j.workspace_id ORDER BY m.revision_number DESC LIMIT 1)
          WHERE j.workspace_id=$1 AND j.status='active'
          ORDER BY j.title,j.id`,
         [principal.workspaceId],
@@ -164,7 +155,7 @@ export class AtsRepository {
          FROM documents d
          JOIN document_versions v ON v.id=d.current_version_id AND v.workspace_id=d.workspace_id
          WHERE d.id=$1 AND d.workspace_id=$2 AND d.status='active'
-         FOR SHARE OF d,v`,
+         `,
         [input.documentId, principal.workspaceId],
       );
       const documentRow = document.rows[0];
@@ -182,23 +173,10 @@ export class AtsRepository {
       }>(
         `SELECT j.id job_id,r.id revision_id,s.id requirement_set_id,r.content_hash job_hash,m.id match_run_id
          FROM job_postings j
-         JOIN LATERAL (
-           SELECT id,content_hash FROM job_posting_revisions
-           WHERE job_posting_id=j.id AND workspace_id=j.workspace_id
-           ORDER BY revision_number DESC LIMIT 1
-         ) r ON true
-         JOIN LATERAL (
-           SELECT id FROM job_requirement_sets
-           WHERE job_posting_revision_id=r.id AND workspace_id=j.workspace_id AND status='reviewed'
-           ORDER BY revision_number DESC LIMIT 1
-         ) s ON true
-         JOIN LATERAL (
-           SELECT id FROM requirement_match_runs
-           WHERE requirement_set_id=s.id AND workspace_id=j.workspace_id
-           ORDER BY revision_number DESC LIMIT 1
-         ) m ON true
-         WHERE j.id=$1 AND j.workspace_id=$2 AND j.status='active'
-         FOR SHARE OF j`,
+         JOIN job_posting_revisions r ON r.id=(SELECT latest.id FROM job_posting_revisions latest WHERE latest.job_posting_id=j.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
+         JOIN job_requirement_sets s ON s.id=(SELECT latest.id FROM job_requirement_sets latest WHERE latest.job_posting_revision_id=r.id AND latest.workspace_id=j.workspace_id AND latest.status='reviewed' ORDER BY latest.revision_number DESC LIMIT 1)
+         JOIN requirement_match_runs m ON m.id=(SELECT latest.id FROM requirement_match_runs latest WHERE latest.requirement_set_id=s.id AND latest.workspace_id=j.workspace_id ORDER BY latest.revision_number DESC LIMIT 1)
+         WHERE j.id=$1 AND j.workspace_id=$2 AND j.status='active'`,
         [input.jobId, principal.workspaceId],
       );
       const jobRow = job.rows[0];
@@ -248,11 +226,7 @@ export class AtsRepository {
       }>(
         `SELECT m.requirement_id,m.evidence_fact_id,m.strength
          FROM requirement_evidence_matches m
-         JOIN LATERAL (
-           SELECT decision FROM requirement_evidence_decisions
-           WHERE match_id=m.id AND workspace_id=m.workspace_id
-           ORDER BY revision_number DESC LIMIT 1
-         ) decision ON decision.decision='included'
+         JOIN requirement_evidence_decisions decision ON decision.id=(SELECT latest.id FROM requirement_evidence_decisions latest WHERE latest.match_id=m.id AND latest.workspace_id=m.workspace_id ORDER BY latest.revision_number DESC LIMIT 1) AND decision.decision='included'
          WHERE m.match_run_id=$1 AND m.workspace_id=$2
          ORDER BY m.requirement_id,m.evidence_fact_id`,
         [jobRow.match_run_id, principal.workspaceId],

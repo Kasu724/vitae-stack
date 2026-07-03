@@ -1,15 +1,13 @@
 // @vitest-environment node
 
-import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from "@testcontainers/postgresql";
 import { randomBytes } from "node:crypto";
-import { Pool } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { createDatabaseConnection } from "@/infrastructure/database/connection";
-import { migrateDatabase } from "@/infrastructure/database/migration";
+import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  createSqliteTestDatabase,
+  type SqliteTestDatabase,
+} from "../helpers/sqlite-test-database";
 import { parseServerEnvironment } from "@/infrastructure/config/environment-schema";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { decryptCredential } from "@/modules/providers/credential-envelope";
@@ -19,8 +17,7 @@ import {
 } from "@/modules/providers/repository";
 import { ProviderConfigurationService } from "@/modules/providers/service";
 
-let container: StartedPostgreSqlContainer;
-let ownerPool: Pool;
+let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
 let repository: ProviderConfigurationRepository;
 let service: ProviderConfigurationService;
@@ -47,29 +44,15 @@ async function principal(label: string): Promise<WorkspacePrincipal> {
   );
   return {
     authenticatedAt: new Date(),
-    mode: "password",
+    mode: "trusted-local",
     userId: user.rows[0]!.id,
     workspaceId: workspace.rows[0]!.id,
   };
 }
 
 beforeAll(async () => {
-  container = await new PostgreSqlContainer("postgres:18.4-bookworm")
-    .withDatabase("vitae_providers_test")
-    .withUsername("postgres")
-    .withPassword("synthetic-admin-password")
-    .start();
-  ownerPool = new Pool({ connectionString: container.getConnectionUri() });
-  await ownerPool.query(
-    "CREATE ROLE vitae_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD 'synthetic-runtime-password'",
-  );
-  await ownerPool.query("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
-  const migration = createDatabaseConnection(container.getConnectionUri());
-  await migrateDatabase(migration.database);
-  await migration.pool.end();
-  runtimePool = new Pool({
-    connectionString: `postgresql://vitae_app:synthetic-runtime-password@${container.getHost()}:${container.getPort()}/${container.getDatabase()}`,
-  });
+  testDatabase = await createSqliteTestDatabase("providers");
+  runtimePool = testDatabase.pool;
   repository = new ProviderConfigurationRepository(runtimePool);
   service = new ProviderConfigurationService(
     repository,
@@ -84,9 +67,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
-  await runtimePool?.end();
-  await ownerPool?.end();
-  await container?.stop();
+  await testDatabase?.cleanup();
 });
 
 describe("model provider configuration", () => {
