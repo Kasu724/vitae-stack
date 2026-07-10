@@ -25,10 +25,14 @@ if (process.env.npm_execpath) {
     "pnpm",
   ];
 }
-const raw = execFileSync(command, [...prefix, "licenses", "list", "--json"], {
-  encoding: "utf8",
-  maxBuffer: 16 * 1024 * 1024,
-});
+const raw = execFileSync(
+  command,
+  [...prefix, "licenses", "list", "--json", "--no-optional"],
+  {
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  },
+);
 const byLicense = JSON.parse(raw);
 const packages = [];
 for (const [license, entries] of Object.entries(byLicense)) {
@@ -69,7 +73,7 @@ const lines = [
   "",
   "This generated inventory covers dependency packages resolved by the pinned pnpm lockfile, including build/test packages present in release tools or worker build layers, plus repository-bundled third-party assets. Package names, versions, declared licenses, and upstream project links are informational; the corresponding distributed license files remain authoritative. This is not legal advice.",
   "",
-  "Regenerate with `pnpm notices:generate` after a production dependency change and verify with `pnpm notices:check`.",
+  "Regenerate with `pnpm notices:generate` after a production dependency change and verify with `pnpm notices:check`. Optional native packages are excluded so the generated notice inventory is stable across Windows and Linux runners.",
   "",
   "| Package | Declared license | Upstream |",
   "| ------- | ---------------- | -------- |",

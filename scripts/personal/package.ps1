@@ -34,17 +34,6 @@ function Copy-ReleaseFile([string]$Relative, [string]$DestinationRoot) {
   Copy-Item -LiteralPath $source -Destination $target
 }
 
-function Remove-PathIfPresent([string]$Path) {
-  $resolved = [IO.Path]::GetFullPath($Path)
-  if (-not $resolved.StartsWith($stagingRoot, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to remove a path outside the package staging root: $Path"
-  }
-  $longPath = "\\?\$resolved"
-  if (Test-Path -LiteralPath $longPath) {
-    Remove-Item -LiteralPath $longPath -Recurse -Force
-  }
-}
-
 function Copy-NodePackage([string]$Source, [string]$Destination) {
   New-Item -ItemType Directory -Force -Path $Destination | Out-Null
   foreach ($item in Get-ChildItem -LiteralPath $Source -Force) {
@@ -57,26 +46,11 @@ function Copy-NodePackage([string]$Source, [string]$Destination) {
   }
 }
 
-function Flatten-PnpmVirtualStore([string]$NodeModulesRoot) {
-  $virtualStore = Join-Path $NodeModulesRoot ".pnpm"
-  if (-not (Test-Path -LiteralPath $virtualStore -PathType Container)) { return }
-
-  foreach ($storeEntry in Get-ChildItem -LiteralPath $virtualStore -Directory) {
-    $entryNodeModules = Join-Path $storeEntry.FullName "node_modules"
-    if (-not (Test-Path -LiteralPath $entryNodeModules -PathType Container)) { continue }
-
-    foreach ($package in Get-ChildItem -LiteralPath $entryNodeModules -Directory -Force) {
-      if ($package.Name.StartsWith("@", [StringComparison]::Ordinal)) {
-        foreach ($scopedPackage in Get-ChildItem -LiteralPath $package.FullName -Directory -Force) {
-          Copy-NodePackage $scopedPackage.FullName (Join-Path (Join-Path $NodeModulesRoot $package.Name) $scopedPackage.Name)
-        }
-      } else {
-        Copy-NodePackage $package.FullName (Join-Path $NodeModulesRoot $package.Name)
-      }
-    }
+function Copy-StandaloneApplication([string]$SourceRoot, [string]$DestinationRoot) {
+  foreach ($item in Get-ChildItem -LiteralPath $SourceRoot -Force) {
+    if ($item.Name -eq "node_modules") { continue }
+    Copy-Item -LiteralPath $item.FullName -Destination (Join-Path $DestinationRoot $item.Name) -Recurse -Force
   }
-
-  Remove-PathIfPresent $virtualStore
 }
 
 function Invoke-PnpmJson([string[]]$Arguments) {
@@ -138,11 +112,10 @@ try {
     "scripts/local-migrate.ts", "--bundle", "--platform=node", "--format=esm", "--outfile=.release/local-migrate.mjs"
   )
 
-  Copy-Item -Path (Join-Path $root ".next\standalone\*") -Destination $app -Recurse -Force
-  # Copy-Item follows Next standalone's pnpm symlinks for top-level packages.
-  # Flatten transitive packages before removing the virtual store so normal
-  # PowerShell and Windows archive tools can extract the ZIP without long paths.
-  Flatten-PnpmVirtualStore (Join-Path $app "node_modules")
+  # Copying Next standalone wholesale follows pnpm junctions on Windows before
+  # they can be flattened. Copy the application shell first, then build a flat
+  # runtime node_modules from the production dependency closure.
+  Copy-StandaloneApplication (Join-Path $root ".next\standalone") $app
   Copy-ProductionDependencyClosure (Join-Path $app "node_modules")
   New-Item -ItemType Directory -Force -Path (Join-Path $app ".next\static") | Out-Null
   Copy-Item -Path (Join-Path $root ".next\static\*") -Destination (Join-Path $app ".next\static") -Recurse -Force
