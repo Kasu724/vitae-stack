@@ -37,3 +37,8 @@ Thumbs.db
 .vscode/
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Local-only project guidance and architecture notes
+/AGENTS.md
+/ARCHITECTURE.md
+/docs/

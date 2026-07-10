@@ -30,10 +30,10 @@ Development defaults to `./var/vitae.sqlite` and `./var/files`. Copy `.env.examp
 
 The application is a TypeScript/Next.js modular monolith. SQLite provides transactions, constraints, indexes, and durable document/version/provenance relationships while remaining one ordinary local file. Uploaded and generated binary files stay in a separate local folder. AI providers are optional and sit behind a provider-neutral interface; Ollama and OpenAI-compatible endpoints are supported without making either mandatory.
 
-The release is deliberately local-only and single-user. Remote hosting, shared accounts, team workspaces, job-board scraping, and automated job submission are outside the MVP. See [MVP scope](docs/product/MVP_SCOPE.md), [architecture](ARCHITECTURE.md), and [ADR-0021](docs/adr/0021-local-sqlite-no-account-runtime.md).
+The release is deliberately local-only and single-user. Remote hosting, shared accounts, team workspaces, job-board scraping, and automated job submission are outside the MVP.
 
 ## Status and licensing
 
-Implementation exists, but release readiness is determined only by the gates recorded in [release readiness](docs/releases/RELEASE_READINESS.md); this README does not claim an unpublished release.
+Implementation exists, but this README does not claim an unpublished release.
 
-Vitae Stack is licensed under [AGPL-3.0-only](LICENSE). Security reports should follow [SECURITY.md](SECURITY.md). Contributions follow [CONTRIBUTING.md](CONTRIBUTING.md).
+Vitae Stack is licensed under the [MIT License](LICENSE). Security reports should follow [SECURITY.md](SECURITY.md). Contributions follow [CONTRIBUTING.md](CONTRIBUTING.md).

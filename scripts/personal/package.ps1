@@ -177,7 +177,7 @@ try {
 
   [IO.File]::WriteAllText(
     (Join-Path $staging "SOURCE.md"),
-    "# Source code`n`nVitae Stack is licensed under AGPL-3.0-only. The corresponding source for version $($package.version) is published with the release and at https://github.com/Kasu724/vitae-stack.`n",
+    "# Source code`n`nVitae Stack is licensed under the MIT License. Source for version $($package.version) is published with the release and at https://github.com/Kasu724/vitae-stack.`n",
     [Text.UTF8Encoding]::new($false)
   )
 

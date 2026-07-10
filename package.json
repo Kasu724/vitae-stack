@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Privacy-first, evidence-grounded resume and cover-letter tailoring platform",
-  "license": "AGPL-3.0-only",
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@11.9.0",
   "engines": {
