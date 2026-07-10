@@ -16,7 +16,7 @@ The release includes its own Node.js runtime. The first start creates `%LOCALAPP
 - `vitae.sqlite`: career entries, evidence, document content, version history, settings metadata, and audit records.
 - `files/`: uploaded source documents and generated export files.
 - `settings.env`: a generated local key used to encrypt optional model-provider credentials.
-- `runtime/`: process identifiers and local logs. Logs must not contain resume content, prompts, credentials, or model output.
+- `runtime/`: process identifiers and local logs. Logs must not contain resume content, provider request data, credentials, or model output.
 
 To make a manual backup, stop Vitae Stack and copy the entire `Vitae Stack` data folder. Restore only while the application is stopped, and restore the whole folder as one unit. The in-product portability export is the provider-neutral way to move user-owned career and document data.
 

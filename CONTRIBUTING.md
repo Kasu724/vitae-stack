@@ -4,13 +4,13 @@ Vitae Stack is currently in the documentation phase. Contributions should make a
 
 ## Before proposing a change
 
-Read [AGENTS.md](AGENTS.md), the [documentation index](docs/README.md), [product principles](docs/ai/AI_PRINCIPLES.md), [security policy](SECURITY.md), and the relevant ADRs. Search existing issues before opening a new one. Security vulnerabilities must use the private process in `SECURITY.md`, not a public issue.
+Read the [project documentation](docs/README.md), [security policy](SECURITY.md), and any issue or discussion that defines the intended behavior. Search existing issues before opening a new one. Security vulnerabilities must use the private process in `SECURITY.md`, not a public issue.
 
 ## Change workflow
 
 1. Open or reference an issue with a testable outcome and requirement/milestone IDs.
 2. Create a focused branch; avoid unrelated formatting changes.
-3. Update authoritative docs and [traceability](docs/exec-plans/REQUIREMENTS_TRACEABILITY.md) with changed behavior.
+3. Update public docs and [traceability](docs/exec-plans/REQUIREMENTS_TRACEABILITY.md) with changed behavior.
 4. Add tests when implementation begins. Planned validation commands are listed in [quality gates](docs/engineering/QUALITY_GATES.md).
 5. Complete the pull-request template honestly, including commands not run and residual risks.
 

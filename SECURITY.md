@@ -18,4 +18,4 @@ Maintainers target acknowledgement within 3 business days, triage within 7, and 
 
 ## Security expectations
 
-See [security architecture](docs/security/SECURITY_ARCHITECTURE.md), [threat model](docs/security/THREAT_MODEL.md), and [secret management](docs/security/SECRET_MANAGEMENT.md). Never commit credentials or upload real user documents to issues, tests, demos, or AI evaluation datasets.
+See [security architecture](docs/security/SECURITY_ARCHITECTURE.md), [threat model](docs/security/THREAT_MODEL.md), and [secret management](docs/security/SECRET_MANAGEMENT.md). Never commit credentials or upload real user documents to issues, tests, demos, or evaluation datasets.
