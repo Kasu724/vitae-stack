@@ -70,6 +70,7 @@ jobs:
           node-version: 24.18.0
       - run: corepack enable; corepack prepare pnpm@11.9.0 --activate
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install chromium
       - run: ./scripts/personal/package.ps1
       - name: Verify extracted portable package
         shell: pwsh
