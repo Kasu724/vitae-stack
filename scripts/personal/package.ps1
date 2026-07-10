@@ -34,6 +34,98 @@ function Copy-ReleaseFile([string]$Relative, [string]$DestinationRoot) {
   Copy-Item -LiteralPath $source -Destination $target
 }
 
+function Remove-PathIfPresent([string]$Path) {
+  $resolved = [IO.Path]::GetFullPath($Path)
+  if (-not $resolved.StartsWith($stagingRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove a path outside the package staging root: $Path"
+  }
+  $longPath = "\\?\$resolved"
+  if (Test-Path -LiteralPath $longPath) {
+    Remove-Item -LiteralPath $longPath -Recurse -Force
+  }
+}
+
+function Copy-NodePackage([string]$Source, [string]$Destination) {
+  New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+  foreach ($item in Get-ChildItem -LiteralPath $Source -Force) {
+    $target = Join-Path $Destination $item.Name
+    if ($item.PSIsContainer) {
+      Copy-NodePackage $item.FullName $target
+    } else {
+      Copy-Item -LiteralPath $item.FullName -Destination $target -Force
+    }
+  }
+}
+
+function Flatten-PnpmVirtualStore([string]$NodeModulesRoot) {
+  $virtualStore = Join-Path $NodeModulesRoot ".pnpm"
+  if (-not (Test-Path -LiteralPath $virtualStore -PathType Container)) { return }
+
+  foreach ($storeEntry in Get-ChildItem -LiteralPath $virtualStore -Directory) {
+    $entryNodeModules = Join-Path $storeEntry.FullName "node_modules"
+    if (-not (Test-Path -LiteralPath $entryNodeModules -PathType Container)) { continue }
+
+    foreach ($package in Get-ChildItem -LiteralPath $entryNodeModules -Directory -Force) {
+      if ($package.Name.StartsWith("@", [StringComparison]::Ordinal)) {
+        foreach ($scopedPackage in Get-ChildItem -LiteralPath $package.FullName -Directory -Force) {
+          Copy-NodePackage $scopedPackage.FullName (Join-Path (Join-Path $NodeModulesRoot $package.Name) $scopedPackage.Name)
+        }
+      } else {
+        Copy-NodePackage $package.FullName (Join-Path $NodeModulesRoot $package.Name)
+      }
+    }
+  }
+
+  Remove-PathIfPresent $virtualStore
+}
+
+function Invoke-PnpmJson([string[]]$Arguments) {
+  $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+  if ($pnpm) {
+    $output = & $pnpm.Source @Arguments
+  } else {
+    $corepackArguments = @("pnpm") + $Arguments
+    $output = & corepack @corepackArguments
+  }
+  if ($LASTEXITCODE -ne 0) { throw "pnpm $($Arguments -join ' ') failed." }
+  return (($output -join "`n") | ConvertFrom-Json)
+}
+
+function Copy-ProductionDependencyClosure([string]$NodeModulesRoot) {
+  $packageTrees = Invoke-PnpmJson @("list", "--prod", "--depth", "Infinity", "--json")
+  $dependencyPaths = [ordered]@{}
+
+  function Add-DependencyNode($Node) {
+    if ($Node.path) {
+      $dependencyPath = [IO.Path]::GetFullPath([string]$Node.path)
+      if (-not $dependencyPath.Equals($root, [StringComparison]::OrdinalIgnoreCase) -and
+          (Test-Path -LiteralPath (Join-Path $dependencyPath "package.json") -PathType Leaf)) {
+        $dependencyPaths[$dependencyPath] = $true
+      }
+    }
+
+    $dependenciesProperty = $Node.PSObject.Properties["dependencies"]
+    if (-not $dependenciesProperty -or -not $dependenciesProperty.Value) { return }
+    foreach ($dependency in $dependenciesProperty.Value.PSObject.Properties) {
+      Add-DependencyNode $dependency.Value
+    }
+  }
+
+  foreach ($tree in $packageTrees) { Add-DependencyNode $tree }
+
+  foreach ($dependencyPath in $dependencyPaths.Keys) {
+    $manifest = Get-Content -Raw -LiteralPath (Join-Path $dependencyPath "package.json") | ConvertFrom-Json
+    if (-not $manifest.name) { continue }
+    $name = [string]$manifest.name
+    if ($name.StartsWith("@", [StringComparison]::Ordinal)) {
+      $parts = $name.Split("/", 2)
+      Copy-NodePackage $dependencyPath (Join-Path (Join-Path $NodeModulesRoot $parts[0]) $parts[1])
+    } else {
+      Copy-NodePackage $dependencyPath (Join-Path $NodeModulesRoot $name)
+    }
+  }
+}
+
 try {
   New-Item -ItemType Directory -Force -Path $staging, $app, $runtime, $releaseBuild, $downloadCache | Out-Null
 
@@ -47,6 +139,11 @@ try {
   )
 
   Copy-Item -Path (Join-Path $root ".next\standalone\*") -Destination $app -Recurse -Force
+  # Copy-Item follows Next standalone's pnpm symlinks for top-level packages.
+  # Flatten transitive packages before removing the virtual store so normal
+  # PowerShell and Windows archive tools can extract the ZIP without long paths.
+  Flatten-PnpmVirtualStore (Join-Path $app "node_modules")
+  Copy-ProductionDependencyClosure (Join-Path $app "node_modules")
   New-Item -ItemType Directory -Force -Path (Join-Path $app ".next\static") | Out-Null
   Copy-Item -Path (Join-Path $root ".next\static\*") -Destination (Join-Path $app ".next\static") -Recurse -Force
   Copy-Item -LiteralPath (Join-Path $root "assets") -Destination (Join-Path $app "assets") -Recurse
@@ -102,6 +199,9 @@ try {
     if (Test-Path -LiteralPath (Join-Path $staging $forbidden)) {
       throw "Release bundle contains a forbidden local-data path: $forbidden"
     }
+  }
+  if (Test-Path -LiteralPath (Join-Path $staging "app\node_modules\.pnpm")) {
+    throw "Release bundle contains the pnpm virtual store."
   }
 
   New-Item -ItemType Directory -Force -Path $destinationDirectory | Out-Null
