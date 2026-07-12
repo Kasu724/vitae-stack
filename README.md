@@ -7,7 +7,7 @@ Vitae Stack is a private, evidence-grounded resume and cover-letter tailoring to
 The Windows release is a portable ZIP, not an installer. To install and run it:
 
 1. Download the `vitae-stack-personal-<version>-windows-x64.zip` release file.
-2. Extract the ZIP to a normal local folder such as `%USERPROFILE%\Apps\Vitae Stack`. Do not run the tool directly from inside the ZIP viewer.
+2. Extract the ZIP to a normal local folder. Do not run the tool directly from inside the ZIP viewer.
 3. Open the extracted folder.
 4. Double-click `Start Vitae Stack.cmd`.
 5. Use the browser page opened at <http://127.0.0.1:3000>.
@@ -26,17 +26,16 @@ No Docker, PostgreSQL server, cloud database, application account, telemetry ser
 To build the portable Windows ZIP from a checkout:
 
 1. Install the development prerequisites: Node.js 24.18.0 and Git.
-2. Enable the pinned package manager:
+2. Verify Corepack can run the pinned package manager:
 
    ```text
-   corepack enable
-   corepack prepare pnpm@11.9.0 --activate
+   corepack pnpm --version
    ```
 
 3. Install dependencies:
 
    ```text
-   pnpm install --frozen-lockfile
+   corepack pnpm install --frozen-lockfile
    ```
 
 4. Build the portable package:
@@ -54,14 +53,12 @@ The build creates `dist\vitae-stack-personal-<version>-windows-x64.zip` and `dis
 Node.js 24.18.0 and pnpm 11.9.0 are the supported toolchain.
 
 ```text
-corepack enable
-corepack prepare pnpm@11.9.0 --activate
-pnpm install --frozen-lockfile
-pnpm db:migrate
-pnpm dev
+corepack pnpm install --frozen-lockfile
+corepack pnpm db:migrate
+corepack pnpm dev
 ```
 
-Development defaults to `./var/vitae.sqlite` and `./var/files`. Copy `.env.example` only when overriding defaults. Build the portable Windows package with `scripts/personal/package.ps1` or `Build Personal Bundle.cmd`.
+Development defaults to `./var/vitae.sqlite` and private artifacts/queues under `./var/private/`. Copy `.env.example` only when overriding defaults. Build the portable Windows package with `scripts/personal/package.ps1` or `Build Personal Bundle.cmd`.
 
 ## Architecture and scope
 

@@ -1,6 +1,6 @@
 # Contributing
 
-Vitae Stack is currently in the documentation phase. Contributions should make a requirement, decision, risk, or delivery step more implementable without implying that planned software exists.
+Vitae Stack has a working local MVP and is undergoing release-readiness hardening. Contributions may change implementation, tests, operations, or documentation, but must distinguish verified current behavior from plans and must preserve the evidence-grounding, privacy, and local-only invariants.
 
 ## Before proposing a change
 
@@ -11,7 +11,7 @@ Read the [project documentation](docs/README.md), [security policy](SECURITY.md)
 1. Open or reference an issue with a testable outcome and requirement/milestone IDs.
 2. Create a focused branch; avoid unrelated formatting changes.
 3. Update public docs and [traceability](docs/exec-plans/REQUIREMENTS_TRACEABILITY.md) with changed behavior.
-4. Add tests when implementation begins. Planned validation commands are listed in [quality gates](docs/engineering/QUALITY_GATES.md).
+4. Add or update tests for behavior changes. Validation commands are listed in [quality gates](docs/engineering/QUALITY_GATES.md); report only commands actually run.
 5. Complete the pull-request template honestly, including commands not run and residual risks.
 
 Commit messages should be imperative and scoped, for example `docs(adr): decide artifact storage`. Pull requests should be reviewable, preserve user data by default, and include migration/recovery notes when state changes.
