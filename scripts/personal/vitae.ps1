@@ -117,21 +117,30 @@ function Wait-ForReady([Diagnostics.Process]$ServerProcess) {
       $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
       throw "Vitae Stack exited during startup.`n$details"
     }
-    $response = $null
-    $reader = $null
+    $client = $null
     try {
-      $request = [Net.WebRequest]::Create("$baseUrl/api/ready")
-      $request.Proxy = $null
-      $request.Timeout = 2000
-      $response = $request.GetResponse()
-      $reader = [IO.StreamReader]::new($response.GetResponseStream())
-      $payload = $reader.ReadToEnd() | ConvertFrom-Json
-      if ($payload.status -eq "ready") { return }
+      $client = [Net.Sockets.TcpClient]::new()
+      $client.ReceiveTimeout = 2000
+      $client.SendTimeout = 2000
+      $client.Connect("127.0.0.1", 3000)
+      $stream = $client.GetStream()
+      $requestBytes = [Text.Encoding]::ASCII.GetBytes("GET /api/ready HTTP/1.1`r`nHost: 127.0.0.1:3000`r`nConnection: close`r`n`r`n")
+      $stream.Write($requestBytes, 0, $requestBytes.Length)
+      $buffer = New-Object byte[] 8192
+      $bytesRead = $stream.Read($buffer, 0, $buffer.Length)
+      $responseText = [Text.Encoding]::UTF8.GetString($buffer, 0, $bytesRead)
+      for ($readAttempt = 0; $readAttempt -lt 80 -and $responseText -notmatch '"status"\s*:\s*"ready"'; $readAttempt += 1) {
+        Start-Sleep -Milliseconds 25
+        if ($stream.DataAvailable) {
+          $bytesRead = $stream.Read($buffer, 0, $buffer.Length)
+          $responseText += [Text.Encoding]::UTF8.GetString($buffer, 0, $bytesRead)
+        }
+      }
+      if ($responseText -match '^HTTP/1\.[01] 200' -and $responseText -match '"status"\s*:\s*"ready"') { return }
     } catch {
       # The server may still be starting or the database may not be ready yet.
     } finally {
-      if ($null -ne $reader) { $reader.Dispose() }
-      if ($null -ne $response) { $response.Dispose() }
+      if ($null -ne $client) { $client.Dispose() }
     }
     Start-Sleep -Milliseconds 500
   }
@@ -141,7 +150,7 @@ function Wait-ForReady([Diagnostics.Process]$ServerProcess) {
       $content = Get-Content -Raw -LiteralPath $log
       if ($null -eq $content) { $content = "" }
       $details += "--- $log`n$($content.Trim())"
-      }
+    }
   }
   throw "Vitae Stack did not become ready.`n$($details -join "`n")"
 }
