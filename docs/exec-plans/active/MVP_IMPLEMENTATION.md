@@ -21,7 +21,7 @@
 
 ## M02 — Database and migrations
 
-**Implementation status:** Implemented as a reviewed SQLite baseline plus forward-only integrity migration, with exact checksum tracking, foreign keys, ownership/context constraints, immutable-history/frozen-workspace triggers, and fail-closed readiness checks.
+**Implementation status:** Implemented as a reviewed SQLite baseline plus forward-only integrity migration, with canonical line-ending-independent checksum tracking, foreign keys, ownership/context constraints, immutable-history/frozen-workspace triggers, and fail-closed readiness checks.
 
 - **Objective:** Provide the local SQLite schema, forward migration runner, ownership constraints, job/audit primitives, and isolated test harness.
 - **User-visible outcome:** startup creates or upgrades one local `vitae.sqlite` file and readiness reports schema state.

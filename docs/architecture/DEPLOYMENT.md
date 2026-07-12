@@ -18,7 +18,7 @@ The process must bind `127.0.0.1`; non-loopback configuration fails validation. 
 
 ## Storage and upgrade
 
-Application binaries and user data are separate. Replacing the extracted release folder does not alter `%LOCALAPPDATA%\Vitae Stack`. Startup migrations are forward-only and checksum-protected. Before an upgrade, stop the app and copy the complete data folder. Rollback is application-binary rollback only when no incompatible migration has run; otherwise restore the coordinated pre-upgrade folder copy.
+Application binaries and user data are separate. Replacing the extracted release folder does not alter `%LOCALAPPDATA%\Vitae Stack`. Startup migrations are forward-only and checksum-protected using canonical LF line endings so checkout behavior cannot change migration identity; legacy CRLF-only checksum records are repaired to the canonical value. Before an upgrade, stop the app and copy the complete data folder. Rollback is application-binary rollback only when no incompatible migration has run; otherwise restore the coordinated pre-upgrade folder copy.
 
 The default data path may be overridden with `VITAE_DATA_DIR` for testing or an explicitly chosen local location. Network shares and concurrent starts against the same data folder are unsupported.
 

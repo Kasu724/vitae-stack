@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { createHash } from "node:crypto";
 import { copyFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -81,6 +82,44 @@ describe("SQLite migrations and integrity", () => {
       await expect(
         migrateDatabase(connection.database, directory),
       ).rejects.toThrow("checksum changed");
+    } finally {
+      await connection.pool.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("canonicalizes Windows migration line endings and repairs legacy checksums", async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "vitae-migration-line-endings-"),
+    );
+    const migration = path.join(directory, "0001_line_endings.sql");
+    const databasePath = path.join(directory, "vitae.sqlite");
+    const canonicalSql =
+      "CREATE TABLE line_ending_check (id TEXT PRIMARY KEY);\n";
+    const windowsSql = canonicalSql.replace(/\n/gu, "\r\n");
+    const hash = (value: string) =>
+      createHash("sha256").update(value).digest("hex");
+    await writeFile(migration, windowsSql);
+    const connection = createDatabaseConnection(databasePath);
+    try {
+      await migrateDatabase(connection.database, directory);
+      const applied = await connection.pool.query<{ checksum: string }>(
+        "SELECT checksum FROM schema_migrations WHERE version=$1",
+        ["0001_line_endings.sql"],
+      );
+      expect(applied.rows[0]?.checksum).toBe(hash(canonicalSql));
+
+      await connection.pool.query(
+        "UPDATE schema_migrations SET checksum=$2 WHERE version=$1",
+        ["0001_line_endings.sql", hash(windowsSql)],
+      );
+      await writeFile(migration, canonicalSql);
+      await migrateDatabase(connection.database, directory);
+      const repaired = await connection.pool.query<{ checksum: string }>(
+        "SELECT checksum FROM schema_migrations WHERE version=$1",
+        ["0001_line_endings.sql"],
+      );
+      expect(repaired.rows[0]?.checksum).toBe(hash(canonicalSql));
     } finally {
       await connection.pool.end();
       await rm(directory, { recursive: true, force: true });
