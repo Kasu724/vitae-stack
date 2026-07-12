@@ -3,7 +3,27 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { CanonicalDocument } from "../document-schema";
+import {
+  draftConflictResponseSchema,
+  type DraftConflictResponse,
+} from "../draft-contract";
 import { commitDocumentVersionAction } from "../actions";
+
+interface ComparableBlock {
+  id: string;
+  label: string;
+  text: string;
+}
+
+function comparableBlocks(document: CanonicalDocument): ComparableBlock[] {
+  return document.sections.flatMap((section) =>
+    section.blocks.map((block, index) => ({
+      id: block.id,
+      label: `${section.heading || section.type} / block ${index + 1}`,
+      text: block.text,
+    })),
+  );
+}
 
 export function DocumentEditor({
   documentId,
@@ -21,48 +41,81 @@ export function DocumentEditor({
   const [content, setContent] = useState(initialContent);
   const [status, setStatus] = useState("All changes saved as a draft.");
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [autosaveBlocked, setAutosaveBlocked] = useState(false);
+  const [activeBaseVersionId, setActiveBaseVersionId] = useState(baseVersionId);
+  const [conflict, setConflict] = useState<
+    DraftConflictResponse["server"] | null
+  >(null);
   const changed = useRef(false);
   const latestContent = useRef(content);
   const revision = useRef(initialDraftRevision);
   const queue = useRef(Promise.resolve());
 
   useEffect(() => {
-    if (!changed.current) return;
+    if (!changed.current || autosaveBlocked) return;
     const timeout = window.setTimeout(() => {
       const snapshot = structuredClone(content);
       const snapshotText = JSON.stringify(snapshot);
-      queue.current = queue.current.then(async () => {
-        setStatus("Saving draft…");
-        const response = await fetch(`/api/documents/${documentId}/draft`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            baseVersionId,
-            expectedRevision: revision.current,
-            content: snapshot,
-          }),
-        });
-        if (response.status === 409) {
-          setStatus("Draft conflict. Reload and compare before continuing.");
-          return;
-        }
-        if (!response.ok) {
+      queue.current = queue.current
+        .catch(() => undefined)
+        .then(async () => {
+          setStatus("Saving draft…");
+          let response: Response;
+          try {
+            response = await fetch(`/api/documents/${documentId}/draft`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                baseVersionId: activeBaseVersionId,
+                expectedRevision: revision.current,
+                content: snapshot,
+              }),
+            });
+          } catch {
+            setStatus(
+              "Draft could not be saved. Your text remains in this browser tab. Edit again to retry.",
+            );
+            return;
+          }
+          if (response.status === 409) {
+            const conflictResponse = draftConflictResponseSchema.safeParse(
+              await response.json().catch(() => null),
+            );
+            setAutosaveBlocked(true);
+            if (conflictResponse.success) {
+              setConflict(conflictResponse.data.server);
+              setStatus(
+                "Draft conflict. Saving is paused. Compare the local and server text below, then explicitly choose which draft to keep.",
+              );
+            } else {
+              setStatus(
+                "Draft conflict. Saving is paused to avoid overwriting another tab. Copy any text you need, then reload to compare.",
+              );
+            }
+            return;
+          }
+          if (!response.ok) {
+            setStatus(
+              "Draft could not be saved. Your text remains in this browser tab. Edit again to retry.",
+            );
+            return;
+          }
+          const result = (await response.json()) as { revision: number };
+          revision.current = result.revision;
+          if (JSON.stringify(latestContent.current) === snapshotText) {
+            changed.current = false;
+            setHasUnsavedChanges(false);
+            setStatus("Draft saved.");
+          }
+        })
+        .catch(() => {
           setStatus(
-            "Draft could not be saved. Your text remains in this browser tab.",
+            "Draft could not be saved. Your text remains in this browser tab. Edit again to retry.",
           );
-          return;
-        }
-        const result = (await response.json()) as { revision: number };
-        revision.current = result.revision;
-        if (JSON.stringify(latestContent.current) === snapshotText) {
-          changed.current = false;
-          setHasUnsavedChanges(false);
-          setStatus("Draft saved.");
-        }
-      });
+        });
     }, 800);
     return () => window.clearTimeout(timeout);
-  }, [baseVersionId, content, documentId]);
+  }, [activeBaseVersionId, autosaveBlocked, content, documentId]);
 
   useEffect(() => {
     function warnBeforeLeaving(event: BeforeUnloadEvent) {
@@ -84,6 +137,45 @@ export function DocumentEditor({
         ),
     [content],
   );
+  const conflictChanges = useMemo(() => {
+    if (!conflict) return [];
+    const local = new Map(
+      comparableBlocks(content).map((block) => [block.id, block]),
+    );
+    const server = new Map(
+      comparableBlocks(conflict.content).map((block) => [block.id, block]),
+    );
+    return [...new Set([...local.keys(), ...server.keys()])]
+      .map((id) => ({ id, local: local.get(id), server: server.get(id) }))
+      .filter((change) => change.local?.text !== change.server?.text);
+  }, [conflict, content]);
+
+  function useServerDraft() {
+    if (!conflict) return;
+    const serverContent = structuredClone(conflict.content);
+    setContent(serverContent);
+    latestContent.current = serverContent;
+    revision.current = conflict.revision;
+    setActiveBaseVersionId(conflict.baseVersionId);
+    changed.current = false;
+    setHasUnsavedChanges(false);
+    setAutosaveBlocked(false);
+    setConflict(null);
+    setStatus("Server draft loaded. No local changes are pending.");
+  }
+
+  function reapplyLocalDraft() {
+    if (!conflict) return;
+    revision.current = conflict.revision;
+    setActiveBaseVersionId(conflict.baseVersionId);
+    changed.current = true;
+    setHasUnsavedChanges(true);
+    setAutosaveBlocked(false);
+    setConflict(null);
+    setStatus(
+      "Reapplying the local draft against the reviewed server revisionâ€¦",
+    );
+  }
 
   function updateBlock(sectionIndex: number, blockIndex: number, text: string) {
     changed.current = true;
@@ -99,9 +191,86 @@ export function DocumentEditor({
 
   return (
     <div>
-      <p className="notice" role="status" aria-live="polite">
+      <p
+        className="notice"
+        role={autosaveBlocked ? "alert" : "status"}
+        aria-live="polite"
+      >
         {status}
       </p>
+      {autosaveBlocked ? (
+        <div className="mt-3 flex flex-wrap gap-3">
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => window.location.reload()}
+          >
+            Reload server draft
+          </button>
+        </div>
+      ) : null}
+      {conflict ? (
+        <section
+          className="mt-5 rounded-xl border border-[var(--border)] p-4"
+          aria-labelledby="draft-conflict-heading"
+        >
+          <h2 id="draft-conflict-heading" className="text-lg font-semibold">
+            Draft conflict comparison
+          </h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Server {conflict.source === "draft" ? "draft" : "version"} from{" "}
+            {new Date(conflict.updatedAt).toLocaleString()}. Choosing the local
+            draft overwrites that mutable server draft; immutable versions
+            remain in history.
+          </p>
+          {conflictChanges.length ? (
+            <ul className="mt-4 grid gap-4">
+              {conflictChanges.map((change) => (
+                <li
+                  key={change.id}
+                  className="min-w-0 rounded-lg border border-[var(--border)] p-3"
+                >
+                  <h3 className="font-semibold">
+                    {change.local?.label ?? change.server?.label ?? change.id}
+                  </h3>
+                  <div className="mt-3 grid min-w-0 gap-3 sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold">This tab</h4>
+                      <pre className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                        {change.local?.text ?? "Block removed"}
+                      </pre>
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-semibold">Server</h4>
+                      <pre className="mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
+                        {change.server?.text ?? "Block removed"}
+                      </pre>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3">The visible block text is identical.</p>
+          )}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={useServerDraft}
+            >
+              Use server draft
+            </button>
+            <button
+              className="danger-button"
+              type="button"
+              onClick={reapplyLocalDraft}
+            >
+              Overwrite server draft with this tab
+            </button>
+          </div>
+        </section>
+      ) : null}
       <p className="mt-3 text-sm text-[var(--muted)]">
         {wordCount.toLocaleString()} words. Browser undo and redo remain
         available while focus is in a text field.
@@ -144,10 +313,10 @@ export function DocumentEditor({
         onSubmit={() => setHasUnsavedChanges(false)}
       >
         <input type="hidden" name="documentId" value={documentId} />
-        <input type="hidden" name="baseVersionId" value={baseVersionId} />
+        <input type="hidden" name="baseVersionId" value={activeBaseVersionId} />
         <input type="hidden" name="content" value={JSON.stringify(content)} />
         <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-        <button className="button" type="submit">
+        <button className="button" type="submit" disabled={autosaveBlocked}>
           Save immutable version
         </button>
       </form>

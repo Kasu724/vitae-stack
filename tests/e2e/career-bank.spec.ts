@@ -9,6 +9,46 @@ test.beforeAll(async () => {
   await ensureSyntheticAuthUser();
 });
 
+test("invalid career entry submission preserves every field", async ({
+  page,
+}) => {
+  await signInSyntheticUser(page);
+  await page
+    .getByRole("link", { name: "Open Career Information Bank" })
+    .click();
+  await page.getByRole("link", { name: "Add career entry" }).click();
+
+  await page.getByLabel("Title").fill("Preserved validation title");
+  await page
+    .getByLabel("Organization")
+    .fill("Preserved validation organization");
+  await page.getByLabel("Start date").fill("2026-02-30");
+  await page.getByLabel("End date").fill("2025-12-01");
+  await page.getByLabel("Description").fill("Preserved validation description");
+  await page.getByRole("button", { name: "Create entry" }).click();
+
+  const alert = page
+    .getByRole("alert")
+    .filter({ hasText: "Correct the highlighted fields and try again." });
+  await expect(alert).toBeFocused();
+  await expect(alert).toContainText("Enter a valid calendar date");
+  await expect(page.getByLabel("Title")).toHaveValue(
+    "Preserved validation title",
+  );
+  await expect(page.getByLabel("Organization")).toHaveValue(
+    "Preserved validation organization",
+  );
+  await expect(page.getByLabel("Start date")).toHaveValue("2026-02-30");
+  await expect(page.getByLabel("End date")).toHaveValue("2025-12-01");
+  await expect(page.getByLabel("Description")).toHaveValue(
+    "Preserved validation description",
+  );
+  await expect(page.getByLabel("Start date")).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+});
+
 test("user creates an entry and explicitly approves grounded evidence", async ({
   page,
 }) => {

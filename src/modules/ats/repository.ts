@@ -1,6 +1,12 @@
 import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import { canonicalDocumentSchema } from "@/modules/documents/document-schema";
+import {
+  assessDocumentGrounding,
+  GROUNDING_POLICY_VERSION,
+  groundingStateHash,
+  type DocumentGroundingClaim,
+} from "@/modules/documents/grounding";
 import { contentHash } from "@/modules/documents/hash";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
@@ -163,6 +169,8 @@ export class AtsRepository {
       const canonicalDocument = canonicalDocumentSchema.parse(
         documentRow.content,
       );
+      if (contentHash(canonicalDocument) !== documentRow.content_hash)
+        throw new AtsInputNotFoundError();
 
       const job = await client.query<{
         job_id: string;
@@ -198,25 +206,23 @@ export class AtsRepository {
         stable_block_id: string;
         start_offset: number;
         end_offset: number;
-        status: "supported" | "unverified" | "nonfactual";
+        text_hash: string;
+        claim_status: "supported" | "unverified" | "nonfactual";
+        evidence_fact_id: string | null;
+        display_text: string | null;
+        value: unknown;
+        fact_status: string | null;
+        entry_status: string | null;
       }>(
-        `SELECT id,stable_block_id,start_offset,end_offset,status
-         FROM generated_claims WHERE version_id=$1 AND workspace_id=$2 ORDER BY id`,
-        [documentRow.version_id, principal.workspaceId],
-      );
-      const claimEvidenceResult = await client.query<{
-        claim_id: string;
-        evidence_fact_id: string;
-        status: string;
-      }>(
-        `SELECT ce.claim_id,ce.evidence_fact_id,
-                CASE WHEN f.status='approved' AND e.status='active' THEN 'approved' ELSE 'ineligible' END status
-         FROM claim_evidence ce
-         JOIN generated_claims c ON c.id=ce.claim_id AND c.workspace_id=ce.workspace_id
-         JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
-         JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
-         WHERE c.version_id=$1 AND ce.workspace_id=$2
-         ORDER BY ce.claim_id,ce.evidence_fact_id`,
+        `SELECT c.id,c.stable_block_id,c.start_offset,c.end_offset,c.text_hash,
+                c.status claim_status,ce.evidence_fact_id,f.display_text,f.value,
+                f.status fact_status,e.status entry_status
+         FROM generated_claims c
+         LEFT JOIN claim_evidence ce ON ce.claim_id=c.id AND ce.workspace_id=c.workspace_id
+         LEFT JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
+         LEFT JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
+         WHERE c.version_id=$1 AND c.workspace_id=$2
+         ORDER BY c.id,ce.evidence_fact_id`,
         [documentRow.version_id, principal.workspaceId],
       );
       const supportResult = await client.query<{
@@ -240,23 +246,60 @@ export class AtsRepository {
           priority: row.priority,
         }),
       );
-      const evidenceByClaim = new Map<
-        string,
-        Array<{ id: string; status: string }>
-      >();
-      for (const row of claimEvidenceResult.rows) {
-        const evidence = evidenceByClaim.get(row.claim_id) ?? [];
-        evidence.push({ id: row.evidence_fact_id, status: row.status });
-        evidenceByClaim.set(row.claim_id, evidence);
+      const groundingById = new Map<string, DocumentGroundingClaim>();
+      for (const row of claimResult.rows) {
+        const claim = groundingById.get(row.id) ?? {
+          id: row.id,
+          stableBlockId: row.stable_block_id,
+          startOffset: row.start_offset,
+          endOffset: row.end_offset,
+          textHash: row.text_hash,
+          status: row.claim_status,
+          evidence: [],
+        };
+        if (row.evidence_fact_id && row.display_text !== null)
+          claim.evidence.push({
+            id: row.evidence_fact_id,
+            displayText: row.display_text,
+            value: row.value,
+            factStatus: row.fact_status ?? "missing",
+            entryStatus: row.entry_status ?? "missing",
+          });
+        groundingById.set(row.id, claim);
       }
-      const claims: AtsClaimInput[] = claimResult.rows.map((row) => ({
-        id: row.id,
-        blockId: row.stable_block_id,
-        start: row.start_offset,
-        end: row.end_offset,
-        status: row.status,
-        evidence: evidenceByClaim.get(row.id) ?? [],
+      const groundingClaims = [...groundingById.values()];
+      const groundingAssessment = assessDocumentGrounding(
+        canonicalDocument,
+        groundingClaims,
+      );
+      const unsupportedIds = new Set(groundingAssessment.unsupportedClaimIds);
+      const claims: AtsClaimInput[] = groundingClaims.map((claim) => ({
+        id: claim.id,
+        blockId: claim.stableBlockId,
+        start: claim.startOffset,
+        end: claim.endOffset,
+        status: unsupportedIds.has(claim.id) ? "unverified" : claim.status,
+        evidence: claim.evidence.map((evidence) => ({
+          id: evidence.id,
+          status:
+            evidence.factStatus === "approved" &&
+            evidence.entryStatus === "active"
+              ? "approved"
+              : "ineligible",
+        })),
       }));
+      for (const issueId of groundingAssessment.unsupportedClaimIds)
+        if (!groundingById.has(issueId))
+          claims.push({
+            id: issueId,
+            blockId: issueId.includes(":")
+              ? issueId.slice(issueId.indexOf(":") + 1)
+              : issueId,
+            start: 0,
+            end: 0,
+            status: "unverified",
+            evidence: [],
+          });
       const support: AtsSupportInput[] = supportResult.rows.map((row) => ({
         requirementId: row.requirement_id,
         evidenceFactId: row.evidence_fact_id,
@@ -270,6 +313,11 @@ export class AtsRepository {
       });
       const inputHash = contentHash({
         rulesetVersion: analysis.rulesetVersion,
+        groundingPolicyVersion: GROUNDING_POLICY_VERSION,
+        groundingStateHash: groundingStateHash(
+          groundingClaims,
+          groundingAssessment.unsupportedClaimIds,
+        ),
         documentHash: documentRow.content_hash,
         jobHash: jobRow.job_hash,
         requirements,

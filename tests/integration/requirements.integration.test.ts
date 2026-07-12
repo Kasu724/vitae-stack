@@ -330,7 +330,7 @@ describe("reviewed job requirements", () => {
       existing: false,
       evidence: [expect.objectContaining({ id: fact.rows[0]!.id })],
     });
-    const proposed = "Built synthetic systems with approved evidence";
+    const proposed = "Built synthetic systems";
     await tailoring.completeResumeRun(first, prepared.runId, {
       taskResults: [],
       gaps: [],
@@ -412,6 +412,61 @@ describe("reviewed job requirements", () => {
     expect(letterView).toMatchObject({
       run: { kind: "cover_letter", status: "ready" },
     });
+    const forgedText = `${proposed} and earned a PhD from MIT`;
+    const forgedSuggestion = await runtimePool.query<{ id: string }>(
+      `INSERT INTO tailoring_suggestions
+         (workspace_id,run_id,sequence,operation,target_section_id,target_block_id,base_block_hash,before_text,after_text,rationale,task_id,task_version)
+       VALUES ($1,$2,99,'replace_block_text',$3,$4,$5,$6,$7,'Imported pre-policy suggestion','AI-08','ai-08.v1')
+       RETURNING id`,
+      [
+        first.workspaceId,
+        letterRun.runId,
+        bodySection.id,
+        bodyBlock.id,
+        contentHash(bodyBlock),
+        bodyBlock.text,
+        forgedText,
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO tailoring_suggestion_requirements (workspace_id,suggestion_id,requirement_id)
+       VALUES ($1,$2,$3)`,
+      [first.workspaceId, forgedSuggestion.rows[0]!.id, matchedRequirement.id],
+    );
+    const forgedClaim = await runtimePool.query<{ id: string }>(
+      `INSERT INTO tailoring_claim_candidates
+         (workspace_id,suggestion_id,start_offset,end_offset,text_hash,relation)
+       VALUES ($1,$2,0,$3,$4,'direct') RETURNING id`,
+      [
+        first.workspaceId,
+        forgedSuggestion.rows[0]!.id,
+        forgedText.length,
+        contentHash(forgedText),
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO tailoring_claim_evidence (workspace_id,claim_candidate_id,evidence_fact_id)
+       VALUES ($1,$2,$3)`,
+      [first.workspaceId, forgedClaim.rows[0]!.id, fact.rows[0]!.id],
+    );
+    await expect(
+      tailoring.reviewRun(first, letterRun.runId, [
+        {
+          suggestionId: letterView.suggestions[0]!.id,
+          decision: "rejected",
+          editedText: proposed,
+        },
+        {
+          suggestionId: forgedSuggestion.rows[0]!.id,
+          decision: "accepted",
+          editedText: forgedText,
+        },
+      ]),
+    ).rejects.toBeInstanceOf(TailoringInputConflictError);
+    await runtimePool.query(
+      "DELETE FROM tailoring_suggestions WHERE id=$1 AND workspace_id=$2",
+      [forgedSuggestion.rows[0]!.id, first.workspaceId],
+    );
     const acceptedVersionId = await tailoring.reviewRun(
       first,
       letterRun.runId,

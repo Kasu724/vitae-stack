@@ -6,13 +6,14 @@ import { redirect } from "next/navigation";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 
+import { parseTags } from "./domain";
 import {
-  careerEntryInputSchema,
-  factProposalInputSchema,
-  parseTags,
-  partialDateSchema,
-} from "./domain";
-import { CareerRepository } from "./repository";
+  parseCareerEntryForm,
+  parseFactForm,
+  type CareerEntryFormState,
+  type FactFormState,
+} from "./form-validation";
+import { CareerConflictError, CareerRepository } from "./repository";
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());
@@ -25,65 +26,51 @@ function text(form: FormData, key: string): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function entryInput(form: FormData) {
-  return careerEntryInputSchema.parse({
-    type: text(form, "type"),
-    title: text(form, "title"),
-    organization: text(form, "organization"),
-    location: text(form, "location"),
-    description: text(form, "description"),
-    startDate: text(form, "startDate"),
-    endDate: text(form, "endDate"),
-    isCurrent: form.get("isCurrent") === "on",
-    tags: parseTags(text(form, "tags")),
-  });
-}
-
-function proposalInput(form: FormData) {
-  const type = text(form, "factType");
-  const displayText = text(form, "displayText");
-  let value: unknown = { kind: "text", text: displayText };
-  if (type === "metric") {
-    value = {
-      kind: "metric",
-      value: Number(text(form, "metricValue")),
-      unit: text(form, "metricUnit"),
-      context: text(form, "metricContext"),
-    };
-  } else if (type === "skill") {
-    value = { kind: "skill", name: displayText };
-  } else if (type === "date") {
-    const date = partialDateSchema.parse(displayText);
-    value = {
-      kind: "date",
-      value: date,
-      precision:
-        date.length === 4 ? "year" : date.length === 7 ? "month" : "day",
-    };
-  }
-  return factProposalInputSchema.parse({
-    type,
-    value,
-    displayText,
-    sourceLocator: { kind: "manual", label: "Manual entry" },
-  });
-}
-
-export async function createCareerEntryAction(form: FormData): Promise<void> {
+export async function createCareerEntryAction(
+  previous: CareerEntryFormState,
+  form: FormData,
+): Promise<CareerEntryFormState> {
   const { principal, repository } = await context();
-  const id = await repository.createEntry(principal, entryInput(form));
+  const parsed = parseCareerEntryForm(form);
+  if (!parsed.value)
+    return {
+      fields: parsed.fields,
+      errors: parsed.errors,
+      message: "Correct the highlighted fields and try again.",
+      attempt: previous.attempt + 1,
+    };
+  const id = await repository.createEntry(principal, parsed.value);
   redirect(`/career/${id}?notice=created`);
 }
 
-export async function updateCareerEntryAction(form: FormData): Promise<void> {
+export async function updateCareerEntryAction(
+  previous: CareerEntryFormState,
+  form: FormData,
+): Promise<CareerEntryFormState> {
   const { principal, repository } = await context();
   const id = text(form, "id");
-  await repository.updateEntry(
-    principal,
-    id,
-    Number(text(form, "revision")),
-    entryInput(form),
-  );
+  const parsed = parseCareerEntryForm(form);
+  const revision = Number(text(form, "revision"));
+  if (!parsed.value || !Number.isInteger(revision) || revision <= 0)
+    return {
+      fields: parsed.fields,
+      errors: parsed.errors,
+      message: "Correct the highlighted fields and try again.",
+      attempt: previous.attempt + 1,
+    };
+  try {
+    await repository.updateEntry(principal, id, revision, parsed.value);
+  } catch (error) {
+    if (error instanceof CareerConflictError)
+      return {
+        fields: parsed.fields,
+        errors: {},
+        message:
+          "This entry changed in another view. Your values are preserved here; reload and reapply them to the current revision.",
+        attempt: previous.attempt + 1,
+      };
+    throw error;
+  }
   redirect(`/career/${id}?notice=updated`);
 }
 
@@ -100,10 +87,21 @@ export async function setCareerEntryArchivedAction(
   redirect(`/career/${id}?notice=status-updated`);
 }
 
-export async function createFactProposalAction(form: FormData): Promise<void> {
+export async function createFactProposalAction(
+  previous: FactFormState,
+  form: FormData,
+): Promise<FactFormState> {
   const { principal, repository } = await context();
   const entryId = text(form, "entryId");
-  await repository.createProposal(principal, entryId, proposalInput(form));
+  const parsed = parseFactForm(form);
+  if (!parsed.value)
+    return {
+      fields: parsed.fields,
+      errors: parsed.errors,
+      message: "Correct the highlighted fact fields and try again.",
+      attempt: previous.attempt + 1,
+    };
+  await repository.createProposal(principal, entryId, parsed.value);
   redirect(`/career/${entryId}?notice=proposal-created`);
 }
 
@@ -119,14 +117,38 @@ export async function rejectFactProposalAction(form: FormData): Promise<void> {
   redirect(`/career/${text(form, "entryId")}?notice=proposal-rejected`);
 }
 
-export async function supersedeFactAction(form: FormData): Promise<void> {
+export async function supersedeFactAction(
+  previous: FactFormState,
+  form: FormData,
+): Promise<FactFormState> {
   const { principal, repository } = await context();
-  await repository.supersedeFact(
-    principal,
-    text(form, "factId"),
-    proposalInput(form),
-  );
-  redirect(`/career/${text(form, "entryId")}?notice=fact-corrected`);
+  const entryId = text(form, "entryId");
+  const parsed = parseFactForm(form);
+  if (!parsed.value)
+    return {
+      fields: parsed.fields,
+      errors: parsed.errors,
+      message: "Correct the highlighted fact fields and try again.",
+      attempt: previous.attempt + 1,
+    };
+  try {
+    await repository.supersedeFact(
+      principal,
+      text(form, "factId"),
+      parsed.value,
+    );
+  } catch (error) {
+    if (error instanceof CareerConflictError)
+      return {
+        fields: parsed.fields,
+        errors: {},
+        message:
+          "This fact changed before the correction was saved. Your values are preserved; reload and review the current fact.",
+        attempt: previous.attempt + 1,
+      };
+    throw error;
+  }
+  redirect(`/career/${entryId}?notice=fact-corrected`);
 }
 
 export async function withdrawFactAction(form: FormData): Promise<void> {

@@ -452,7 +452,8 @@ export default async function JobPage({
                   {aiProviders.length ? (
                     aiProviders.map((provider) => (
                       <option key={provider.id} value={provider.id}>
-                        {provider.label} — {provider.task_assignments["AI-02"]}
+                        {provider.label} — {provider.task_assignments["AI-02"]}{" "}
+                        — {new URL(provider.base_url).origin}
                       </option>
                     ))
                   ) : (
@@ -460,6 +461,45 @@ export default async function JobPage({
                   )}
                 </select>
               </label>
+              {aiProviders.length ? (
+                <section
+                  className="rounded-lg border border-[var(--border)] bg-[var(--background)] p-4 text-sm"
+                  aria-label="Model transmission preview"
+                >
+                  <h4 className="font-semibold">Before data is sent</h4>
+                  <dl className="mt-2 grid gap-2">
+                    <div>
+                      <dt className="inline font-semibold">Task: </dt>
+                      <dd className="inline">
+                        AI-02 requirement extraction using the assigned model.
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="inline font-semibold">Data: </dt>
+                      <dd className="inline">
+                        the full normalized job snapshot above, task
+                        instructions, and the required output schema. Career
+                        entries, evidence facts, and document drafts are not
+                        sent for this task.
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2 font-semibold">Available destinations:</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {aiProviders.map((provider) => (
+                      <li key={provider.id}>
+                        {provider.label}: {new URL(provider.base_url).origin} —{" "}
+                        model {provider.task_assignments["AI-02"]}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[var(--muted)]">
+                    Vitae Stack does not control a remote provider&apos;s
+                    retention or training policy. Review that provider&apos;s
+                    policy before continuing.
+                  </p>
+                </section>
+              ) : null}
               <button
                 className="button w-fit"
                 type="submit"

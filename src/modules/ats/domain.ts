@@ -1,6 +1,7 @@
 import type { CanonicalDocument } from "@/modules/documents/document-schema";
+import { isMaterialCharacter } from "@/modules/documents/grounding";
 
-export const ATS_RULESET_VERSION = "ats-rules@1.0.0";
+export const ATS_RULESET_VERSION = "ats-rules@1.1.0";
 
 export const atsCategories = [
   ["parsing", "Parsing compatibility", 12],
@@ -155,6 +156,47 @@ export function analyzeAts(input: {
   );
   const text = blocks.map((block) => block.text).join("\n");
   const documentTokens = new Set(uniqueTokens(text));
+  const claims = [...input.claims];
+  const knownClaimIds = new Set(claims.map((claim) => claim.id));
+  for (const block of blocks) {
+    const coverage = Array.from({ length: block.text.length }, () => false);
+    const blockClaims = claims
+      .filter((claim) => claim.blockId === block.id)
+      .sort((left, right) => left.start - right.start);
+    let previousEnd = 0;
+    for (const claim of blockClaims) {
+      if (
+        !Number.isInteger(claim.start) ||
+        !Number.isInteger(claim.end) ||
+        claim.start < previousEnd ||
+        claim.start < 0 ||
+        claim.end <= claim.start ||
+        claim.end > block.text.length
+      )
+        continue;
+      previousEnd = claim.end;
+      for (let index = claim.start; index < claim.end; index += 1)
+        coverage[index] = true;
+    }
+    const issueId = `untracked-block:${block.id}`;
+    let hasUntrackedText = false;
+    for (let index = 0; index < block.text.length; index += 1)
+      if (isMaterialCharacter(block.text[index]!) && !coverage[index]) {
+        hasUntrackedText = true;
+        break;
+      }
+    if (!knownClaimIds.has(issueId) && hasUntrackedText) {
+      claims.push({
+        id: issueId,
+        blockId: block.id,
+        start: 0,
+        end: block.text.length,
+        status: "unverified",
+        evidence: [],
+      });
+      knownClaimIds.add(issueId);
+    }
+  }
 
   add(scores, "parsing", text.trim() ? 100 : 0);
   add(scores, "parsing", text.length <= 200_000 ? 100 : 0);
@@ -279,7 +321,7 @@ export function analyzeAts(input: {
     });
 
   const activeClaimEvidence = new Set(
-    input.claims
+    claims
       .filter(
         (claim) =>
           claim.status === "supported" &&
@@ -361,9 +403,7 @@ export function analyzeAts(input: {
         });
     }
 
-  const factualClaims = input.claims.filter(
-    (claim) => claim.status !== "nonfactual",
-  );
+  const factualClaims = claims.filter((claim) => claim.status !== "nonfactual");
   for (const claim of factualClaims) {
     const eligible =
       claim.status === "supported" &&
@@ -484,7 +524,7 @@ export function analyzeAts(input: {
         blocker: false,
       });
     if (/\b\d+(?:[.,]\d+)?%?\b/u.test(block.text)) {
-      const supportedMetric = input.claims.some(
+      const supportedMetric = claims.some(
         (claim) =>
           claim.blockId === block.id &&
           claim.status === "supported" &&

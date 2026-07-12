@@ -182,5 +182,41 @@ describe("persisted deterministic ATS reports", () => {
         reportId,
       ]),
     ).rejects.toMatchObject({ code: "23514" });
+
+    const currentVersion = (await documents.get(first, documentId))
+      .currentVersion.id;
+    await expect(
+      runtimePool.query(
+        "DELETE FROM generated_claims WHERE version_id=$1 AND workspace_id=$2",
+        [currentVersion, first.workspaceId],
+      ),
+    ).rejects.toThrow("immutable history cannot be deleted");
+    const corruptionFixture = await runtimePool.connect();
+    try {
+      await corruptionFixture.query("BEGIN");
+      corruptionFixture.authorizeWorkspaceDeletion();
+      await corruptionFixture.query(
+        "DELETE FROM generated_claims WHERE version_id=$1 AND workspace_id=$2",
+        [currentVersion, first.workspaceId],
+      );
+      await corruptionFixture.query("COMMIT");
+    } catch (error) {
+      await corruptionFixture.query("ROLLBACK");
+      throw error;
+    } finally {
+      corruptionFixture.release();
+    }
+    const incompleteReportId = await repository.generate(first, {
+      documentId,
+      jobId,
+    });
+    const incompleteReport = await repository.getReport(
+      first,
+      incompleteReportId,
+    );
+    expect(incompleteReport.report.blocker_count).toBeGreaterThan(0);
+    expect(incompleteReport.findings).toContainEqual(
+      expect.objectContaining({ rule_id: "ATS-UNSUP-001", blocker: true }),
+    );
   });
 });

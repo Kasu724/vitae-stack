@@ -7,6 +7,7 @@ import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { isTrustedRequestOrigin } from "@/modules/auth/auth-request-handler";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { canonicalDocumentSchema } from "@/modules/documents/document-schema";
+import { draftConflictResponseSchema } from "@/modules/documents/draft-contract";
 import {
   DocumentConflictError,
   DocumentNotFoundError,
@@ -40,21 +41,46 @@ export async function POST(
   );
   if (!parsed.success)
     return NextResponse.json({ code: "INVALID_DOCUMENT" }, { status: 400 });
+  const repository = new DocumentRepository(getRuntimePool());
   try {
-    const draft = await new DocumentRepository(getRuntimePool()).saveDraft(
-      principal,
-      {
-        documentId: (await params).id,
-        ...parsed.data,
-      },
-    );
+    const draft = await repository.saveDraft(principal, {
+      documentId: (await params).id,
+      ...parsed.data,
+    });
     return NextResponse.json({
       revision: draft.revision,
       updatedAt: draft.updated_at.toISOString(),
     });
   } catch (error) {
-    if (error instanceof DocumentConflictError)
-      return NextResponse.json({ code: "DRAFT_CONFLICT" }, { status: 409 });
+    if (error instanceof DocumentConflictError) {
+      const document = await repository.get(principal, (await params).id);
+      const currentDraft =
+        document.draft?.base_version_id === document.currentVersion.id
+          ? document.draft
+          : null;
+      const response = draftConflictResponseSchema.parse({
+        code: "DRAFT_CONFLICT",
+        server: currentDraft
+          ? {
+              baseVersionId: currentDraft.base_version_id,
+              revision: currentDraft.revision,
+              content: currentDraft.content,
+              updatedAt: currentDraft.updated_at.toISOString(),
+              source: "draft",
+            }
+          : {
+              baseVersionId: document.currentVersion.id,
+              revision: 0,
+              content: document.currentVersion.content,
+              updatedAt: document.currentVersion.created_at.toISOString(),
+              source: "current_version",
+            },
+      });
+      return NextResponse.json(response, {
+        status: 409,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
     if (error instanceof DocumentNotFoundError)
       return NextResponse.json({ code: "NOT_FOUND" }, { status: 404 });
     throw error;

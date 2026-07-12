@@ -27,7 +27,7 @@ test("user inspects a resume suggestion and its exact approved evidence", async 
   ).toBeVisible();
   await expect(
     page
-      .getByText("Built synthetic systems with approved evidence", {
+      .getByText("Built synthetic systems", {
         exact: true,
       })
       .first(),
@@ -72,7 +72,7 @@ test("user inspects a resume suggestion and its exact approved evidence", async 
   ).toBeVisible();
   await expect(page.getByText("Category calculations")).toBeVisible();
   await expect(page.getByText("Explainable findings")).toBeVisible();
-  await expect(page.getByText("ats-rules@1.0.0")).toBeVisible();
+  await expect(page.getByText("ats-rules@1.1.0")).toBeVisible();
   await expect(page.getByText(/does not emulate a named ATS/u)).toBeVisible();
   await page.goto(`/exports?documentId=${fixture.documentId}`);
   await page.getByLabel("Export format").selectOption("pdf");
@@ -97,7 +97,7 @@ test("user inspects a grounded cover-letter paragraph without invented company c
   ).toBeVisible();
   await expect(
     page
-      .getByText("Built synthetic systems with approved evidence", {
+      .getByText("Built synthetic systems", {
         exact: true,
       })
       .first(),

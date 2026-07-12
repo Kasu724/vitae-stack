@@ -96,6 +96,16 @@ describe("resume tailoring hard validation", () => {
     ).toThrow("not fully covered");
   });
 
+  it("rejects an unrelated unsupported clause appended to grounded text", () => {
+    const suggestion = validBullet();
+    suggestion.text = `${text} and earned a PhD from MIT`;
+    suggestion.claims[0]!.end = suggestion.text.length;
+
+    expect(() =>
+      validateResumeBulletSuggestion(suggestion, validationInput()),
+    ).toThrow("not sufficiently entailed");
+  });
+
   it("rejects inconsistent section plans and unknown identifiers", () => {
     const plan = resumeSectionPlanSchema.parse({
       schemaVersion: "ai-05.v1",

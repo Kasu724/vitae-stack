@@ -15,6 +15,7 @@ const ids = {
   experienceSection: "20000000-0000-4000-8000-000000000001",
   firstBullet: "20000000-0000-4000-8000-000000000002",
   secondBullet: "20000000-0000-4000-8000-000000000003",
+  contactClaim: "30000000-0000-4000-8000-000000000000",
   firstClaim: "30000000-0000-4000-8000-000000000001",
   secondClaim: "30000000-0000-4000-8000-000000000002",
   evidence: "40000000-0000-4000-8000-000000000001",
@@ -81,6 +82,14 @@ function fixture(): {
       },
     ],
     claims: [
+      {
+        id: ids.contactClaim,
+        blockId: ids.contactBlock,
+        start: 0,
+        end: "alex@example.test".length,
+        status: "supported",
+        evidence: [{ id: ids.evidence, status: "approved" }],
+      },
       {
         id: ids.firstClaim,
         blockId: ids.firstBullet,
@@ -156,8 +165,8 @@ describe("deterministic estimated ATS analysis", () => {
 
   it("blocks an unverified factual claim independently of the numeric estimate", () => {
     const input = fixture();
-    input.claims[1]!.status = "unverified";
-    input.claims[1]!.evidence = [];
+    input.claims[2]!.status = "unverified";
+    input.claims[2]!.evidence = [];
     const analysis = analyzeAts(input);
     expect(analysis.blockerCount).toBe(1);
     expect(analysis.findings).toContainEqual(
@@ -165,6 +174,23 @@ describe("deterministic estimated ATS analysis", () => {
         ruleId: "ATS-UNSUP-001",
         blocker: true,
         severity: "high",
+      }),
+    );
+  });
+
+  it("treats nonempty text without claim coverage as unsupported", () => {
+    const input = fixture();
+    input.claims = [];
+    const analysis = analyzeAts(input);
+
+    expect(analysis.blockerCount).toBeGreaterThan(0);
+    expect(analysis.findings).toContainEqual(
+      expect.objectContaining({
+        ruleId: "ATS-UNSUP-001",
+        blocker: true,
+        location: expect.objectContaining({
+          claimId: `untracked-block:${ids.contactBlock}`,
+        }),
       }),
     );
   });

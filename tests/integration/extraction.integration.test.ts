@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import { sourceStorageKey } from "@/infrastructure/artifacts/filesystem-store";
 import {
   createSqliteTestDatabase,
   type SqliteTestDatabase,
@@ -56,17 +57,19 @@ async function readySource(
   label: string,
   text: string,
 ): Promise<string> {
+  const sourceId = crypto.randomUUID();
   const result = await runtimePool.query<{ id: string }>(
     `INSERT INTO source_documents
-      (workspace_id,uploaded_by_user_id,purpose,original_name,declared_media_type,detected_media_type,byte_size,content_hash,storage_key,status,extracted_text,parser_version,processed_at)
-     VALUES ($1,$2,'career_evidence',$3,'text/plain','text/plain',$4,$5,$6,'ready',$7,'plain-text@1',now()) RETURNING id`,
+      (id,workspace_id,uploaded_by_user_id,purpose,original_name,declared_media_type,detected_media_type,byte_size,content_hash,storage_key,status,extracted_text,parser_version,processed_at)
+     VALUES ($1,$2,$3,'career_evidence',$4,'text/plain','text/plain',$5,$6,$7,'ready',$8,'plain-text@1',now()) RETURNING id`,
     [
+      sourceId,
       principal.workspaceId,
       principal.userId,
       `${label}.txt`,
       Buffer.byteLength(text),
       `sha256:${"a".repeat(63)}${label.length % 10}`,
-      `${principal.workspaceId}/${crypto.randomUUID()}`,
+      sourceStorageKey(principal.workspaceId, sourceId),
       text,
     ],
   );

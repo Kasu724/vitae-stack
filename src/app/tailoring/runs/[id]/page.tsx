@@ -180,7 +180,6 @@ export default async function TailoringRunPage({
                             name={`decision:${suggestion.id}`}
                             value="rejected"
                             required
-                            defaultChecked
                           />
                           Reject
                         </label>

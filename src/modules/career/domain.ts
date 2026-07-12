@@ -90,8 +90,12 @@ export const careerEntryInputSchema = z
         path: ["endDate"],
       });
     }
-    const start = normalizePartialDate(value.startDate);
-    const end = normalizePartialDate(value.endDate);
+    const parsedStart = partialDateSchema.safeParse(value.startDate);
+    const parsedEnd = partialDateSchema.safeParse(value.endDate);
+    const start = parsedStart.success
+      ? normalizePartialDate(parsedStart.data)
+      : null;
+    const end = parsedEnd.success ? normalizePartialDate(parsedEnd.data) : null;
     if (start && end && end.date < start.date) {
       context.addIssue({
         code: "custom",

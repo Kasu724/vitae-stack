@@ -6,7 +6,7 @@
   --surface: #ffffff;
   --text: #172033;
   --muted: #526079;
-  --border: #c7d0df;
+  --border: #7c899e;
   --action: #155eef;
   --action-text: #ffffff;
   --danger: #b42318;
@@ -18,7 +18,7 @@
     --surface: #172033;
     --text: #f8fafc;
     --muted: #cbd5e1;
-    --border: #526079;
+    --border: #8290a6;
     --action: #78a9ff;
     --action-text: #0f172a;
     --danger: #fda29b;
@@ -46,6 +46,15 @@ a {
   color: var(--action);
 }
 
+:where(p, li, dd, dt, a, code, pre, nav, h1, h2, h3, h4, h5, h6) {
+  overflow-wrap: anywhere;
+}
+
+:focus-visible {
+  outline: 3px solid var(--action);
+  outline-offset: 3px;
+}
+
 .field {
   min-height: 2.75rem;
   width: 100%;
@@ -71,6 +80,15 @@ a {
 .button {
   background: var(--action);
   color: var(--action-text);
+}
+
+:where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+textarea {
+  resize: vertical;
 }
 
 .secondary-button {

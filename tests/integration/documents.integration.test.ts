@@ -226,6 +226,53 @@ describe("document library and versioning", () => {
     ).rejects.toBeInstanceOf(DocumentNotFoundError);
   });
 
+  it("refuses to support an unrelated clause through partial lexical overlap", async () => {
+    const documentId = await repository.create(first, {
+      kind: "resume",
+      title: "Grounding boundary fixture",
+    });
+    const initial = await repository.get(first, documentId);
+    const content = structuredClone(initial.currentVersion.content);
+    const block = content.sections[1]!.blocks[0]!;
+    block.text = "Built secure systems for clients and earned a PhD from MIT.";
+    await repository.commitVersion(first, {
+      documentId,
+      baseVersionId: initial.currentVersion.id,
+      content,
+    });
+    const claim = (await repository.listClaims(first, documentId)).find(
+      (item) => item.text === block.text,
+    )!;
+    const entry = await runtimePool.query<{ id: string }>(
+      `INSERT INTO career_entries (workspace_id,career_profile_id,type,title)
+       SELECT workspace_id,id,'custom','Grounding evidence' FROM career_profiles
+       WHERE workspace_id=$1 RETURNING id`,
+      [first.workspaceId],
+    );
+    const evidenceText = "Built secure systems for clients";
+    const fact = await runtimePool.query<{ id: string }>(
+      `INSERT INTO evidence_facts
+         (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id)
+       VALUES ($1,$2,'statement',$3::jsonb,$4,$5::jsonb,$6) RETURNING id`,
+      [
+        first.workspaceId,
+        entry.rows[0]!.id,
+        JSON.stringify({ kind: "text", text: evidenceText }),
+        evidenceText,
+        JSON.stringify({ kind: "manual", label: "Grounding fixture" }),
+        first.userId,
+      ],
+    );
+
+    await expect(
+      repository.supportClaimWithEvidence(first, {
+        documentId,
+        claimId: claim.id,
+        evidenceFactId: fact.rows[0]!.id,
+      }),
+    ).rejects.toBeInstanceOf(DocumentConflictError);
+  });
+
   it("preserves unchanged provenance and invalidates a manually changed factual span", async () => {
     const id = await repository.create(first, {
       kind: "resume",

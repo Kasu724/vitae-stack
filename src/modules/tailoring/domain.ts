@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 
 import { z } from "zod";
 
-import { lexicalTokens } from "@/modules/matching/domain";
+import {
+  claimIsGrounded,
+  isMaterialCharacter,
+  numericTokens,
+} from "@/modules/documents/grounding";
 
 export const resumeSectionPlanSchema = z
   .object({
@@ -255,14 +259,6 @@ export interface EvidenceRequirementSupport {
   strength: "direct" | "combined";
 }
 
-function evidenceText(evidence: TailoringEvidenceInput): string {
-  return `${evidence.displayText} ${JSON.stringify(evidence.value)}`;
-}
-
-function numericTokens(value: string): string[] {
-  return value.match(/\b\d+(?:[.,]\d+)?%?\b/gu) ?? [];
-}
-
 export function validateResumeSectionPlan(
   value: z.infer<typeof resumeSectionPlanSchema>,
   allowedSectionIds: ReadonlySet<string>,
@@ -355,6 +351,27 @@ export function validateResumeBulletSuggestion(
       throw new Error("Claim span is outside the proposed text.");
     if (claim.start < previousEnd) throw new Error("Claim spans overlap.");
     previousEnd = claim.end;
+    for (let index = claim.start; index < claim.end; index += 1)
+      coverage[index] = true;
+  }
+  for (let index = 0; index < value.text.length; index += 1) {
+    const character = value.text[index]!;
+    if (isMaterialCharacter(character) && !coverage[index])
+      throw new Error(
+        "Proposed factual text is not fully covered by claim spans.",
+      );
+  }
+  for (const claim of sorted) {
+    const uniqueEvidenceIds = new Set(claim.evidenceFactIds);
+    if (
+      uniqueEvidenceIds.size !== claim.evidenceFactIds.length ||
+      (claim.relation === "combines"
+        ? uniqueEvidenceIds.size < 2
+        : uniqueEvidenceIds.size !== 1)
+    )
+      throw new Error(
+        "Claim evidence cardinality does not match its relation.",
+      );
     const cited = claim.evidenceFactIds.map((id) => input.evidence.get(id));
     if (cited.some((item) => !item))
       throw new Error("Claim cited unknown or unselected evidence.");
@@ -368,27 +385,22 @@ export function validateResumeBulletSuggestion(
     if (!supportsRequirement)
       throw new Error("Claim evidence is not an included strong match.");
     const claimText = value.text.slice(claim.start, claim.end);
-    const combinedEvidence = cited.map((item) => evidenceText(item!)).join(" ");
-    const evidenceTokens = new Set(lexicalTokens(combinedEvidence));
-    const claimTokens = lexicalTokens(claimText);
-    const overlap = claimTokens.filter((token) => evidenceTokens.has(token));
-    if (claimTokens.length > 0 && overlap.length / claimTokens.length < 0.35)
-      throw new Error("Claim is not sufficiently entailed by cited evidence.");
+    const combinedEvidence = cited
+      .map((item) => `${item!.displayText} ${JSON.stringify(item!.value)}`)
+      .join(" ");
     if (
       numericTokens(claimText).some(
         (number) => !numericTokens(combinedEvidence).includes(number),
       )
     )
       throw new Error("Claim introduced an unsupported numeric value.");
-    for (let index = claim.start; index < claim.end; index += 1)
-      coverage[index] = true;
-  }
-  for (let index = 0; index < value.text.length; index += 1) {
-    const character = value.text[index]!;
-    if (!/\s|[.,;:()\-]/u.test(character) && !coverage[index])
-      throw new Error(
-        "Proposed factual text is not fully covered by claim spans.",
-      );
+    if (
+      !claimIsGrounded(
+        claimText,
+        cited.map((item) => item!),
+      )
+    )
+      throw new Error("Claim is not sufficiently entailed by cited evidence.");
   }
 }
 

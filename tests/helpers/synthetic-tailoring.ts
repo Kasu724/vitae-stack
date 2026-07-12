@@ -150,7 +150,7 @@ export async function seedSyntheticTailoringRun(
       targetLength: "standard",
       idempotencyKey: `browser-${suffix}`,
     });
-    const proposed = "Built synthetic systems with approved evidence";
+    const proposed = "Built synthetic systems";
     await tailoring.completeResumeRun(principal, prepared.runId, {
       taskResults: [],
       gaps: [],

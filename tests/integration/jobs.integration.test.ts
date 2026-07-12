@@ -11,7 +11,10 @@ import {
   type SqliteTestDatabase,
 } from "../helpers/sqlite-test-database";
 import { parseServerEnvironment } from "@/infrastructure/config/environment-schema";
-import { FilesystemArtifactStore } from "@/infrastructure/artifacts/filesystem-store";
+import {
+  FilesystemArtifactStore,
+  sourceStorageKey,
+} from "@/infrastructure/artifacts/filesystem-store";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import {
   ExtractionNotFoundError,
@@ -136,14 +139,16 @@ describe("immutable job-description snapshots", () => {
   });
 
   it("creates a file-provenance snapshot once and blocks career extraction", async () => {
+    const sourceDocumentId = crypto.randomUUID();
     const source = await runtimePool.query<{ id: string }>(
-      `INSERT INTO source_documents (workspace_id,uploaded_by_user_id,purpose,original_name,declared_media_type,detected_media_type,byte_size,content_hash,storage_key,status,extracted_text,parser_version,processed_at)
-       VALUES ($1,$2,'job_description','synthetic-job.txt','text/plain','text/plain',32,$3,$4,'ready','Synthetic employer requirement','plain-text@1',now()) RETURNING id`,
+      `INSERT INTO source_documents (id,workspace_id,uploaded_by_user_id,purpose,original_name,declared_media_type,detected_media_type,byte_size,content_hash,storage_key,status,extracted_text,parser_version,processed_at)
+       VALUES ($1,$2,$3,'job_description','synthetic-job.txt','text/plain','text/plain',32,$4,$5,'ready','Synthetic employer requirement','plain-text@1',now()) RETURNING id`,
       [
+        sourceDocumentId,
         first.workspaceId,
         first.userId,
         `sha256:${"b".repeat(64)}`,
-        `${first.workspaceId}/${crypto.randomUUID()}`,
+        sourceStorageKey(first.workspaceId, sourceDocumentId),
       ],
     );
     const sourceId = source.rows[0]!.id;

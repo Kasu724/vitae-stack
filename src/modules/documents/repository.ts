@@ -12,6 +12,7 @@ import {
   type DocumentKind,
 } from "./document-schema";
 import { contentHash } from "./hash";
+import { claimIsGrounded } from "./grounding";
 
 export class DocumentNotFoundError extends Error {
   public constructor() {
@@ -70,40 +71,13 @@ export interface DocumentClaimRecord {
   evidence: Array<{ id: string; displayText: string; status: string }>;
 }
 
-function groundingTokens(value: string): string[] {
-  return [
-    ...new Set(
-      value
-        .normalize("NFKD")
-        .replace(/\p{M}+/gu, "")
-        .toLocaleLowerCase("en-US")
-        .replace(/[^\p{L}\p{N}+#.%]+/gu, " ")
-        .trim()
-        .split(/\s+/u)
-        .filter((token) => token.length >= 2),
-    ),
-  ];
-}
-
-function numericTokens(value: string): string[] {
-  return value.match(/\b\d+(?:[.,]\d+)?%?\b/gu) ?? [];
-}
-
 function evidenceSupportsClaim(
   claimText: string,
   evidence: { display_text: string; value: unknown },
 ): boolean {
-  const evidenceText = `${evidence.display_text} ${JSON.stringify(evidence.value)}`;
-  const evidenceSet = new Set(groundingTokens(evidenceText));
-  const claimTokens = groundingTokens(claimText);
-  const overlap = claimTokens.filter((token) => evidenceSet.has(token));
-  return (
-    claimTokens.length > 0 &&
-    overlap.length / claimTokens.length >= 0.35 &&
-    numericTokens(claimText).every((token) =>
-      numericTokens(evidenceText).includes(token),
-    )
-  );
+  return claimIsGrounded(claimText, [
+    { displayText: evidence.display_text, value: evidence.value },
+  ]);
 }
 
 async function transaction<T>(

@@ -10,6 +10,12 @@ import {
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { canonicalDocumentSchema } from "@/modules/documents/document-schema";
 import { contentHash } from "@/modules/documents/hash";
+import {
+  assessDocumentGrounding,
+  GROUNDING_POLICY_VERSION,
+  groundingStateHash,
+  type DocumentGroundingClaim,
+} from "@/modules/documents/grounding";
 import { parseSourceBuffer } from "@/modules/ingestion/parsers";
 
 import {
@@ -20,8 +26,10 @@ import {
   normalizedExportTokens,
   orderedTokenCoverage,
   safeExportFilename,
+  sanitizeExportDocument,
   type ExportFormat,
   type RenderedExport,
+  UnsupportedExportClaimsError,
 } from "./domain";
 import { renderExport } from "./renderers";
 
@@ -41,10 +49,45 @@ export class ExportRateLimitError extends Error {
 
 interface SupportStateRow {
   claim_id: string;
+  stable_block_id: string;
+  start_offset: number;
+  end_offset: number;
+  text_hash: string;
   claim_status: "supported" | "unverified" | "nonfactual";
   evidence_fact_id: string | null;
+  evidence_display_text: string | null;
+  evidence_value: unknown;
   fact_status: string | null;
   entry_status: string | null;
+}
+
+interface VersionGroundingState {
+  document: ReturnType<typeof canonicalDocumentSchema.parse>;
+  supportRows: SupportStateRow[];
+  unsupportedClaimIds: string[];
+  groundingStateHash: string;
+}
+
+type JoinedArtifactRow = ExportArtifactRecord & {
+  version_content: unknown;
+  version_content_hash: string;
+};
+
+function artifactRecord(row: JoinedArtifactRow): ExportArtifactRecord {
+  return {
+    id: row.id,
+    document_version_id: row.document_version_id,
+    format: row.format,
+    classification: row.classification,
+    media_type: row.media_type,
+    filename: row.filename,
+    storage_key: row.storage_key,
+    byte_size: row.byte_size,
+    content_hash: row.content_hash,
+    manifest: row.manifest,
+    expires_at: row.expires_at,
+    created_at: row.created_at,
+  };
 }
 
 export interface ExportSetupData {
@@ -100,30 +143,101 @@ function byteHash(bytes: Uint8Array): string {
   return `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
 }
 
-function unsupportedClaims(rows: SupportStateRow[]): string[] {
-  const byClaim = new Map<string, SupportStateRow[]>();
+function groundingClaims(rows: SupportStateRow[]): DocumentGroundingClaim[] {
+  const byClaim = new Map<string, DocumentGroundingClaim>();
   for (const row of rows) {
-    if (row.claim_status === "nonfactual") continue;
-    const current = byClaim.get(row.claim_id) ?? [];
-    current.push(row);
+    const current = byClaim.get(row.claim_id) ?? {
+      id: row.claim_id,
+      stableBlockId: row.stable_block_id,
+      startOffset: row.start_offset,
+      endOffset: row.end_offset,
+      textHash: row.text_hash,
+      status: row.claim_status,
+      evidence: [],
+    };
+    if (
+      row.evidence_fact_id &&
+      row.evidence_display_text !== null &&
+      !current.evidence.some((item) => item.id === row.evidence_fact_id)
+    )
+      current.evidence.push({
+        id: row.evidence_fact_id,
+        displayText: row.evidence_display_text,
+        value:
+          typeof row.evidence_value === "string"
+            ? parseJsonValue(row.evidence_value)
+            : row.evidence_value,
+        ...(row.fact_status ? { factStatus: row.fact_status } : {}),
+        ...(row.entry_status ? { entryStatus: row.entry_status } : {}),
+      });
     byClaim.set(row.claim_id, current);
   }
-  return [...byClaim]
-    .filter(([, claimRows]) => {
-      const first = claimRows[0]!;
-      return (
-        first.claim_status !== "supported" ||
-        !claimRows.some((row) => row.evidence_fact_id !== null) ||
-        claimRows.some(
-          (row) =>
-            row.evidence_fact_id === null ||
-            row.fact_status !== "approved" ||
-            row.entry_status !== "active",
-        )
-      );
-    })
-    .map(([claimId]) => claimId)
-    .sort();
+  return [...byClaim.values()];
+}
+
+function parseJsonValue(value: string): unknown {
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+async function loadVersionGroundingState(
+  client: PoolClient,
+  workspaceId: string,
+  version: { id: string; content: unknown; content_hash: string },
+): Promise<VersionGroundingState> {
+  let document: ReturnType<typeof canonicalDocumentSchema.parse>;
+  try {
+    const content =
+      typeof version.content === "string"
+        ? (JSON.parse(version.content) as unknown)
+        : version.content;
+    document = canonicalDocumentSchema.parse(content);
+  } catch {
+    throw new ExportValidationError(
+      "The selected document version has invalid canonical content.",
+    );
+  }
+  if (contentHash(document) !== version.content_hash)
+    throw new ExportValidationError(
+      "The selected document version failed its integrity check.",
+    );
+  const supportResult = await client.query<SupportStateRow>(
+    `SELECT c.id claim_id,c.stable_block_id,c.start_offset,c.end_offset,c.text_hash,
+            c.status claim_status,ce.evidence_fact_id,
+            f.display_text evidence_display_text,f.value evidence_value,
+            f.status fact_status,e.status entry_status
+     FROM generated_claims c
+     LEFT JOIN claim_evidence ce ON ce.claim_id=c.id AND ce.workspace_id=c.workspace_id
+     LEFT JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
+     LEFT JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
+     WHERE c.version_id=$1 AND c.workspace_id=$2
+     ORDER BY c.id,ce.evidence_fact_id`,
+    [version.id, workspaceId],
+  );
+  const claims = groundingClaims(supportResult.rows);
+  const unsupportedClaimIds = assessDocumentGrounding(
+    document,
+    claims,
+  ).unsupportedClaimIds;
+  return {
+    document,
+    supportRows: supportResult.rows,
+    unsupportedClaimIds,
+    groundingStateHash: groundingStateHash(claims, unsupportedClaimIds),
+  };
+}
+
+function sameStrings(
+  left: readonly string[],
+  right: readonly string[],
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
 }
 
 async function validateParseBack(rendered: RenderedExport): Promise<void> {
@@ -255,19 +369,12 @@ export class ExportService {
         );
         const version = versionResult.rows[0];
         if (!version) throw new ExportNotFoundError();
-        const document = canonicalDocumentSchema.parse(version.content);
-        const supportResult = await client.query<SupportStateRow>(
-          `SELECT c.id claim_id,c.status claim_status,ce.evidence_fact_id,
-                  f.status fact_status,e.status entry_status
-           FROM generated_claims c
-           LEFT JOIN claim_evidence ce ON ce.claim_id=c.id AND ce.workspace_id=c.workspace_id
-           LEFT JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
-           LEFT JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
-           WHERE c.version_id=$1 AND c.workspace_id=$2
-           ORDER BY c.id,ce.evidence_fact_id`,
-          [version.id, principal.workspaceId],
+        const grounding = await loadVersionGroundingState(
+          client,
+          principal.workspaceId,
+          version,
         );
-        const unsupportedClaimIds = unsupportedClaims(supportResult.rows);
+        const { document, unsupportedClaimIds } = grounding;
         const rendered = await renderExport({
           title: version.title,
           format,
@@ -280,7 +387,8 @@ export class ExportService {
           format,
           templateId: EXPORT_TEMPLATE_ID,
           rendererVersion: rendered.rendererVersion,
-          supportState: supportResult.rows,
+          groundingPolicyVersion: GROUNDING_POLICY_VERSION,
+          groundingStateHash: grounding.groundingStateHash,
         });
         await client.query(
           "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
@@ -321,6 +429,8 @@ export class ExportService {
           templateId: EXPORT_TEMPLATE_ID,
           rendererVersion: rendered.rendererVersion,
           sourceDocumentHash: version.content_hash,
+          groundingPolicyVersion: GROUNDING_POLICY_VERSION,
+          groundingStateHash: grounding.groundingStateHash,
           unsupportedClaimIds,
           warnings: rendered.warnings,
         };
@@ -368,20 +478,68 @@ export class ExportService {
     principal: WorkspacePrincipal,
     artifactId: string,
   ): Promise<{ artifact: ExportArtifactRecord; bytes: Buffer }> {
-    const result = await this.pool.query<ExportArtifactRecord>(
-      `SELECT id,document_version_id,format,classification,media_type,filename,storage_key,
-              byte_size::int AS byte_size,content_hash,manifest,expires_at,created_at
-       FROM export_artifacts WHERE id=$1 AND workspace_id=$2 AND expires_at>now()`,
-      [artifactId, principal.workspaceId],
-    );
-    const artifact = result.rows[0];
-    if (!artifact) throw new ExportNotFoundError();
+    const validated = await begin(this.pool, async (client) => {
+      const result = await client.query<JoinedArtifactRow>(
+        `SELECT a.id,a.document_version_id,a.format,a.classification,a.media_type,a.filename,a.storage_key,
+                a.byte_size::int AS byte_size,a.content_hash,a.manifest,a.expires_at,a.created_at,
+                v.content version_content,v.content_hash version_content_hash
+         FROM export_artifacts a
+         JOIN document_versions v ON v.id=a.document_version_id AND v.workspace_id=a.workspace_id
+         WHERE a.id=$1 AND a.workspace_id=$2 AND a.expires_at>now()`,
+        [artifactId, principal.workspaceId],
+      );
+      const row = result.rows[0];
+      if (!row) throw new ExportNotFoundError();
+      const grounding = await loadVersionGroundingState(
+        client,
+        principal.workspaceId,
+        {
+          id: row.document_version_id,
+          content: row.version_content,
+          content_hash: row.version_content_hash,
+        },
+      );
+      if (
+        (row.format === "pdf" || row.format === "docx") &&
+        grounding.unsupportedClaimIds.length > 0
+      )
+        throw new UnsupportedExportClaimsError(grounding.unsupportedClaimIds);
+      const expectedClassification = grounding.unsupportedClaimIds.length
+        ? "draft"
+        : "final";
+      if (
+        row.manifest.groundingPolicyVersion !== GROUNDING_POLICY_VERSION ||
+        row.manifest.sourceDocumentHash !== row.version_content_hash ||
+        row.manifest.groundingStateHash !== grounding.groundingStateHash ||
+        !sameStrings(
+          row.manifest.unsupportedClaimIds,
+          grounding.unsupportedClaimIds,
+        ) ||
+        row.classification !== expectedClassification
+      )
+        throw new ExportValidationError(
+          "Stored export provenance no longer matches its document version.",
+        );
+      return { artifact: artifactRecord(row), document: grounding.document };
+    });
+    const { artifact, document } = validated;
     const bytes = await this.store.read(artifact.storage_key);
     if (
       bytes.length !== artifact.byte_size ||
       byteHash(bytes) !== artifact.content_hash
     )
       throw new ExportValidationError("Stored export integrity check failed.");
+    const sanitized = sanitizeExportDocument(document);
+    await validateParseBack({
+      bytes,
+      format: artifact.format,
+      classification: artifact.classification,
+      mediaType: artifact.media_type,
+      extension: artifact.filename.split(".").at(-1) ?? artifact.format,
+      rendererVersion: artifact.manifest.rendererVersion,
+      warnings: artifact.manifest.warnings,
+      sourceText: exportSourceText(sanitized.document),
+    });
     return { artifact, bytes };
   }
 }

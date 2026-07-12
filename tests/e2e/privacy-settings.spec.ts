@@ -37,3 +37,19 @@ test("user exports data and receives an import dry-run before writes", async ({
   ).toBeFocused();
   await expect(page.getByRole("status")).toContainText("Dry run");
 });
+
+test("deletion confirmation errors expose the server error code", async ({
+  page,
+}) => {
+  await signInSyntheticUser(page);
+  await page.goto("/settings/privacy");
+  await page.getByLabel("Type DELETE MY WORKSPACE").fill("not confirmed");
+  await page
+    .getByRole("button", { name: "Permanently delete workspace" })
+    .click();
+
+  await expect(page.getByRole("status")).toContainText("CONFIRMATION_REQUIRED");
+  await expect(page.getByRole("status")).toContainText(
+    "Do not assume active data was erased",
+  );
+});

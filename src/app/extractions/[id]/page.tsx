@@ -37,10 +37,7 @@ const errors: Record<string, string> = {
     "Bulk approval did not run. Select 1–20 pending proposals and enter the exact selected count.",
 };
 
-function lineFromLocator(proposal: ExtractionProposalRecord): number | null {
-  const match = /^Line (\d+)$/u.exec(proposal.source_locator.section ?? "");
-  return match ? Number(match[1]) : null;
-}
+const PROPOSALS_PER_PAGE = 25;
 
 function ValueFields({ proposal }: { proposal: ExtractionProposalRecord }) {
   const value = proposal.proposed_value;
@@ -135,7 +132,23 @@ export default async function ExtractionReviewPage({
   const pending = review.proposals.filter(
     (proposal) => proposal.status === "pending",
   );
-  const lines = review.batch.extracted_text.split(/\n/gu);
+  const requestedPage =
+    typeof query.page === "string" ? Number.parseInt(query.page, 10) : 1;
+  const pageCount = Math.max(
+    1,
+    Math.ceil(review.proposals.length / PROPOSALS_PER_PAGE),
+  );
+  const page = Number.isFinite(requestedPage)
+    ? Math.min(pageCount, Math.max(1, requestedPage))
+    : 1;
+  const pageStart = (page - 1) * PROPOSALS_PER_PAGE;
+  const visibleProposals = review.proposals.slice(
+    pageStart,
+    pageStart + PROPOSALS_PER_PAGE,
+  );
+  const visiblePending = visibleProposals.filter(
+    (proposal) => proposal.status === "pending",
+  );
   const notice =
     typeof query.notice === "string" ? notices[query.notice] : null;
   const error = typeof query.error === "string" ? errors[query.error] : null;
@@ -181,7 +194,7 @@ export default async function ExtractionReviewPage({
         </p>
       ) : null}
 
-      {pending.length ? (
+      {visiblePending.length ? (
         <section
           className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
           aria-labelledby="bulk-heading"
@@ -198,18 +211,25 @@ export default async function ExtractionReviewPage({
             className="mt-4 grid gap-4"
           >
             <input type="hidden" name="batchId" value={review.batch.id} />
-            <fieldset>
-              <legend className="font-semibold">Pending proposals</legend>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {pending.map((proposal) => (
-                  <label key={proposal.id} className="flex items-start gap-2">
+            <fieldset className="min-w-0">
+              <legend className="font-semibold">
+                Pending proposals on this page
+              </legend>
+              <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
+                {visiblePending.map((proposal) => (
+                  <label
+                    key={proposal.id}
+                    className="flex min-w-0 items-start gap-2"
+                  >
                     <input
-                      className="mt-1 min-h-5 min-w-5"
+                      className="mt-1 min-h-6 min-w-6"
                       type="checkbox"
                       name="proposalId"
                       value={proposal.id}
                     />
-                    <span>{proposal.display_text}</span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      {proposal.display_text}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -255,25 +275,13 @@ export default async function ExtractionReviewPage({
               review decisions and evidence identifiers remain auditable.
             </p>
           ) : (
-            <ol className="mt-4 grid list-none gap-1 font-mono text-sm">
-              {lines.map((line, index) => (
-                <li
-                  id={`source-line-${index + 1}`}
-                  key={index}
-                  className="grid scroll-mt-4 grid-cols-[3rem_1fr] gap-3 rounded px-2 py-1 target:bg-[var(--background)]"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="select-none text-right text-[var(--muted)]"
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="whitespace-pre-wrap break-words">
-                    {line || " "}
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <pre
+              className="mt-4 max-h-[62vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--background)] p-4 font-mono text-sm"
+              tabIndex={0}
+              aria-label="Normalized untrusted source text"
+            >
+              {review.batch.extracted_text}
+            </pre>
           )}
         </section>
 
@@ -281,9 +289,12 @@ export default async function ExtractionReviewPage({
           <h2 id="proposals-heading" className="text-2xl font-semibold">
             Proposals
           </h2>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Showing {visibleProposals.length ? pageStart + 1 : 0}–
+            {pageStart + visibleProposals.length} of {review.proposals.length}.
+          </p>
           <ul className="mt-4 grid gap-4">
-            {review.proposals.map((proposal, index) => {
-              const sourceLine = lineFromLocator(proposal);
+            {visibleProposals.map((proposal, index) => {
               return (
                 <li
                   key={proposal.id}
@@ -291,7 +302,7 @@ export default async function ExtractionReviewPage({
                 >
                   <div className="flex flex-wrap justify-between gap-2">
                     <h3 className="text-lg font-semibold">
-                      Proposal {index + 1}
+                      Proposal {pageStart + index + 1}
                     </h3>
                     <span className="status-label">{proposal.status}</span>
                   </div>
@@ -302,13 +313,7 @@ export default async function ExtractionReviewPage({
                     <div>
                       <dt className="inline font-semibold">Source: </dt>
                       <dd className="inline">
-                        {sourceLine && review.batch.source_available ? (
-                          <a href={`#source-line-${sourceLine}`}>
-                            {proposal.source_locator.label}
-                          </a>
-                        ) : (
-                          proposal.source_locator.label
-                        )}
+                        {proposal.source_locator.label}
                       </dd>
                     </div>
                     <div>
@@ -469,6 +474,34 @@ export default async function ExtractionReviewPage({
               );
             })}
           </ul>
+          {pageCount > 1 ? (
+            <nav
+              className="mt-6 flex flex-wrap items-center justify-between gap-3"
+              aria-label="Proposal pages"
+            >
+              {page > 1 ? (
+                <Link
+                  className="secondary-button"
+                  href={`/extractions/${id}?page=${page - 1}`}
+                >
+                  Previous proposals
+                </Link>
+              ) : (
+                <span />
+              )}
+              <span>
+                Page {page} of {pageCount}
+              </span>
+              {page < pageCount ? (
+                <Link
+                  className="secondary-button"
+                  href={`/extractions/${id}?page=${page + 1}`}
+                >
+                  Next proposals
+                </Link>
+              ) : null}
+            </nav>
+          ) : null}
         </section>
       </div>
     </main>

@@ -16,6 +16,7 @@ import {
   withdrawFactAction,
 } from "@/modules/career/actions";
 import { EntryForm } from "@/modules/career/components/entry-form";
+import { FactForm } from "@/modules/career/components/fact-form";
 import {
   CareerNotFoundError,
   CareerRepository,
@@ -38,64 +39,6 @@ const noticeText: Record<string, string> = {
   "fact-withdrawn": "Fact withdrawn and excluded from future use.",
   "skill-linked": "Skill linked to this entry.",
 };
-
-function FactFields({ prefix = "" }: { prefix?: string }) {
-  return (
-    <>
-      <label className="grid gap-1 font-medium">
-        Fact type
-        <select
-          name={`${prefix}factType`}
-          className="field"
-          defaultValue="statement"
-        >
-          <option value="statement">Statement</option>
-          <option value="accomplishment">Accomplishment</option>
-          <option value="education">Education</option>
-          <option value="metric">Metric</option>
-          <option value="date">Date</option>
-          <option value="skill">Skill</option>
-          <option value="custom">Custom</option>
-        </select>
-      </label>
-      <label className="grid gap-1 font-medium">
-        Claim or value
-        <textarea
-          name={`${prefix}displayText`}
-          className="field"
-          rows={3}
-          required
-          maxLength={5000}
-        />
-      </label>
-      <fieldset className="grid gap-3 rounded-lg border border-[var(--border)] p-4">
-        <legend className="px-1 font-medium">
-          Metric details (required only for metric facts)
-        </legend>
-        <label className="grid gap-1">
-          Numeric value
-          <input
-            name={`${prefix}metricValue`}
-            className="field"
-            inputMode="decimal"
-          />
-        </label>
-        <label className="grid gap-1">
-          Unit
-          <input
-            name={`${prefix}metricUnit`}
-            className="field"
-            placeholder="%, users, USD"
-          />
-        </label>
-        <label className="grid gap-1">
-          Context
-          <input name={`${prefix}metricContext`} className="field" />
-        </label>
-      </fieldset>
-    </>
-  );
-}
 
 export default async function CareerEntryPage({
   params,
@@ -239,13 +182,13 @@ export default async function CareerEntryPage({
           Manual claims still require an explicit approval step. Dates use YYYY,
           YYYY-MM, or YYYY-MM-DD.
         </p>
-        <form action={createFactProposalAction} className="mt-5 grid gap-4">
-          <input type="hidden" name="entryId" value={entry.id} />
-          <FactFields />
-          <button className="button w-fit" type="submit">
-            Add proposal
-          </button>
-        </form>
+        <div className="mt-5">
+          <FactForm
+            action={createFactProposalAction}
+            entryId={entry.id}
+            submitLabel="Add proposal"
+          />
+        </div>
       </section>
 
       <section className="mt-8" aria-labelledby="review-heading">
@@ -354,17 +297,14 @@ export default async function CareerEntryPage({
                       <summary className="cursor-pointer font-semibold">
                         Correct this fact
                       </summary>
-                      <form
-                        action={supersedeFactAction}
-                        className="mt-4 grid gap-4"
-                      >
-                        <input type="hidden" name="entryId" value={entry.id} />
-                        <input type="hidden" name="factId" value={fact.id} />
-                        <FactFields />
-                        <button className="button w-fit" type="submit">
-                          Approve corrected fact
-                        </button>
-                      </form>
+                      <div className="mt-4">
+                        <FactForm
+                          action={supersedeFactAction}
+                          entryId={entry.id}
+                          factId={fact.id}
+                          submitLabel="Approve corrected fact"
+                        />
+                      </div>
                     </details>
                     <form action={withdrawFactAction}>
                       <input type="hidden" name="entryId" value={entry.id} />

@@ -8,6 +8,10 @@ import {
   canonicalDocumentSchema,
   type CanonicalDocument,
 } from "@/modules/documents/document-schema";
+import {
+  assessTextGrounding,
+  type DocumentGroundingClaim,
+} from "@/modules/documents/grounding";
 import { contentHash } from "@/modules/documents/hash";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
@@ -910,23 +914,61 @@ export class TailoringRepository {
           item.suggestion.task_id === "deterministic-letter-framing"
         )
           continue;
-        const lifecycle = await client.query<{
-          expected: string;
-          eligible: string;
+        const candidateRows = await client.query<{
+          id: string;
+          start_offset: number;
+          end_offset: number;
+          text_hash: string;
+          relation: "direct" | "combines" | "paraphrases";
+          evidence_fact_id: string | null;
+          display_text: string | null;
+          value: unknown;
+          fact_status: string | null;
+          entry_status: string | null;
+          selected_evidence_fact_id: string | null;
         }>(
-          `SELECT count(*)::text expected,
-                  count(*) FILTER (WHERE f.status='approved' AND e.status='active' AND re.evidence_fact_id IS NOT NULL)::text eligible
+          `SELECT c.id,c.start_offset,c.end_offset,c.text_hash,c.relation,
+                  ce.evidence_fact_id,f.display_text,f.value,f.status fact_status,
+                  e.status entry_status,re.evidence_fact_id selected_evidence_fact_id
            FROM tailoring_claim_candidates c
-           JOIN tailoring_claim_evidence ce ON ce.claim_candidate_id=c.id AND ce.workspace_id=c.workspace_id
-           JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
-           JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
+           LEFT JOIN tailoring_claim_evidence ce ON ce.claim_candidate_id=c.id AND ce.workspace_id=c.workspace_id
+           LEFT JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
+           LEFT JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id
            LEFT JOIN tailoring_run_evidence re ON re.run_id=$1 AND re.workspace_id=c.workspace_id AND re.evidence_fact_id=f.id
-           WHERE c.suggestion_id=$2 AND c.workspace_id=$3`,
+           WHERE c.suggestion_id=$2 AND c.workspace_id=$3
+           ORDER BY c.start_offset,c.id,ce.evidence_fact_id`,
           [runId, item.suggestion.id, principal.workspaceId],
         );
+        const claims = new Map<
+          string,
+          Omit<DocumentGroundingClaim, "stableBlockId">
+        >();
+        for (const row of candidateRows.rows) {
+          const claim = claims.get(row.id) ?? {
+            id: row.id,
+            startOffset: row.start_offset,
+            endOffset: row.end_offset,
+            textHash: row.text_hash,
+            status: "supported" as const,
+            relation: row.relation,
+            evidence: [],
+          };
+          if (row.evidence_fact_id && row.display_text !== null)
+            claim.evidence.push({
+              id: row.evidence_fact_id,
+              displayText: row.display_text,
+              value: row.value,
+              factStatus:
+                row.selected_evidence_fact_id === null
+                  ? "not-selected"
+                  : (row.fact_status ?? "missing"),
+              entryStatus: row.entry_status ?? "missing",
+            });
+          claims.set(row.id, claim);
+        }
         if (
-          lifecycle.rows[0]?.expected === "0" ||
-          lifecycle.rows[0]?.expected !== lifecycle.rows[0]?.eligible
+          assessTextGrounding(item.editedText, [...claims.values()])
+            .unsupportedClaimIds.length > 0
         )
           throw new TailoringInputConflictError();
       }
@@ -996,7 +1038,22 @@ export class TailoringRepository {
       }
       for (const item of accepted) {
         if (!item.editedText) continue;
-        if (item.exact) {
+        if (
+          item.exact &&
+          item.suggestion.task_id === "deterministic-letter-framing"
+        ) {
+          await client.query(
+            `INSERT INTO generated_claims (workspace_id,version_id,stable_block_id,start_offset,end_offset,text_hash,status)
+             VALUES ($1,$2,$3,0,$4,$5,'nonfactual')`,
+            [
+              principal.workspaceId,
+              versionId,
+              item.suggestion.target_block_id,
+              item.editedText.length,
+              contentHash(item.editedText),
+            ],
+          );
+        } else if (item.exact) {
           const claims = await client.query<{
             id: string;
             start_offset: number;

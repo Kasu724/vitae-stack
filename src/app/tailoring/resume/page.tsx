@@ -158,6 +158,39 @@ export default async function ResumeTailoringSetupPage({
             credentials, unrelated career entries, or source files are sent.
           </p>
         </fieldset>
+        <aside
+          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
+          aria-labelledby="resume-transmission-heading"
+        >
+          <h2
+            id="resume-transmission-heading"
+            className="text-xl font-semibold"
+          >
+            Provider transmission preview
+          </h2>
+          <p className="mt-2">
+            The destination is the provider host selected above. Starting the
+            run sends these data classes:
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-6">
+            <li>Up to 30,000 characters of the reviewed job snapshot.</li>
+            <li>
+              Current section metadata and up to 10 eligible current block
+              texts.
+            </li>
+            <li>
+              Reviewed requirements and approved fact display text/value only
+              from checked entries and explicitly included strong matches.
+            </li>
+            <li>Selected tone, target length, and opaque local identifiers.</li>
+          </ul>
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Credentials, source files, rejected facts, and unrelated entries are
+            excluded. A remote provider applies its own retention and data
+            handling terms; choose a local provider to keep model processing on
+            this computer.
+          </p>
+        </aside>
         <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <legend className="px-2 text-xl font-semibold">
             Included experiences and facts

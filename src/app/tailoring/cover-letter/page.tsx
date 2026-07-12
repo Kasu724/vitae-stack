@@ -165,6 +165,40 @@ export default async function CoverLetterTailoringSetupPage({
             sent.
           </p>
         </fieldset>
+        <aside
+          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
+          aria-labelledby="letter-transmission-heading"
+        >
+          <h2
+            id="letter-transmission-heading"
+            className="text-xl font-semibold"
+          >
+            Provider transmission preview
+          </h2>
+          <p className="mt-2">
+            The destination is the provider host selected above. Starting the
+            run sends these data classes:
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-6">
+            <li>
+              Planning receives up to 30,000 characters of reviewed job text,
+              current body-block text, reviewed requirements, and eligible
+              approved evidence.
+            </li>
+            <li>
+              Each paragraph draft receives only its selected requirements,
+              approved fact display text/value, current target block, writing
+              preferences, and opaque identifiers; raw job/company prose is not
+              sent to the paragraph-drafting task.
+            </li>
+          </ul>
+          <p className="mt-3 text-sm text-[var(--muted)]">
+            Credentials, source files, rejected facts, and unrelated entries are
+            excluded. A remote provider applies its own retention and data
+            handling terms; choose a local provider to keep model processing on
+            this computer.
+          </p>
+        </aside>
         <fieldset className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
           <legend className="px-2 text-xl font-semibold">
             Included experiences and facts

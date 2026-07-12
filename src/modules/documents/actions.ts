@@ -8,7 +8,7 @@ import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { CareerRepository } from "@/modules/career/repository";
 
 import { canonicalDocumentSchema, documentKindSchema } from "./document-schema";
-import { DocumentRepository } from "./repository";
+import { DocumentConflictError, DocumentRepository } from "./repository";
 
 function text(form: FormData, key: string): string {
   const value = form.get(key);
@@ -38,12 +38,18 @@ export async function commitDocumentVersionAction(
   const content = canonicalDocumentSchema.parse(
     JSON.parse(text(form, "content")),
   );
-  await repository.commitVersion(principal, {
-    documentId: id,
-    baseVersionId: text(form, "baseVersionId"),
-    content,
-    idempotencyKey: text(form, "idempotencyKey"),
-  });
+  try {
+    await repository.commitVersion(principal, {
+      documentId: id,
+      baseVersionId: text(form, "baseVersionId"),
+      content,
+      idempotencyKey: text(form, "idempotencyKey"),
+    });
+  } catch (error) {
+    if (error instanceof DocumentConflictError)
+      redirect(`/documents/${id}?error=stale-version`);
+    redirect(`/documents/${id}?error=version-save`);
+  }
   redirect(`/documents/${id}?notice=version-saved`);
 }
 

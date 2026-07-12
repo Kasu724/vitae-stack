@@ -92,6 +92,7 @@ describe("private document export artifacts", () => {
        SELECT $1,id,'custom','Export evidence' FROM career_profiles WHERE workspace_id=$1 RETURNING id`,
       [first.workspaceId],
     );
+    const factIds: string[] = [];
     for (const claimText of [
       "alex@example.test",
       "Built maintainable synthetic systems.",
@@ -112,6 +113,7 @@ describe("private document export artifacts", () => {
           first.userId,
         ],
       );
+      factIds.push(fact.rows[0]!.id);
       versionId = await documents.supportClaimWithEvidence(first, {
         documentId,
         claimId: currentClaim.id,
@@ -140,6 +142,13 @@ describe("private document export artifacts", () => {
     expect(downloaded.bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
     await expect(service.getArtifact(second, pdf.id)).rejects.toBeInstanceOf(
       ExportNotFoundError,
+    );
+    await runtimePool.query(
+      "UPDATE evidence_facts SET status='withdrawn' WHERE id=$1 AND workspace_id=$2",
+      [factIds[0], first.workspaceId],
+    );
+    await expect(service.getArtifact(first, pdf.id)).rejects.toBeInstanceOf(
+      UnsupportedExportClaimsError,
     );
     await expect(
       runtimePool.query(

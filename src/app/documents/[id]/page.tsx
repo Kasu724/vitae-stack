@@ -37,6 +37,17 @@ const notices: Record<string, string> = {
     "The selected text was classified as nonfactual in a new immutable version.",
 };
 
+const errors: Record<string, string> = {
+  "invalid-lock":
+    "The lock could not be changed because the target is unavailable or no longer current.",
+  "claim-support":
+    "Claim support was not changed. The claim or evidence may be stale, ineligible, or insufficient for the exact text.",
+  "stale-version":
+    "The document changed before this version could be saved. Your submitted text was not applied. Reload the current version and compare before retrying.",
+  "version-save":
+    "The immutable version could not be saved. The document was not changed.",
+};
+
 export default async function DocumentPage({
   params,
   searchParams,
@@ -85,6 +96,8 @@ export default async function DocumentPage({
   );
   const notice =
     typeof query.notice === "string" ? notices[query.notice] : undefined;
+  const error =
+    typeof query.error === "string" ? errors[query.error] : undefined;
   return (
     <main id="main-content" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <nav aria-label="Breadcrumb">
@@ -119,13 +132,12 @@ export default async function DocumentPage({
           {notice}
         </p>
       ) : null}
-      {query.error === "invalid-lock" ? (
+      {error ? (
         <p
           className="mt-6 rounded-lg border border-[var(--danger)] p-4"
           role="alert"
         >
-          The lock could not be changed because the target is unavailable or no
-          longer current.
+          {error}
         </p>
       ) : null}
       <section
@@ -188,13 +200,13 @@ export default async function DocumentPage({
             Export document
           </Link>
         </div>
-        <ul className="mt-5 grid gap-4">
+        <ul className="mt-5 grid min-w-0 gap-4">
           {data.currentVersion.content.sections.map((section) => {
             const sectionLocked = lockKeys.has(`section:${section.id}`);
             return (
               <li
                 key={section.id}
-                className="rounded-lg border border-[var(--border)] p-4"
+                className="min-w-0 rounded-lg border border-[var(--border)] p-4"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <strong>{section.heading || section.type}</strong>
@@ -212,13 +224,13 @@ export default async function DocumentPage({
                     </button>
                   </form>
                 </div>
-                <ul className="mt-3 grid gap-2">
+                <ul className="mt-3 grid min-w-0 gap-2">
                   {section.blocks.map((block, index) => {
                     const blockLocked = lockKeys.has(`block:${block.id}`);
                     return (
                       <li
                         key={block.id}
-                        className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-[var(--background)] p-3"
+                        className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-md bg-[var(--background)] p-3"
                       >
                         <span className="min-w-0 flex-1 truncate">
                           Block {index + 1}: {block.text || "Empty"}
@@ -257,13 +269,13 @@ export default async function DocumentPage({
             Lock approved facts
           </summary>
           {eligibleFacts.length ? (
-            <ul className="mt-3 grid gap-2">
+            <ul className="mt-3 grid min-w-0 gap-2">
               {eligibleFacts.map((fact) => {
                 const factLocked = lockKeys.has(`fact:${fact.id}`);
                 return (
                   <li
                     key={fact.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--border)] p-3"
+                    className="min-w-0 flex flex-wrap items-center justify-between gap-3 rounded-md border border-[var(--border)] p-3"
                   >
                     <span>{fact.display_text}</span>
                     <form action={setDocumentLockAction}>
