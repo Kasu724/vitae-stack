@@ -3,8 +3,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { readServerEnvironment } from "@/infrastructure/config/environment";
+import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { DataControls } from "@/modules/portability/components/data-controls";
+import { WorkspaceDeletionService } from "@/modules/privacy/workspace-deletion-service";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +14,10 @@ export default async function PrivacySettingsPage() {
   const principal = await getCurrentPrincipal(await headers());
   if (!principal) redirect("/");
   const environment = readServerEnvironment();
+  const deletionPreview = await new WorkspaceDeletionService(
+    getRuntimePool(),
+    environment,
+  ).preview(principal);
   return (
     <main id="main-content" className="mx-auto max-w-5xl px-4 py-10 sm:px-6">
       <nav aria-label="Breadcrumb">
@@ -29,7 +35,7 @@ export default async function PrivacySettingsPage() {
         <Link href="/settings/providers">Review model destinations</Link>
       </p>
       <div className="mt-8">
-        <DataControls />
+        <DataControls deletionPreview={deletionPreview} />
       </div>
     </main>
   );

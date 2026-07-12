@@ -16,6 +16,15 @@ export async function migrateDatabase(
   const files = (await readdir(migrationsFolder))
     .filter((file) => /^\d+_[a-z0-9_-]+\.sql$/iu.test(file))
     .sort();
+  const applied = await database.query<{ version: string }>(
+    "SELECT version FROM schema_migrations ORDER BY version",
+  );
+  const bundled = new Set(files);
+  const unknown = applied.rows.find((row) => !bundled.has(row.version));
+  if (unknown)
+    throw new Error(
+      `Database contains an unknown migration: ${unknown.version}`,
+    );
   for (const file of files) {
     const sql = await readFile(path.join(migrationsFolder, file), "utf8");
     const checksum = createHash("sha256").update(sql).digest("hex");

@@ -10,6 +10,8 @@ import { createDatabaseConnection } from "@/infrastructure/database/connection";
 import { JobOperationRepository } from "@/infrastructure/database/job-operation-repository";
 import { migrateDatabase } from "@/infrastructure/database/migration";
 import { EXPECTED_MIGRATION_COUNT } from "@/infrastructure/database/readiness";
+import { createInitialDocument } from "@/modules/documents/document-schema";
+import { contentHash } from "@/modules/documents/hash";
 import type { Pool } from "@/infrastructure/database/sqlite-pool";
 import {
   createSqliteTestDatabase,
@@ -85,6 +87,31 @@ describe("SQLite migrations and integrity", () => {
     }
   });
 
+  it("rejects applied migrations that are absent from the running bundle", async () => {
+    const directory = await mkdtemp(
+      path.join(tmpdir(), "vitae-migration-unknown-"),
+    );
+    const databasePath = path.join(directory, "vitae.sqlite");
+    await copyFile(
+      path.resolve("db/migrations/0001_initial.sql"),
+      path.join(directory, "0001_initial.sql"),
+    );
+    const connection = createDatabaseConnection(databasePath);
+    try {
+      await migrateDatabase(connection.database, directory);
+      await connection.pool.query(
+        "INSERT INTO schema_migrations (version,checksum) VALUES ('9999_future.sql',$1)",
+        ["0".repeat(64)],
+      );
+      await expect(
+        migrateDatabase(connection.database, directory),
+      ).rejects.toThrow("unknown migration: 9999_future.sql");
+    } finally {
+      await connection.pool.end();
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("rolls back a failed transaction", async () => {
     const client = await pool.connect();
     const email = "rollback@example.test";
@@ -119,6 +146,69 @@ describe("SQLite migrations and integrity", () => {
         [first.workspaceId, first.userId, operation.rows[0]!.id],
       ),
     ).rejects.toMatchObject({ code: "23503" });
+  });
+
+  it("protects current immutable document history and its context", async () => {
+    const owner = await createWorkspace("immutable-owner");
+    const profile = await pool.query<{ id: string }>(
+      "SELECT id FROM career_profiles WHERE workspace_id=$1",
+      [owner.workspaceId],
+    );
+    const document = await pool.query<{ id: string }>(
+      `INSERT INTO documents (workspace_id,career_profile_id,kind,title)
+       VALUES ($1,$2,'resume','Immutable fixture') RETURNING id`,
+      [owner.workspaceId, profile.rows[0]!.id],
+    );
+    const otherDocument = await pool.query<{ id: string }>(
+      `INSERT INTO documents (workspace_id,career_profile_id,kind,title)
+       VALUES ($1,$2,'resume','Other fixture') RETURNING id`,
+      [owner.workspaceId, profile.rows[0]!.id],
+    );
+    const content = createInitialDocument("resume");
+    const version = await pool.query<{ id: string }>(
+      `INSERT INTO document_versions
+         (workspace_id,document_id,author_user_id,reason,content,content_hash)
+       VALUES ($1,$2,$3,'initial',$4::jsonb,$5) RETURNING id`,
+      [
+        owner.workspaceId,
+        document.rows[0]!.id,
+        owner.userId,
+        JSON.stringify(content),
+        contentHash(content),
+      ],
+    );
+    await pool.query(
+      "UPDATE documents SET current_version_id=$1 WHERE id=$2 AND workspace_id=$3",
+      [version.rows[0]!.id, document.rows[0]!.id, owner.workspaceId],
+    );
+
+    await expect(
+      pool.query("DELETE FROM document_versions WHERE id=$1", [
+        version.rows[0]!.id,
+      ]),
+    ).rejects.toThrow("immutable history cannot be deleted");
+    await expect(
+      pool.query(
+        "UPDATE documents SET current_version_id=$1 WHERE id=$2 AND workspace_id=$3",
+        [version.rows[0]!.id, otherDocument.rows[0]!.id, owner.workspaceId],
+      ),
+    ).rejects.toThrow("document current version context mismatch");
+  });
+
+  it("blocks ordinary deletes after a workspace is frozen", async () => {
+    const owner = await createWorkspace("frozen-delete-owner");
+    const skill = await pool.query<{ id: string }>(
+      `INSERT INTO skills (workspace_id,canonical_name,display_name)
+       VALUES ($1,'frozen-delete','Frozen delete') RETURNING id`,
+      [owner.workspaceId],
+    );
+    await pool.query(
+      "UPDATE workspaces SET deletion_requested_at=now() WHERE id=$1",
+      [owner.workspaceId],
+    );
+    await expect(
+      pool.query("DELETE FROM skills WHERE id=$1", [skill.rows[0]!.id]),
+    ).rejects.toThrow("workspace pending deletion");
   });
 
   it("cascades workspace-owned rows on permanent deletion", async () => {

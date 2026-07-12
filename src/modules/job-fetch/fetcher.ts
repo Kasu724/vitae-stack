@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { request } from "node:https";
+import { request as httpsRequest } from "node:https";
 import type { LookupFunction } from "node:net";
 import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 
@@ -28,6 +28,8 @@ export interface FetchedJobDescription {
 
 export interface JobFetchDependencies {
   resolve?: typeof lookup;
+  request?: typeof httpsRequest;
+  timeoutMs?: number;
 }
 
 function decodeBody(body: Buffer, encoding: string | undefined): Buffer {
@@ -74,6 +76,7 @@ async function fetchOnce(
   url: URL,
   deadline: number,
   resolve: typeof lookup,
+  requestImpl: typeof httpsRequest,
 ): Promise<{
   status: number;
   location?: string;
@@ -96,8 +99,35 @@ async function fetchOnce(
     callback(null, pinned.address, pinned.family);
   };
 
-  return new Promise((resolveRequest, reject) => {
-    const req = request(
+  return new Promise((resolveRequest, rejectRequest) => {
+    let settled = false;
+    let connectTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearTimers = () => {
+      if (connectTimer) clearTimeout(connectTimer);
+      clearTimeout(absoluteTimer);
+    };
+    const succeed = (value: {
+      status: number;
+      location?: string;
+      body?: Buffer;
+      contentType?: "text/html" | "text/plain";
+    }) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      resolveRequest(value);
+    };
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimers();
+      rejectRequest(
+        error instanceof UnsafeJobUrlError
+          ? error
+          : new UnsafeJobUrlError("FETCH_FAILED"),
+      );
+    };
+    const req = requestImpl(
       {
         protocol: "https:",
         hostname: url.hostname,
@@ -119,15 +149,15 @@ async function fetchOnce(
           const location = response.headers.location;
           response.resume();
           if (!location) {
-            reject(new UnsafeJobUrlError("INVALID_REDIRECT"));
+            fail(new UnsafeJobUrlError("INVALID_REDIRECT"));
             return;
           }
-          resolveRequest({ status, location });
+          succeed({ status, location });
           return;
         }
         if (status < 200 || status >= 300) {
           response.resume();
-          reject(new UnsafeJobUrlError("UPSTREAM_STATUS"));
+          fail(new UnsafeJobUrlError("UPSTREAM_STATUS"));
           return;
         }
         const rawType = response.headers["content-type"]
@@ -142,13 +172,13 @@ async function fetchOnce(
               : null;
         if (!contentType) {
           response.resume();
-          reject(new UnsafeJobUrlError("UNSUPPORTED_CONTENT_TYPE"));
+          fail(new UnsafeJobUrlError("UNSUPPORTED_CONTENT_TYPE"));
           return;
         }
         const declaredLength = Number(response.headers["content-length"]);
         if (Number.isFinite(declaredLength) && declaredLength > MAX_BYTES) {
           response.destroy();
-          reject(new UnsafeJobUrlError("RESPONSE_TOO_LARGE"));
+          fail(new UnsafeJobUrlError("RESPONSE_TOO_LARGE"));
           return;
         }
         const chunks: Buffer[] = [];
@@ -156,12 +186,14 @@ async function fetchOnce(
         response.on("data", (chunk: Buffer) => {
           size += chunk.length;
           if (size > MAX_BYTES) {
-            response.destroy(new UnsafeJobUrlError("RESPONSE_TOO_LARGE"));
+            const error = new UnsafeJobUrlError("RESPONSE_TOO_LARGE");
+            fail(error);
+            response.destroy(error);
             return;
           }
           chunks.push(chunk);
         });
-        response.on("error", reject);
+        response.on("error", fail);
         response.on("end", () => {
           try {
             const body = decodeBody(
@@ -172,30 +204,34 @@ async function fetchOnce(
             );
             if (body.length > MAX_BYTES)
               throw new UnsafeJobUrlError("RESPONSE_TOO_LARGE");
-            resolveRequest({ status, body, contentType });
+            succeed({ status, body, contentType });
           } catch (error) {
-            reject(error);
+            fail(error);
           }
         });
       },
     );
     req.maxHeadersCount = 100;
-    const connectTimer = setTimeout(
-      () => req.destroy(new UnsafeJobUrlError("CONNECT_TIMEOUT")),
+    connectTimer = setTimeout(
+      () => {
+        const error = new UnsafeJobUrlError("CONNECT_TIMEOUT");
+        fail(error);
+        req.destroy(error);
+      },
       Math.min(3000, remaining),
     );
-    req.once("response", () => clearTimeout(connectTimer));
-    req.once("error", () => clearTimeout(connectTimer));
-    req.setTimeout(remaining, () =>
-      req.destroy(new UnsafeJobUrlError("FETCH_TIMEOUT")),
-    );
-    req.on("error", (error) =>
-      reject(
-        error instanceof UnsafeJobUrlError
-          ? error
-          : new UnsafeJobUrlError("FETCH_FAILED"),
-      ),
-    );
+    req.once("response", () => {
+      if (connectTimer) clearTimeout(connectTimer);
+      connectTimer = undefined;
+    });
+    const timeOut = () => {
+      const error = new UnsafeJobUrlError("FETCH_TIMEOUT");
+      fail(error);
+      req.destroy(error);
+    };
+    const absoluteTimer = setTimeout(timeOut, remaining);
+    req.setTimeout(remaining, timeOut);
+    req.on("error", fail);
     req.end();
   });
 }
@@ -206,10 +242,11 @@ export async function fetchPublicJobDescription(
 ): Promise<FetchedJobDescription> {
   const requested = validatePublicJobUrl(rawUrl);
   const resolve = dependencies.resolve ?? lookup;
-  const deadline = Date.now() + TIMEOUT_MS;
+  const requestImpl = dependencies.request ?? httpsRequest;
+  const deadline = Date.now() + (dependencies.timeoutMs ?? TIMEOUT_MS);
   let current = requested;
   for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
-    const response = await fetchOnce(current, deadline, resolve);
+    const response = await fetchOnce(current, deadline, resolve, requestImpl);
     if (response.location) {
       if (redirects === MAX_REDIRECTS)
         throw new UnsafeJobUrlError("TOO_MANY_REDIRECTS");

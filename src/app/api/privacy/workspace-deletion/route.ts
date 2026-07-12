@@ -28,15 +28,19 @@ export async function POST(request: NextRequest) {
     const service = new WorkspaceDeletionService(getRuntimePool(), environment);
     const requested = await service.request(principal);
     const completed = await service.process(requested.operationId);
-    return NextResponse.json({
-      operationId: completed.operationId,
-      state: completed.state,
-      requestedAt: completed.requestedAt.toISOString(),
-      completedAt: completed.completedAt?.toISOString() ?? null,
-      backupExpiresAt: completed.backupExpiresAt.toISOString(),
-      deletedCounts: completed.deletedCounts,
-      errorCode: completed.errorCode,
-    });
+    return NextResponse.json(
+      {
+        operationId: completed.operationId,
+        state: completed.state,
+        requestedAt: completed.requestedAt.toISOString(),
+        completedAt: completed.completedAt?.toISOString() ?? null,
+        backupExpiresAt: completed.backupExpiresAt.toISOString(),
+        managedBackupCreated: false,
+        deletedCounts: completed.deletedCounts,
+        errorCode: completed.errorCode,
+      },
+      { status: completed.state === "succeeded" ? 200 : 202 },
+    );
   } catch (error) {
     if (error instanceof AuthorizationError)
       return NextResponse.json(

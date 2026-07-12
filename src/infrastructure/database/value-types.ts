@@ -68,6 +68,8 @@ export interface ExportManifestValue {
   templateId: "ats-safe-single-column@2";
   rendererVersion: string;
   sourceDocumentHash: string;
+  groundingPolicyVersion: "exact-approved-assertion@1";
+  groundingStateHash: string;
   unsupportedClaimIds: string[];
   warnings: string[];
 }

@@ -85,4 +85,63 @@ describe("job URL network policy", () => {
       }),
     ).rejects.toMatchObject({ code: "FETCH_TIMEOUT" });
   }, 15_000);
+
+  it("enforces the total deadline while a response drips bytes", async () => {
+    const drippingRequest = ((
+      _options: unknown,
+      callback: (
+        response: PassThrough & {
+          headers: Record<string, string>;
+          statusCode: number;
+        },
+      ) => void,
+    ) => {
+      const request = new EventEmitter() as EventEmitter & {
+        maxHeadersCount: number;
+        setTimeout: (milliseconds: number, listener: () => void) => unknown;
+        end: () => void;
+        destroy: (error: Error) => unknown;
+      };
+      let response:
+        | (PassThrough & {
+            headers: Record<string, string>;
+            statusCode: number;
+          })
+        | undefined;
+      request.maxHeadersCount = 0;
+      request.setTimeout = () => request;
+      request.end = () => {
+        response = Object.assign(new PassThrough(), {
+          headers: { "content-type": "text/plain" },
+          statusCode: 200,
+        });
+        callback(response);
+        request.emit("response", response);
+        const interval = setInterval(() => response?.write("x"), 20);
+        const finish = setTimeout(() => response?.end(), 500);
+        response.on("close", () => {
+          clearInterval(interval);
+          clearTimeout(finish);
+        });
+      };
+      request.destroy = (error) => {
+        response?.destroy();
+        request.emit("error", error);
+        return request;
+      };
+      return request;
+    }) as unknown as typeof httpsRequest;
+    const startedAt = Date.now();
+    await expect(
+      fetchPublicJobDescription("https://example.com/job", {
+        resolve: (async () => [{ address: "8.8.8.8", family: 4 }]) as never,
+        request: drippingRequest,
+        timeoutMs: 100,
+      }),
+    ).rejects.toMatchObject({ code: "FETCH_TIMEOUT" });
+    expect(Date.now() - startedAt).toBeLessThan(350);
+  });
 });
+import { EventEmitter } from "node:events";
+import { request as httpsRequest } from "node:https";
+import { PassThrough } from "node:stream";

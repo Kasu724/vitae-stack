@@ -12,12 +12,19 @@ import {
   type SqliteTestDatabase,
 } from "../helpers/sqlite-test-database";
 import {
+  exportArtifactStorageKey,
   FilesystemArtifactStore,
   sourceStorageKey,
 } from "@/infrastructure/artifacts/filesystem-store";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { DocumentRepository } from "@/modules/documents/repository";
-import { PortabilityService } from "@/modules/portability/service";
+import { ExportService } from "@/modules/exports/service";
+import {
+  PortabilityService,
+  PortabilityValidationError,
+} from "@/modules/portability/service";
+import { portabilityArchiveSchema, sha256 } from "@/modules/portability/domain";
+import { validateArchiveSemantics } from "@/modules/portability/validation";
 import { WorkspaceDeletionService } from "@/modules/privacy/workspace-deletion-service";
 
 let testDatabase: SqliteTestDatabase;
@@ -25,6 +32,40 @@ let runtimePool: Pool;
 let storageRoot: string;
 let parserRoot: string;
 let fetchRoot: string;
+
+class GatedArtifactStore extends FilesystemArtifactStore {
+  public readonly started: Promise<void>;
+  private start!: () => void;
+  private readonly released: Promise<void>;
+  private releaseGate!: () => void;
+  private gated = false;
+
+  public constructor(root: string) {
+    super(root);
+    this.started = new Promise((resolve) => {
+      this.start = resolve;
+    });
+    this.released = new Promise((resolve) => {
+      this.releaseGate = resolve;
+    });
+  }
+
+  public release(): void {
+    this.releaseGate();
+  }
+
+  public override async putExclusive(
+    key: string,
+    bytes: Uint8Array,
+  ): Promise<void> {
+    if (!this.gated) {
+      this.gated = true;
+      this.start();
+      await this.released;
+    }
+    await super.putExclusive(key, bytes);
+  }
+}
 
 async function principal(label: string): Promise<WorkspacePrincipal> {
   const user = await runtimePool.query<{ id: string }>(
@@ -89,10 +130,15 @@ describe("portability and permanent deletion", () => {
         first.userId,
       ],
     );
-    await new DocumentRepository(runtimePool).create(first, {
+    const documentRepository = new DocumentRepository(runtimePool);
+    const portableDocumentId = await documentRepository.create(first, {
       kind: "resume",
       title: "Portable synthetic resume",
     });
+    const portableDocument = await documentRepository.get(
+      first,
+      portableDocumentId,
+    );
     await runtimePool.query(
       `INSERT INTO model_provider_configurations
          (workspace_id,created_by_user_id,kind,label,base_url,auth_type,
@@ -128,10 +174,14 @@ describe("portability and permanent deletion", () => {
       `INSERT INTO job_posting_revisions
          (workspace_id,job_posting_id,input_method,revision_number,normalized_text,
           content_hash,created_by_user_id)
-       VALUES ($1,$2,'text',1,'Synthetic reviewed requirement',
-         'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',$3)
-       RETURNING id`,
-      [first.workspaceId, posting.rows[0]!.id, first.userId],
+       VALUES ($1,$2,'text',1,'Synthetic reviewed requirement',$3,$4)
+        RETURNING id`,
+      [
+        first.workspaceId,
+        posting.rows[0]!.id,
+        sha256("Synthetic reviewed requirement"),
+        first.userId,
+      ],
     );
     const requirementSet = await runtimePool.query<{ id: string }>(
       `INSERT INTO job_requirement_sets
@@ -147,6 +197,51 @@ describe("portability and permanent deletion", () => {
        VALUES ($1,$2,'required_qualification','required','accepted',
          'Synthetic reviewed requirement') RETURNING id`,
       [first.workspaceId, requirementSet.rows[0]!.id],
+    );
+    const matchRun = await runtimePool.query<{ id: string }>(
+      `INSERT INTO requirement_match_runs
+         (workspace_id,requirement_set_id,revision_number,algorithm_version,input_hash,
+          eligible_fact_count,created_by_user_id)
+       VALUES ($1,$2,1,'synthetic-match@1',$3,1,$4) RETURNING id`,
+      [
+        first.workspaceId,
+        requirementSet.rows[0]!.id,
+        `sha256:${"0".repeat(64)}`,
+        first.userId,
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO tailoring_runs
+         (workspace_id,kind,document_id,base_version_id,job_posting_revision_id,
+          requirement_set_id,match_run_id,status,idempotency_key,manifest,created_by_user_id)
+       VALUES ($1,'resume',$2,$3,$4,$5,$6,'ready','portable-context',$7::jsonb,$8)`,
+      [
+        first.workspaceId,
+        portableDocumentId,
+        portableDocument.currentVersion.id,
+        postingRevision.rows[0]!.id,
+        requirementSet.rows[0]!.id,
+        matchRun.rows[0]!.id,
+        JSON.stringify({ schemaVersion: 1 }),
+        first.userId,
+      ],
+    );
+    const otherPosting = await runtimePool.query<{ id: string }>(
+      `INSERT INTO job_postings (workspace_id,title)
+       VALUES ($1,'Other synthetic context') RETURNING id`,
+      [first.workspaceId],
+    );
+    const otherRevision = await runtimePool.query<{ id: string }>(
+      `INSERT INTO job_posting_revisions
+         (workspace_id,job_posting_id,input_method,revision_number,normalized_text,
+          content_hash,created_by_user_id)
+       VALUES ($1,$2,'text',1,'Other synthetic context',$3,$4) RETURNING id`,
+      [
+        first.workspaceId,
+        otherPosting.rows[0]!.id,
+        sha256("Other synthetic context"),
+        first.userId,
+      ],
     );
     const unauthorizedBypass = await runtimePool.connect();
     try {
@@ -174,6 +269,30 @@ describe("portability and permanent deletion", () => {
       "credential_ciphertext",
     );
     const archive = portability.parse(archiveBytes);
+    const crossedContext = structuredClone(archive);
+    crossedContext.tables.tailoring_runs![0]!.job_posting_revision_id =
+      otherRevision.rows[0]!.id;
+    expect(validateArchiveSemantics(crossedContext)).toContain(
+      "tailoring-run-context",
+    );
+
+    const poisoned = structuredClone(archive);
+    poisoned.blobs = poisoned.blobs.filter((blob) => blob.kind !== "source");
+    poisoned.tables.source_documents![0]!.id = "not-a-uuid/poison";
+    poisoned.tables.source_documents![0]!.storage_key = `${first.workspaceId}/not-a-uuid/poison.bin`;
+    expect(validateArchiveSemantics(poisoned)).toContain("archive-identifier");
+    const poisonTarget = await principal("portable-poison-target");
+    await expect(
+      portability.importArchive(poisonTarget, poisoned),
+    ).rejects.toBeInstanceOf(PortabilityValidationError);
+    expect(
+      (
+        await runtimePool.query(
+          "SELECT id FROM source_documents WHERE workspace_id=$1",
+          [poisonTarget.workspaceId],
+        )
+      ).rowCount,
+    ).toBe(0);
 
     const deletion = new WorkspaceDeletionService(runtimePool, {
       ARTIFACT_STORAGE_ROOT: storageRoot,
@@ -202,6 +321,24 @@ describe("portability and permanent deletion", () => {
       ]),
     ).toHaveProperty("rowCount", 0);
 
+    const raceTarget = await principal("portable-race-target");
+    const gatedStore = new GatedArtifactStore(storageRoot);
+    const racedImport = new PortabilityService(
+      runtimePool,
+      gatedStore,
+    ).importArchive(raceTarget, archive);
+    await gatedStore.started;
+    await runtimePool.query(
+      `INSERT INTO skills (workspace_id,canonical_name,display_name)
+       VALUES ($1,'concurrent-target-write','Concurrent target write')`,
+      [raceTarget.workspaceId],
+    );
+    gatedStore.release();
+    await expect(racedImport).rejects.toThrow("target workspace is not empty");
+    await expect(
+      gatedStore.read(sourceStorageKey(raceTarget.workspaceId, sourceId)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+
     const second = await principal("portable-second");
     const preview = await portability.preview(second, archive);
     expect(preview).toMatchObject({ canApply: true, secretFieldCount: 0 });
@@ -229,5 +366,157 @@ describe("portability and permanent deletion", () => {
         path.join(storageRoot, sourceStorageKey(second.workspaceId, sourceId)),
       ),
     ).resolves.toBeUndefined();
+  }, 30_000);
+
+  it("blocks final export when an imported version has no claim coverage", async () => {
+    const source = await principal("portability-grounding-source");
+    const store = new FilesystemArtifactStore(storageRoot);
+    const documents = new DocumentRepository(runtimePool);
+    const documentId = await documents.create(source, {
+      kind: "resume",
+      title: "Imported grounding fixture",
+    });
+    const initial = await documents.get(source, documentId);
+    const content = structuredClone(initial.currentVersion.content);
+    const claimText = "Earned a PhD from MIT.";
+    content.sections[1]!.blocks[0]!.text = claimText;
+    await documents.commitVersion(source, {
+      documentId,
+      baseVersionId: initial.currentVersion.id,
+      content,
+    });
+    const claim = (await documents.listClaims(source, documentId)).find(
+      (item) => item.text === claimText,
+    )!;
+    const entry = await runtimePool.query<{ id: string }>(
+      `INSERT INTO career_entries (workspace_id,career_profile_id,type,title)
+       SELECT workspace_id,id,'education','Grounding fixture' FROM career_profiles
+       WHERE workspace_id=$1 RETURNING id`,
+      [source.workspaceId],
+    );
+    const fact = await runtimePool.query<{ id: string }>(
+      `INSERT INTO evidence_facts
+         (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id)
+       VALUES ($1,$2,'statement',$3::jsonb,$4,$5::jsonb,$6) RETURNING id`,
+      [
+        source.workspaceId,
+        entry.rows[0]!.id,
+        JSON.stringify({ kind: "text", text: claimText }),
+        claimText,
+        JSON.stringify({ kind: "manual", label: "Grounding fixture" }),
+        source.userId,
+      ],
+    );
+    const supportedVersionId = await documents.supportClaimWithEvidence(
+      source,
+      {
+        documentId,
+        claimId: claim.id,
+        evidenceFactId: fact.rows[0]!.id,
+      },
+    );
+    const exports = new ExportService(runtimePool, store);
+    const originalArtifact = await exports.generate(source, {
+      documentId,
+      versionId: supportedVersionId,
+      format: "pdf",
+    });
+
+    const portability = new PortabilityService(runtimePool, store);
+    const archiveBytes = await portability.exportArchive(source, {
+      includeSources: false,
+      includeArtifacts: true,
+    });
+    const rawArchive = portabilityArchiveSchema.parse(
+      JSON.parse(archiveBytes.toString("utf8")),
+    );
+    expect(validateArchiveSemantics(rawArchive)).toEqual([]);
+
+    const staleAnchor = structuredClone(rawArchive);
+    const supportedClaim = staleAnchor.tables.generated_claims!.find(
+      (row) => row.status === "supported",
+    )!;
+    supportedClaim.text_hash = `sha256:${"0".repeat(64)}`;
+    expect(validateArchiveSemantics(staleAnchor)).toContain(
+      "document-claim-structure",
+    );
+
+    const unrelatedEvidence = structuredClone(rawArchive);
+    unrelatedEvidence.tables.evidence_facts![0]!.display_text =
+      "Unrelated approved assertion";
+    expect(validateArchiveSemantics(unrelatedEvidence)).toContain(
+      "artifact-grounding-hash",
+    );
+
+    const withdrawnLifecycle = structuredClone(rawArchive);
+    withdrawnLifecycle.options.artifacts = false;
+    withdrawnLifecycle.tables.export_artifacts = [];
+    withdrawnLifecycle.blobs = withdrawnLifecycle.blobs.filter(
+      (blob) => blob.kind !== "export",
+    );
+    withdrawnLifecycle.tables.evidence_facts![0]!.status = "withdrawn";
+    withdrawnLifecycle.tables.career_entries![0]!.status = "archived";
+    expect(validateArchiveSemantics(withdrawnLifecycle)).toEqual([]);
+
+    const mismatchedContent = structuredClone(rawArchive);
+    mismatchedContent.tables.document_versions!.at(-1)!.content_hash =
+      `sha256:${"f".repeat(64)}`;
+    expect(validateArchiveSemantics(mismatchedContent)).toContain(
+      "document-version-integrity",
+    );
+
+    const archive = portability.parse(archiveBytes);
+    archive.tables.generated_claims = [];
+    archive.tables.claim_evidence = [];
+    expect(validateArchiveSemantics(archive)).toContain(
+      "document-claim-structure",
+    );
+
+    const deletion = new WorkspaceDeletionService(runtimePool, {
+      ARTIFACT_STORAGE_ROOT: storageRoot,
+      PARSER_QUEUE_ROOT: parserRoot,
+      JOB_FETCH_QUEUE_ROOT: fetchRoot,
+    });
+    const operation = await deletion.request(source);
+    expect((await deletion.process(operation.operationId)).state).toBe(
+      "succeeded",
+    );
+
+    const target = await principal("portability-grounding-target");
+    const preview = await portability.preview(target, archive);
+    expect(preview).toMatchObject({
+      canApply: false,
+      reasons: [
+        "The archive contains invalid document or artifact provenance.",
+      ],
+    });
+    await expect(
+      portability.importArchive(target, archive),
+    ).rejects.toBeInstanceOf(PortabilityValidationError);
+    expect(
+      Number(
+        (
+          await runtimePool.query<{ count: string }>(
+            "SELECT count(*)::text count FROM documents WHERE workspace_id=$1",
+            [target.workspaceId],
+          )
+        ).rows[0]!.count,
+      ),
+    ).toBe(0);
+    expect(
+      Number(
+        (
+          await runtimePool.query<{ count: string }>(
+            "SELECT count(*)::text count FROM export_artifacts WHERE workspace_id=$1",
+            [target.workspaceId],
+          )
+        ).rows[0]!.count,
+      ),
+    ).toBe(0);
+    await expect(
+      store.read(
+        exportArtifactStorageKey(target.workspaceId, originalArtifact.id),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

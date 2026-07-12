@@ -83,7 +83,27 @@ export class NodeProviderHttpTransport implements ProviderHttpTransport {
     const requestImpl =
       input.url.protocol === "https:" ? httpsRequest : httpRequest;
 
-    return new Promise((resolveRequest, reject) => {
+    return new Promise((resolveRequest, rejectRequest) => {
+      let settled = false;
+      const clearDeadline = () => {
+        clearTimeout(absoluteTimer);
+      };
+      const succeed = (value: ProviderHttpResponse) => {
+        if (settled) return;
+        settled = true;
+        clearDeadline();
+        resolveRequest(value);
+      };
+      const fail = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearDeadline();
+        rejectRequest(
+          error instanceof ProviderRequestError
+            ? error
+            : new ProviderRequestError("UNAVAILABLE"),
+        );
+      };
       const req = requestImpl(
         {
           protocol: input.url.protocol,
@@ -114,7 +134,7 @@ export class NodeProviderHttpTransport implements ProviderHttpTransport {
               declaredLength > MAX_RESPONSE_BYTES)
           ) {
             response.destroy();
-            reject(new ProviderRequestError("INVALID_RESPONSE"));
+            fail(new ProviderRequestError("INVALID_RESPONSE"));
             return;
           }
           const chunks: Buffer[] = [];
@@ -122,18 +142,20 @@ export class NodeProviderHttpTransport implements ProviderHttpTransport {
           response.on("data", (chunk: Buffer) => {
             size += chunk.length;
             if (size > MAX_RESPONSE_BYTES) {
-              response.destroy(new ProviderRequestError("INVALID_RESPONSE"));
+              const error = new ProviderRequestError("INVALID_RESPONSE");
+              fail(error);
+              response.destroy(error);
               return;
             }
             chunks.push(chunk);
           });
-          response.on("error", reject);
+          response.on("error", fail);
           response.on("end", () => {
             try {
               const body = JSON.parse(
                 Buffer.concat(chunks).toString("utf8"),
               ) as unknown;
-              resolveRequest({
+              succeed({
                 status: response.statusCode ?? 0,
                 headers: {
                   "retry-after": Array.isArray(response.headers["retry-after"])
@@ -143,22 +165,20 @@ export class NodeProviderHttpTransport implements ProviderHttpTransport {
                 body,
               });
             } catch {
-              reject(new ProviderRequestError("INVALID_RESPONSE"));
+              fail(new ProviderRequestError("INVALID_RESPONSE"));
             }
           });
         },
       );
       req.maxHeadersCount = 100;
-      req.setTimeout(remaining, () =>
-        req.destroy(new ProviderRequestError("TIMEOUT")),
-      );
-      req.on("error", (error) =>
-        reject(
-          error instanceof ProviderRequestError
-            ? error
-            : new ProviderRequestError("UNAVAILABLE"),
-        ),
-      );
+      const timeOut = () => {
+        const error = new ProviderRequestError("TIMEOUT");
+        fail(error);
+        req.destroy(error);
+      };
+      const absoluteTimer = setTimeout(timeOut, remaining);
+      req.setTimeout(remaining, timeOut);
+      req.on("error", fail);
       req.end(encoded);
     });
   }

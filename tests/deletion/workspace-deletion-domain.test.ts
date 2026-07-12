@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -49,6 +49,12 @@ describe("destructive operation confirmation", () => {
       await store.put(value);
       expect(await store.has(value.workspaceId)).toBe(true);
       expect(await store.list()).toEqual([value]);
+      await writeFile(
+        path.join(root, ".deletions", `${value.workspaceId}.json`),
+        "{}\n",
+      );
+      await expect(store.has(value.workspaceId)).rejects.toThrow();
+      await expect(store.list()).rejects.toThrow();
     } finally {
       await rm(root, { recursive: true, force: true });
     }

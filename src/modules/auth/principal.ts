@@ -7,6 +7,7 @@ import { DeletionTombstoneStore } from "@/modules/privacy/tombstone-store";
 import {
   ensureTrustedLocalPrincipal,
   type WorkspacePrincipal,
+  workspaceIsFrozenOrMissing,
 } from "./workspace-access";
 
 export async function getCurrentPrincipal(
@@ -17,9 +18,10 @@ export async function getCurrentPrincipal(
   const pool = getRuntimePool();
   const principal = await ensureTrustedLocalPrincipal(pool);
   if (
-    await new DeletionTombstoneStore(environment.ARTIFACT_STORAGE_ROOT).has(
+    (await workspaceIsFrozenOrMissing(pool, principal.workspaceId)) ||
+    (await new DeletionTombstoneStore(environment.ARTIFACT_STORAGE_ROOT).has(
       principal.workspaceId,
-    )
+    ))
   )
     return null;
   return principal;

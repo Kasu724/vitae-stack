@@ -7,6 +7,7 @@ import {
 } from "@/infrastructure/artifacts/filesystem-store";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { consumeApplicationRateLimit } from "@/infrastructure/security/rate-limit";
+import { ExportService } from "@/modules/exports/service";
 
 import {
   countForbiddenFields,
@@ -20,8 +21,13 @@ import {
   type PortableTable,
   sha256,
 } from "./domain";
+import {
+  INVALID_ARCHIVE_PROVENANCE_REASON,
+  validateArchiveSemantics,
+} from "./validation";
 
 type PortableRow = Record<string, unknown>;
+type Queryable = Pool | PoolClient;
 
 export class PortabilityValidationError extends Error {
   public constructor(message = "The portability archive is invalid.") {
@@ -153,6 +159,55 @@ async function insertRecord(
   );
 }
 
+async function inspectTargetState(
+  database: Queryable,
+  principal: WorkspacePrincipal,
+  archive: PortabilityArchive,
+): Promise<{ existingRecordCount: number; identifierConflictCount: number }> {
+  let existingRecordCount = 0;
+  let identifierConflictCount = 0;
+  for (const table of PORTABLE_TABLES) {
+    if (table === "career_profiles" || table === "career_profile_settings")
+      continue;
+    const existing = await database.query<{ count: string }>(
+      `SELECT count(*)::text count FROM "${table}" WHERE workspace_id=$1`,
+      [principal.workspaceId],
+    );
+    existingRecordCount += Number(existing.rows[0]!.count);
+    const ids = tableRows(archive, table)
+      .map((row) => row.id)
+      .filter((id): id is string => typeof id === "string");
+    if (ids.length) {
+      const conflicts = await database.query<{ count: string }>(
+        `SELECT count(*)::text count FROM "${table}" WHERE id=ANY($1::uuid[])`,
+        [ids],
+      );
+      identifierConflictCount += Number(conflicts.rows[0]!.count);
+    }
+  }
+  return { existingRecordCount, identifierConflictCount };
+}
+
+async function archiveColumnsAreKnown(
+  database: Queryable,
+  archive: PortabilityArchive,
+): Promise<boolean> {
+  for (const table of PORTABLE_TABLES) {
+    const columns = await database.query<{ name: string }>(
+      `PRAGMA table_info("${table}")`,
+    );
+    const allowed = new Set(columns.rows.map((row) => row.name));
+    if (
+      allowed.size === 0 ||
+      tableRows(archive, table).some((row) =>
+        Object.keys(row).some((column) => !allowed.has(column)),
+      )
+    )
+      return false;
+  }
+  return true;
+}
+
 export class PortabilityService {
   public constructor(
     private readonly pool: Pool,
@@ -212,9 +267,13 @@ export class PortabilityService {
     }
     if (options.includeArtifacts) {
       const retained: PortableRow[] = [];
+      const exports = new ExportService(this.pool, this.store);
       for (const row of tables.export_artifacts ?? []) {
         try {
-          const bytes = await this.store.read(String(row.storage_key));
+          const { bytes } = await exports.getArtifact(
+            principal,
+            String(row.id),
+          );
           blobs.push({
             kind: "export",
             resourceId: String(row.id),
@@ -253,6 +312,8 @@ export class PortabilityService {
         "The archive exceeds the 50 MiB portability limit.",
       );
     portabilityArchiveSchema.parse(archive);
+    if (validateArchiveSemantics(archive).length > 0)
+      throw new PortabilityValidationError(INVALID_ARCHIVE_PROVENANCE_REASON);
     return bytes;
   }
 
@@ -273,6 +334,8 @@ export class PortabilityService {
             `Blob ${blob.resourceId} failed integrity validation.`,
           );
       }
+      if (validateArchiveSemantics(parsed).length > 0)
+        throw new PortabilityValidationError(INVALID_ARCHIVE_PROVENANCE_REASON);
       return parsed;
     } catch (error) {
       if (error instanceof PortabilityValidationError) throw error;
@@ -284,6 +347,11 @@ export class PortabilityService {
     principal: WorkspacePrincipal,
     archive: PortabilityArchive,
   ): Promise<PortabilityPreview> {
+    try {
+      portabilityArchiveSchema.parse(archive);
+    } catch {
+      throw new PortabilityValidationError();
+    }
     await consumeApplicationRateLimit(this.pool, {
       scope: "portability-import",
       subject: principal.userId,
@@ -293,28 +361,13 @@ export class PortabilityService {
     const tableCounts = Object.fromEntries(
       PORTABLE_TABLES.map((table) => [table, tableRows(archive, table).length]),
     );
-    let existingRecordCount = 0;
-    let identifierConflictCount = 0;
-    for (const table of PORTABLE_TABLES) {
-      if (table === "career_profiles" || table === "career_profile_settings")
-        continue;
-      const existing = await this.pool.query<{ count: string }>(
-        `SELECT count(*)::text count FROM "${table}" WHERE workspace_id=$1`,
-        [principal.workspaceId],
-      );
-      existingRecordCount += Number(existing.rows[0]!.count);
-      const ids = tableRows(archive, table)
-        .map((row) => row.id)
-        .filter((id): id is string => typeof id === "string");
-      if (ids.length) {
-        const conflicts = await this.pool.query<{ count: string }>(
-          `SELECT count(*)::text count FROM "${table}" WHERE id=ANY($1::uuid[])`,
-          [ids],
-        );
-        identifierConflictCount += Number(conflicts.rows[0]!.count);
-      }
-    }
     const secretFieldCount = countForbiddenFields(archive);
+    const provenanceInvalid =
+      validateArchiveSemantics(archive).length > 0 ||
+      !(await archiveColumnsAreKnown(this.pool, archive));
+    const { existingRecordCount, identifierConflictCount } = provenanceInvalid
+      ? { existingRecordCount: 0, identifierConflictCount: 0 }
+      : await inspectTargetState(this.pool, principal, archive);
     const reasons: string[] = [];
     if (existingRecordCount)
       reasons.push("The target workspace contains existing records.");
@@ -322,6 +375,7 @@ export class PortabilityService {
       reasons.push("Archive identifiers already exist in this database.");
     if (secretFieldCount)
       reasons.push("The archive contains a secret-bearing field.");
+    if (provenanceInvalid) reasons.push(INVALID_ARCHIVE_PROVENANCE_REASON);
     return {
       schemaVersion: 1,
       sourceWorkspaceId: archive.sourceWorkspaceId,
@@ -342,7 +396,10 @@ export class PortabilityService {
     principal: WorkspacePrincipal,
     archive: PortabilityArchive,
   ): Promise<PortabilityPreview> {
+    archive = portabilityArchiveSchema.parse(structuredClone(archive));
     const preview = await this.preview(principal, archive);
+    if (preview.reasons.includes(INVALID_ARCHIVE_PROVENANCE_REASON))
+      throw new PortabilityValidationError(INVALID_ARCHIVE_PROVENANCE_REASON);
     if (!preview.canApply) throw new PortabilityConflictError();
     const sourceProfile = tableRows(archive, "career_profiles")[0];
     if (!sourceProfile || typeof sourceProfile.id !== "string")
@@ -380,6 +437,20 @@ export class PortabilityService {
           "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
           [`portability-import:${principal.workspaceId}`],
         );
+        if (
+          countForbiddenFields(archive) !== 0 ||
+          validateArchiveSemantics(archive).length > 0 ||
+          !(await archiveColumnsAreKnown(client, archive))
+        )
+          throw new PortabilityValidationError(
+            INVALID_ARCHIVE_PROVENANCE_REASON,
+          );
+        const target = await inspectTargetState(client, principal, archive);
+        if (
+          target.existingRecordCount !== 0 ||
+          target.identifierConflictCount !== 0
+        )
+          throw new PortabilityConflictError();
         const sourceProfileSettings = tableRows(
           archive,
           "career_profile_settings",

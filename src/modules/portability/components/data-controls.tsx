@@ -13,41 +13,76 @@ interface Preview {
   reasons: string[];
 }
 
-export function DataControls() {
+interface DeletionPreview {
+  managedRecordCount: number;
+  sourceFileCount: number;
+  exportArtifactCount: number;
+  queuedJobCount: number;
+}
+
+export function DataControls({
+  deletionPreview,
+}: {
+  deletionPreview: DeletionPreview;
+}) {
   const [status, setStatus] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [archive, setArchive] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [deletionAccepted, setDeletionAccepted] = useState(false);
+  const busyRef = useRef(false);
   const previewHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (preview) previewHeading.current?.focus();
   }, [preview]);
 
+  async function runOperation(
+    failureLabel: string,
+    operation: () => Promise<void>,
+  ) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    try {
+      await operation();
+    } catch {
+      setStatus(
+        `${failureLabel} failed before completion. No success was recorded; check the local app and retry.`,
+      );
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
   async function download(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setStatus("Preparing a private portability archive.");
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/portability/export", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        includeSources: form.get("includeSources") === "on",
-        includeArtifacts: form.get("includeArtifacts") === "on",
-      }),
+    await runOperation("Archive creation", async () => {
+      setStatus("Preparing a private portability archive.");
+      const response = await fetch("/api/portability/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          includeSources: form.get("includeSources") === "on",
+          includeArtifacts: form.get("includeArtifacts") === "on",
+        }),
+      });
+      if (!response.ok) {
+        setStatus(
+          "The archive could not be created. Return to the local workspace and retry.",
+        );
+        return;
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `vitae-stack-${new Date().toISOString().slice(0, 10)}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setStatus("Archive created and offered for download.");
     });
-    if (!response.ok) {
-      setStatus(
-        "The archive could not be created. Return to the local workspace and retry.",
-      );
-      return;
-    }
-    const url = URL.createObjectURL(await response.blob());
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `vitae-stack-${new Date().toISOString().slice(0, 10)}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-    setStatus("Archive created and offered for download.");
   }
 
   async function importArchive(mode: "dry-run" | "apply") {
@@ -55,60 +90,72 @@ export function DataControls() {
       setStatus("Choose an archive first.");
       return;
     }
-    setStatus(mode === "dry-run" ? "Checking archive." : "Importing archive.");
-    const form = new FormData();
-    form.set("file", archive);
-    form.set("purpose", mode);
-    const response = await fetch("/api/portability/import", {
-      method: "POST",
-      body: form,
+    await runOperation("Archive operation", async () => {
+      setStatus(
+        mode === "dry-run" ? "Checking archive." : "Importing archive.",
+      );
+      const form = new FormData();
+      form.set("file", archive);
+      form.set("purpose", mode);
+      const response = await fetch("/api/portability/import", {
+        method: "POST",
+        body: form,
+      });
+      const body = (await response.json()) as {
+        preview?: Preview;
+        code?: string;
+      };
+      if (!response.ok || !body.preview) {
+        setStatus(`Archive operation failed (${body.code ?? "UNKNOWN"}).`);
+        return;
+      }
+      setPreview(body.preview);
+      setStatus(
+        mode === "apply"
+          ? "Archive imported. Reload the workspace to view its records."
+          : body.preview.canApply
+            ? "Dry run passed. This archive can be imported into this empty workspace."
+            : "Dry run found conflicts. No data was changed.",
+      );
     });
-    const body = (await response.json()) as {
-      preview?: Preview;
-      code?: string;
-    };
-    if (!response.ok || !body.preview) {
-      setStatus(`Archive operation failed (${body.code ?? "UNKNOWN"}).`);
-      return;
-    }
-    setPreview(body.preview);
-    setStatus(
-      mode === "apply"
-        ? "Archive imported. Reload the workspace to view its records."
-        : body.preview.canApply
-          ? "Dry run passed. This archive can be imported into this empty workspace."
-          : "Dry run found conflicts. No data was changed.",
-    );
   }
 
   async function deleteWorkspace(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    setStatus("Freezing the workspace and deleting active data.");
-    const response = await fetch("/api/privacy/workspace-deletion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ confirmation: form.get("confirmation") }),
+    await runOperation("Deletion request", async () => {
+      setStatus("Freezing the workspace and deleting active data.");
+      const response = await fetch("/api/privacy/workspace-deletion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: form.get("confirmation") }),
+      });
+      const body = (await response.json()) as {
+        state?: string;
+        operationId?: string;
+        code?: string;
+        errorCode?: string;
+      };
+      if (!response.ok) {
+        setStatus(
+          `Deletion could not be confirmed (${body.errorCode ?? body.code ?? "REQUEST_FAILED"}). Do not assume active data was erased. Stop and restart the app so recovery can reconcile any durable request.`,
+        );
+        return;
+      }
+      setDeletionAccepted(true);
+      if (body.state === "succeeded")
+        setStatus(
+          `Deletion ${body.operationId} completed. The app created no backup. Copies outside the managed data folder remain outside its control.`,
+        );
+      else
+        setStatus(
+          `Deletion ${body.operationId} was accepted and the workspace is frozen (${body.errorCode ?? body.state ?? "pending"}). Automatic local retry is active and continues after restart.`,
+        );
     });
-    const body = (await response.json()) as {
-      state?: string;
-      operationId?: string;
-      backupExpiresAt?: string;
-      errorCode?: string;
-    };
-    if (!response.ok || body.state !== "succeeded") {
-      setStatus(
-        `Deletion was queued for retry (${body.errorCode ?? "REQUEST_FAILED"}). The workspace remains frozen.`,
-      );
-      return;
-    }
-    setStatus(
-      `Deletion ${body.operationId} completed. Operator backups expire no later than ${body.backupExpiresAt}.`,
-    );
   }
 
   return (
-    <div className="grid gap-8">
+    <div className="grid gap-8" aria-busy={busy}>
       <p className="rounded-lg border border-[var(--border)] p-4" role="status">
         {status || "No data operation is running."}
       </p>
@@ -127,7 +174,7 @@ export function DataControls() {
             <input type="checkbox" name="includeArtifacts" />
             Include unexpired generated export artifacts
           </label>
-          <button className="button w-fit" type="submit">
+          <button className="button w-fit" type="submit" disabled={busy}>
             Create archive
           </button>
         </form>
@@ -144,6 +191,7 @@ export function DataControls() {
             className="field"
             type="file"
             accept="application/json,.json"
+            disabled={busy}
             onChange={(event) => {
               setArchive(event.target.files?.[0] ?? null);
               setPreview(null);
@@ -154,6 +202,7 @@ export function DataControls() {
           <button
             className="secondary-button"
             type="button"
+            disabled={busy || !archive}
             onClick={() => importArchive("dry-run")}
           >
             Run dry check
@@ -161,7 +210,7 @@ export function DataControls() {
           <button
             className="button"
             type="button"
-            disabled={!preview?.canApply}
+            disabled={busy || !preview?.canApply}
             onClick={() => importArchive("apply")}
           >
             Import checked archive
@@ -196,9 +245,17 @@ export function DataControls() {
         <h2 className="text-xl font-semibold">Permanently delete workspace</h2>
         <p className="mt-2">
           This freezes writes, deletes active database records and private
-          files, and removes the account. It cannot be undone. Encrypted
-          operator backups expire within 30 days and may retain data until then.
+          files, and removes the local workspace. It cannot be undone. The app
+          creates no backup and cannot erase exports, manual backups, synced
+          copies, or filesystem snapshots outside its managed data folder.
         </p>
+        <h3 className="mt-4 font-semibold">Current deletion scope</h3>
+        <ul className="mt-2 list-disc pl-6">
+          <li>{deletionPreview.managedRecordCount} managed data records</li>
+          <li>{deletionPreview.sourceFileCount} available source files</li>
+          <li>{deletionPreview.exportArtifactCount} generated artifacts</li>
+          <li>{deletionPreview.queuedJobCount} queued or recorded jobs</li>
+        </ul>
         <form onSubmit={deleteWorkspace} className="mt-4 grid max-w-xl gap-3">
           <label className="grid gap-1 font-medium">
             Type DELETE MY WORKSPACE
@@ -209,7 +266,11 @@ export function DataControls() {
               required
             />
           </label>
-          <button className="danger-button w-fit" type="submit">
+          <button
+            className="danger-button w-fit"
+            type="submit"
+            disabled={busy || deletionAccepted}
+          >
             Permanently delete workspace
           </button>
         </form>

@@ -194,6 +194,7 @@ export class ProviderConfigurationService {
     await this.repository.recordCapabilityResult(
       principal,
       id,
+      config.revision,
       {
         schemaVersion: 1,
         structuredOutput: available,

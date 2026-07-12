@@ -11,6 +11,15 @@ import path from "node:path";
 
 const storageKeyPattern = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(?:bin|json)$/u;
 
+function isNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
+}
+
 export class InvalidStorageKeyError extends Error {
   public constructor() {
     super("Invalid private storage key.");
@@ -71,22 +80,34 @@ export class FilesystemArtifactStore {
     now = Date.now(),
   ): Promise<string[]> {
     const keys: string[] = [];
-    const workspaces = await readdir(this.root, { withFileTypes: true }).catch(
-      () => [],
-    );
+    let workspaces;
+    try {
+      workspaces = await readdir(this.root, { withFileTypes: true });
+    } catch (error) {
+      if (isNotFound(error)) return [];
+      throw error;
+    }
     for (const workspace of workspaces) {
       if (!workspace.isDirectory() || !/^[0-9a-f-]{36}$/u.test(workspace.name))
         continue;
       const directory = path.join(this.root, workspace.name);
-      const files = await readdir(directory, { withFileTypes: true }).catch(
-        () => [],
-      );
+      let files;
+      try {
+        files = await readdir(directory, { withFileTypes: true });
+      } catch (error) {
+        if (isNotFound(error)) continue;
+        throw error;
+      }
       for (const file of files) {
         const key = `${workspace.name}/${file.name}`;
         if (!file.isFile() || !storageKeyPattern.test(key)) continue;
-        const details = await stat(path.join(directory, file.name)).catch(
-          () => null,
-        );
+        let details;
+        try {
+          details = await stat(path.join(directory, file.name));
+        } catch (error) {
+          if (!isNotFound(error)) throw error;
+          details = null;
+        }
         if (details && now - details.mtimeMs >= ageMs) keys.push(key);
       }
     }

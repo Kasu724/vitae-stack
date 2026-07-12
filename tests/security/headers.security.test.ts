@@ -3,7 +3,8 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
-import { contentSecurityPolicy, proxy } from "@/proxy";
+import packageJson from "../../package.json";
+import { config, contentSecurityPolicy, proxy } from "@/proxy";
 
 describe("browser security headers", () => {
   it("uses a strict per-request nonce without unsafe inline scripts", () => {
@@ -58,5 +59,23 @@ describe("browser security headers", () => {
     expect(remote.status).toBe(403);
     expect(forwarded.status).toBe(403);
     expect(local.status).toBe(200);
+  });
+
+  it("does not let client-controlled prefetch headers bypass the proxy", () => {
+    const matcher = config.matcher[0];
+    expect(matcher).not.toHaveProperty("missing");
+    for (const headers of [
+      { host: "attacker.invalid", purpose: "prefetch" },
+      { host: "attacker.invalid", "next-router-prefetch": "1" },
+    ])
+      expect(
+        proxy(new NextRequest("http://127.0.0.1:3000/dashboard", { headers }))
+          .status,
+      ).toBe(403);
+  });
+
+  it("pins developer and production listeners to IPv4 loopback", () => {
+    expect(packageJson.scripts.dev).toBe("next dev --hostname 127.0.0.1");
+    expect(packageJson.scripts.start).toBe("next start --hostname 127.0.0.1");
   });
 });

@@ -221,18 +221,23 @@ export class ProviderConfigurationRepository {
   public async recordCapabilityResult(
     principal: WorkspacePrincipal,
     id: string,
+    expectedRevision: number,
     capabilities: ModelProviderCapabilities,
     available: boolean,
   ): Promise<void> {
     const result = await this.pool.query(
-      `UPDATE model_provider_configurations SET capabilities=$3::jsonb,status=$4::model_provider_status,last_tested_at=now(),revision=revision+1,updated_at=now() WHERE id=$1 AND workspace_id=$2`,
+      `UPDATE model_provider_configurations
+       SET capabilities=$4::jsonb,status=$5::model_provider_status,last_tested_at=now(),
+           revision=revision+1,updated_at=now()
+       WHERE id=$1 AND workspace_id=$2 AND revision=$3`,
       [
         id,
         principal.workspaceId,
+        expectedRevision,
         JSON.stringify(capabilities),
         available ? "available" : "unavailable",
       ],
     );
-    if (!result.rowCount) throw new ProviderConfigurationNotFoundError();
+    if (!result.rowCount) throw new ProviderConfigurationConflictError();
   }
 }

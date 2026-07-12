@@ -36,6 +36,17 @@ export function requireRecentAuthentication(
   // Loopback-only local mode has no account session to reauthenticate.
 }
 
+export async function workspaceIsFrozenOrMissing(
+  pool: Pool,
+  workspaceId: string,
+): Promise<boolean> {
+  const workspace = await pool.query<{ deletion_requested_at: Date | null }>(
+    "SELECT deletion_requested_at FROM workspaces WHERE id=$1",
+    [workspaceId],
+  );
+  return !workspace.rows[0] || workspace.rows[0].deletion_requested_at !== null;
+}
+
 export async function provisionPersonalWorkspace(
   pool: Pool,
   input: { userId: string; displayName: string; mode: AuthenticationMode },

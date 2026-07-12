@@ -195,6 +195,26 @@ export default async function ProviderSettingsPage({
                       {configuration.last_tested_at?.toISOString() ?? "Never"}
                     </dd>
                   </div>
+                  <div className="sm:col-span-2">
+                    <dt className="font-semibold">Assigned task models</dt>
+                    <dd>
+                      {Object.entries(configuration.task_assignments).length ? (
+                        <ul className="mt-1 grid gap-1 sm:grid-cols-2">
+                          {Object.entries(configuration.task_assignments)
+                            .sort(([left], [right]) =>
+                              left.localeCompare(right),
+                            )
+                            .map(([taskId, model]) => (
+                              <li key={taskId}>
+                                <strong>{taskId}</strong>: {model}
+                              </li>
+                            ))}
+                        </ul>
+                      ) : (
+                        "No task models assigned"
+                      )}
+                    </dd>
+                  </div>
                 </dl>
                 <div className="mt-5 grid gap-5 lg:grid-cols-3">
                   <form action={testProviderAction} className="grid gap-2">

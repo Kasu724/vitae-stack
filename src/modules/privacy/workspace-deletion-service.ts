@@ -26,6 +26,13 @@ export interface WorkspaceDeletionReceipt {
   errorCode: string | null;
 }
 
+export interface WorkspaceDeletionPreview {
+  managedRecordCount: number;
+  sourceFileCount: number;
+  exportArtifactCount: number;
+  queuedJobCount: number;
+}
+
 interface OperationRow {
   id: string;
   workspace_id: string;
@@ -81,21 +88,33 @@ export class WorkspaceDeletionService {
     let replayed = 0;
     for (const tombstone of await this.tombstones.list()) {
       const workspace = await this.pool.query(
+        "SELECT 1 FROM workspaces WHERE id=$1",
+        [tombstone.workspaceId],
+      );
+      if (!workspace.rowCount) {
+        await this.pool.query(
+          `UPDATE workspace_deletion_operations SET state='succeeded',
+             completed_at=COALESCE(completed_at,now()),updated_at=now(),error_code=NULL
+           WHERE id=$1 OR workspace_id=$2`,
+          [tombstone.operationId, tombstone.workspaceId],
+        );
+        replayed += 1;
+        continue;
+      }
+      await this.pool.query(
         `UPDATE workspaces SET deletion_requested_at=COALESCE(deletion_requested_at,$2),updated_at=now()
-         WHERE id=$1 AND deletion_requested_at IS NULL`,
+         WHERE id=$1`,
         [tombstone.workspaceId, tombstone.requestedAt],
       );
-      const present = workspace.rowCount
-        ? workspace
-        : await this.pool.query("SELECT 1 FROM workspaces WHERE id=$1", [
-            tombstone.workspaceId,
-          ]);
-      if (!present.rowCount) continue;
       await this.pool.query(
         `INSERT INTO workspace_deletion_operations
            (id,workspace_id,requester_user_hash,state,backup_expires_at,requested_at)
          VALUES ($1,$2,$3,'pending',$4,$5)
          ON CONFLICT (workspace_id) DO UPDATE SET
+           id=excluded.id,
+           requester_user_hash=excluded.requester_user_hash,
+           backup_expires_at=excluded.backup_expires_at,
+           requested_at=excluded.requested_at,
            state=CASE WHEN workspace_deletion_operations.state='succeeded' THEN 'pending'
                       ELSE workspace_deletion_operations.state END,
            updated_at=now()`,
@@ -117,13 +136,17 @@ export class WorkspaceDeletionService {
     orphaned: number;
   }> {
     const expired = await this.pool.query<{ id: string; storage_key: string }>(
-      "SELECT id,storage_key FROM export_artifacts WHERE expires_at<=now()",
+      `SELECT a.id,a.storage_key FROM export_artifacts a
+       JOIN workspaces w ON w.id=a.workspace_id
+       WHERE a.expires_at<=now() AND w.deletion_requested_at IS NULL`,
     );
     for (const artifact of expired.rows)
       await this.artifacts.delete(artifact.storage_key);
     if (expired.rows.length)
       await this.pool.query(
-        "DELETE FROM export_artifacts WHERE id=ANY($1::uuid[]) AND expires_at<=now()",
+        `DELETE FROM export_artifacts WHERE id=ANY($1::uuid[]) AND expires_at<=now()
+         AND EXISTS (SELECT 1 FROM workspaces w WHERE w.id=export_artifacts.workspace_id
+                     AND w.deletion_requested_at IS NULL)`,
         [expired.rows.map((row) => row.id)],
       );
 
@@ -138,11 +161,51 @@ export class WorkspaceDeletionService {
     return { expired: expired.rows.length, orphaned: orphaned.length };
   }
 
+  public async preview(
+    principal: WorkspacePrincipal,
+  ): Promise<WorkspaceDeletionPreview> {
+    const [portableCounts, sourceFiles, exportArtifacts, queuedJobs] =
+      await Promise.all([
+        Promise.all(
+          PORTABLE_TABLES.map(async (table) => {
+            const result = await this.pool.query<{ count: number }>(
+              `SELECT count(*) count FROM "${table}" WHERE workspace_id=$1`,
+              [principal.workspaceId],
+            );
+            return Number(result.rows[0]?.count ?? 0);
+          }),
+        ),
+        this.pool.query<{ count: number }>(
+          "SELECT count(*) count FROM source_documents WHERE workspace_id=$1 AND status<>'deleted'",
+          [principal.workspaceId],
+        ),
+        this.pool.query<{ count: number }>(
+          "SELECT count(*) count FROM export_artifacts WHERE workspace_id=$1",
+          [principal.workspaceId],
+        ),
+        this.pool.query<{ count: number }>(
+          `SELECT (SELECT count(*) FROM job_operations WHERE workspace_id=$1)
+                  +(SELECT count(*) FROM job_url_imports WHERE workspace_id=$1) count`,
+          [principal.workspaceId],
+        ),
+      ]);
+    return {
+      managedRecordCount: portableCounts.reduce((sum, count) => sum + count, 0),
+      sourceFileCount: Number(sourceFiles.rows[0]?.count ?? 0),
+      exportArtifactCount: Number(exportArtifacts.rows[0]?.count ?? 0),
+      queuedJobCount: Number(queuedJobs.rows[0]?.count ?? 0),
+    };
+  }
+
   public async request(
     principal: WorkspacePrincipal,
   ): Promise<WorkspaceDeletionReceipt> {
     requireRecentAuthentication(principal);
+    const requesterUserHash = createHash("sha256")
+      .update(principal.userId)
+      .digest("hex");
     const client = await this.pool.connect();
+    let requested: WorkspaceDeletionReceipt;
     try {
       await client.query("BEGIN");
       await client.query(
@@ -155,33 +218,39 @@ export class WorkspaceDeletionService {
         [principal.workspaceId],
       );
       if (existing.rows[0]) {
-        await client.query("COMMIT");
-        return receipt(existing.rows[0]);
+        requested = receipt(existing.rows[0]);
+      } else {
+        const frozen = await client.query(
+          `UPDATE workspaces SET deletion_requested_at=now(),updated_at=now()
+           WHERE id=$1 AND deletion_requested_at IS NULL`,
+          [principal.workspaceId],
+        );
+        if (!frozen.rowCount) throw new Error("WORKSPACE_UNAVAILABLE");
+        const created = await client.query<OperationRow>(
+          `INSERT INTO workspace_deletion_operations
+             (workspace_id,requester_user_hash,backup_expires_at)
+           VALUES ($1,$2,now())
+           RETURNING id,workspace_id,state,requested_at,completed_at,backup_expires_at,deleted_counts,error_code`,
+          [principal.workspaceId, requesterUserHash],
+        );
+        requested = receipt(created.rows[0]!);
       }
-      const frozen = await client.query(
-        `UPDATE workspaces SET deletion_requested_at=now(),updated_at=now()
-         WHERE id=$1 AND deletion_requested_at IS NULL`,
-        [principal.workspaceId],
-      );
-      if (!frozen.rowCount) throw new Error("WORKSPACE_UNAVAILABLE");
-      const created = await client.query<OperationRow>(
-        `INSERT INTO workspace_deletion_operations
-           (workspace_id,requester_user_hash,backup_expires_at)
-         VALUES ($1,$2,now()+interval '30 days')
-         RETURNING id,workspace_id,state,requested_at,completed_at,backup_expires_at,deleted_counts,error_code`,
-        [
-          principal.workspaceId,
-          createHash("sha256").update(principal.userId).digest("hex"),
-        ],
-      );
       await client.query("COMMIT");
-      return receipt(created.rows[0]!);
     } catch (error) {
       await client.query("ROLLBACK");
       throw error;
     } finally {
       client.release();
     }
+    await this.tombstones.put({
+      schemaVersion: 1,
+      operationId: requested.operationId,
+      workspaceId: requested.workspaceId,
+      requesterUserHash,
+      requestedAt: requested.requestedAt.toISOString(),
+      backupExpiresAt: requested.backupExpiresAt.toISOString(),
+    });
+    return requested;
   }
 
   public async processNext(): Promise<WorkspaceDeletionReceipt | null> {
@@ -191,8 +260,9 @@ export class WorkspaceDeletionService {
          updated_at=now(),error_code=NULL
        WHERE operation.id=(
          SELECT id FROM workspace_deletion_operations
-         WHERE (state IN ('pending','failed') OR (state='running' AND updated_at<now()-interval '30 minutes'))
-           AND attempt<10
+         WHERE (state='pending'
+                OR (state='failed' AND updated_at<now()-interval '1 minute')
+                OR (state='running' AND updated_at<now()-interval '30 minutes'))
          ORDER BY requested_at FOR UPDATE SKIP LOCKED LIMIT 1
        )
        RETURNING id,workspace_id,state,requested_at,completed_at,backup_expires_at,deleted_counts,error_code`,
@@ -220,7 +290,8 @@ export class WorkspaceDeletionService {
       const claimed = await this.pool.query<OperationRow>(
         `UPDATE workspace_deletion_operations SET state='running',attempt=attempt+1,
            started_at=COALESCE(started_at,now()),updated_at=now(),error_code=NULL
-         WHERE id=$1 AND state IN ('pending','failed') AND attempt<10
+         WHERE id=$1 AND (state='pending'
+              OR (state='failed' AND updated_at<now()-interval '1 minute'))
          RETURNING id,workspace_id,state,requested_at,completed_at,backup_expires_at,deleted_counts,error_code`,
         [operationId],
       );

@@ -12,6 +12,7 @@ import { parseServerEnvironment } from "@/infrastructure/config/environment-sche
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { decryptCredential } from "@/modules/providers/credential-envelope";
 import {
+  ProviderConfigurationConflictError,
   ProviderConfigurationNotFoundError,
   ProviderConfigurationRepository,
 } from "@/modules/providers/repository";
@@ -140,5 +141,45 @@ describe("model provider configuration", () => {
         [id, second.workspaceId],
       ),
     ).rejects.toThrow();
+  });
+
+  it("does not let a stale capability test certify a rotated credential", async () => {
+    const id = await service.create(first, {
+      label: "Synthetic stale capability",
+      kind: "openai_compatible",
+      baseUrl: "https://models.example/v1",
+      authType: "encrypted",
+      credential: "synthetic-before-test",
+    });
+    const tested = await repository.getPrivate(first, id);
+    await service.rotateCredential(
+      first,
+      id,
+      "synthetic-after-test",
+      tested.revision,
+    );
+
+    await expect(
+      repository.recordCapabilityResult(
+        first,
+        id,
+        tested.revision,
+        {
+          schemaVersion: 1,
+          structuredOutput: true,
+          usage: true,
+          refusal: true,
+          testedAt: new Date().toISOString(),
+          warnings: [],
+        },
+        true,
+      ),
+    ).rejects.toBeInstanceOf(ProviderConfigurationConflictError);
+    const current = await repository.getPrivate(first, id);
+    expect(current).toMatchObject({
+      revision: tested.revision + 1,
+      status: "unverified",
+      last_tested_at: null,
+    });
   });
 });
