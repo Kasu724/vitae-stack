@@ -111,49 +111,27 @@ function Get-RunningServer {
   return Get-Process -Id ([int]$state.pid) -ErrorAction SilentlyContinue
 }
 
-function Wait-ForReady([Diagnostics.Process]$ServerProcess, [string]$NodeExecutable) {
-  $readinessProbe = @'
-const http = require("node:http");
-const request = http.get("http://127.0.0.1:3000/api/ready", (response) => {
-  let body = "";
-  response.setEncoding("utf8");
-  response.on("data", (chunk) => { body += chunk; });
-  response.on("end", () => {
-    try {
-      const payload = JSON.parse(body);
-      process.exit(response.statusCode === 200 && payload.status === "ready" ? 0 : 1);
-    } catch {
-      process.exit(1);
+function Wait-ForReady([Diagnostics.Process]$ServerProcess) {
+  for ($attempt = 0; $attempt -lt 90; $attempt += 1) {
+    if ($ServerProcess.HasExited) {
+      $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
+      throw "Vitae Stack exited during startup.`n$details"
     }
-  });
-});
-request.setTimeout(2000, () => request.destroy(new Error("timeout")));
-request.on("error", () => process.exit(1));
-'@
-  $probePath = Join-Path $runtimeRoot "readiness-probe.cjs"
-  [IO.File]::WriteAllText($probePath, $readinessProbe, [Text.UTF8Encoding]::new($false))
-  try {
-    for ($attempt = 0; $attempt -lt 90; $attempt += 1) {
-      if ($ServerProcess.HasExited) {
-        $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
-        throw "Vitae Stack exited during startup.`n$details"
-      }
-      & $NodeExecutable $probePath *> $null
-      if ($LASTEXITCODE -eq 0) { return }
-      Start-Sleep -Milliseconds 500
+    if (Test-Path -LiteralPath $stdoutLog) {
+      $startupLog = Get-Content -Raw -LiteralPath $stdoutLog
+      if ($null -ne $startupLog -and $startupLog -match 'Ready in \d') { return }
     }
-    $details = @()
-    foreach ($log in @($stdoutLog, $stderrLog)) {
-      if (Test-Path -LiteralPath $log) {
-        $content = Get-Content -Raw -LiteralPath $log
-        if ($null -eq $content) { $content = "" }
-        $details += "--- $log`n$($content.Trim())"
-      }
-    }
-    throw "Vitae Stack did not become ready.`n$($details -join "`n")"
-  } finally {
-    Remove-Item -LiteralPath $probePath -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
   }
+  $details = @()
+  foreach ($log in @($stdoutLog, $stderrLog)) {
+    if (Test-Path -LiteralPath $log) {
+      $content = Get-Content -Raw -LiteralPath $log
+      if ($null -eq $content) { $content = "" }
+      $details += "--- $log`n$($content.Trim())"
+    }
+  }
+  throw "Vitae Stack did not become ready.`n$($details -join "`n")"
 }
 
 if ($Action -eq "Start") {
@@ -180,7 +158,7 @@ if ($Action -eq "Start") {
   }
   $process = Start-Process -FilePath $node -ArgumentList $applicationArguments -WorkingDirectory $workingDirectory -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog
   [IO.File]::WriteAllText($processFile, ((@{ pid = $process.Id; startedAt = [DateTime]::UtcNow.ToString("o"); executable = $node } | ConvertTo-Json -Compress) + "`n"), [Text.UTF8Encoding]::new($false))
-  Wait-ForReady $process $node
+  Wait-ForReady $process
   Write-Host "Vitae Stack is ready at $baseUrl"
   Write-Host "Your data is stored in $dataDirectory"
   if (-not $NoBrowser) { Start-Process $baseUrl }

@@ -12,7 +12,7 @@ flowchart TB
 
 ## Start and stop
 
-`Start Vitae Stack.cmd` calls the PowerShell launcher, creates the data directories and encryption key with restricted permissions, applies forward SQLite migrations, starts the bundled server hidden, waits for `/api/ready`, and opens the browser. `Stop Vitae Stack.cmd` stops only that process and preserves the complete data directory.
+`Start Vitae Stack.cmd` calls the PowerShell launcher, creates the data directories and encryption key with restricted permissions, applies forward SQLite migrations, starts the bundled server hidden, waits for the server startup marker while failing if the process exits, and opens the browser. The extracted-package smoke gate then verifies `/api/health` and `/api/ready` before exercising personal workflows. `Stop Vitae Stack.cmd` stops only that process and preserves the complete data directory.
 
 The process must bind `127.0.0.1`; non-loopback configuration fails validation. It is not supported behind a reverse proxy, on a LAN address, or as a remotely hosted site because there is no login boundary.
 
