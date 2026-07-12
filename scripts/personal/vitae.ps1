@@ -70,12 +70,21 @@ function Get-NodeExecutable {
 }
 
 function Set-ApplicationEnvironment([string]$CredentialKey) {
+  $migrationsPath = if (Test-Path -LiteralPath $packagedApp -PathType Leaf) {
+    Join-Path $root "app\db\migrations"
+  } else {
+    Join-Path $root "db\migrations"
+  }
+  if (-not (Test-Path -LiteralPath $migrationsPath -PathType Container)) {
+    throw "Database migrations are missing from $migrationsPath."
+  }
   $env:NODE_ENV = "production"
   $env:HOSTNAME = "127.0.0.1"
   $env:PORT = "3000"
   $env:APP_BASE_URL = $baseUrl
   $env:APP_BIND_HOST = "127.0.0.1"
   $env:DATABASE_PATH = $databasePath
+  $env:MIGRATIONS_PATH = $migrationsPath
   $env:ARTIFACT_STORAGE_ROOT = $artifactRoot
   $env:PARSER_QUEUE_ROOT = (Join-Path $runtimeRoot "parser-queue")
   $env:JOB_FETCH_QUEUE_ROOT = (Join-Path $runtimeRoot "fetch-queue")

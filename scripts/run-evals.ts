@@ -1,9 +1,9 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 
-const tasks = process.argv
-  .filter((argument) => argument.startsWith("--task="))
-  .flatMap((argument) => argument.slice("--task=".length).split(","));
+import { parseEvalArguments } from "./eval-arguments";
+
+const options = parseEvalArguments(process.argv.slice(2));
 const child = spawn(
   process.execPath,
   [
@@ -16,8 +16,8 @@ const child = spawn(
     stdio: "inherit",
     env: {
       ...process.env,
-      VITAE_EVAL_TASKS: tasks.join(","),
-      VITAE_EVAL_SMOKE: process.argv.includes("--smoke") ? "true" : "false",
+      VITAE_EVAL_TASKS: options.tasks.join(","),
+      VITAE_EVAL_SMOKE: options.smoke ? "true" : "false",
     },
   },
 );

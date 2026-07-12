@@ -4,11 +4,11 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingExcludes: {
     "/*": [
-      "./.release/**/*",
-      "./dist/**/*",
-      "./tmp/**/*",
-      "./var/**/*",
-      "./.vitae-stack/**/*",
+      ".release/**/*",
+      "dist/**/*",
+      "tmp/**/*",
+      "var/**/*",
+      ".vitae-stack/**/*",
     ],
   },
   poweredByHeader: false,

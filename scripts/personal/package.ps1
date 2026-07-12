@@ -20,6 +20,21 @@ $nodeName = "node-v$nodeVersion-win-x64"
 $downloadCache = Join-Path $root "tmp\runtime-cache"
 $nodeArchive = Join-Path $downloadCache "$nodeName.zip"
 $nodeChecksums = Join-Path $downloadCache "SHASUMS256-$nodeVersion.txt"
+$script:PackageProgressStep = 0
+$script:PackageProgressTotal = 13
+$script:PackageProgressActivity = "Building Vitae Stack package"
+
+function Write-PackageStep([string]$Status) {
+  $script:PackageProgressStep += 1
+  $percent = [Math]::Min(99, [int](($script:PackageProgressStep / $script:PackageProgressTotal) * 100))
+  Write-Host "[$script:PackageProgressStep/$script:PackageProgressTotal] $Status" -ForegroundColor Cyan
+  Write-Progress -Activity $script:PackageProgressActivity -Status $Status -PercentComplete $percent
+}
+
+function Write-PackageStatus([string]$Status) {
+  $percent = [Math]::Min(99, [int](($script:PackageProgressStep / $script:PackageProgressTotal) * 100))
+  Write-Progress -Activity $script:PackageProgressActivity -Status $Status -PercentComplete $percent
+}
 
 function Invoke-Tool([string]$Executable, [string[]]$Arguments) {
   & $Executable @Arguments
@@ -47,8 +62,9 @@ function Copy-NodePackage([string]$Source, [string]$Destination) {
 }
 
 function Copy-StandaloneApplication([string]$SourceRoot, [string]$DestinationRoot) {
+  $excludedStandaloneNames = @("node_modules", ".release", "dist", "tmp", "var", ".vitae-stack")
   foreach ($item in Get-ChildItem -LiteralPath $SourceRoot -Force) {
-    if ($item.Name -eq "node_modules") { continue }
+    if ($excludedStandaloneNames -contains $item.Name) { continue }
     Copy-Item -LiteralPath $item.FullName -Destination (Join-Path $DestinationRoot $item.Name) -Recurse -Force
   }
 }
@@ -66,6 +82,7 @@ function Invoke-PnpmJson([string[]]$Arguments) {
 }
 
 function Copy-ProductionDependencyClosure([string]$NodeModulesRoot) {
+  Write-PackageStatus "Resolving production dependency graph"
   $packageTrees = Invoke-PnpmJson @("list", "--prod", "--depth", "Infinity", "--json")
   $dependencyPaths = [ordered]@{}
 
@@ -87,10 +104,14 @@ function Copy-ProductionDependencyClosure([string]$NodeModulesRoot) {
 
   foreach ($tree in $packageTrees) { Add-DependencyNode $tree }
 
+  $dependencyCount = $dependencyPaths.Count
+  $copiedDependencies = 0
   foreach ($dependencyPath in $dependencyPaths.Keys) {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $dependencyPath "package.json") | ConvertFrom-Json
     if (-not $manifest.name) { continue }
     $name = [string]$manifest.name
+    $copiedDependencies += 1
+    Write-PackageStatus "Copying production dependencies ($copiedDependencies of $dependencyCount): $name"
     if ($name.StartsWith("@", [StringComparison]::Ordinal)) {
       $parts = $name.Split("/", 2)
       Copy-NodePackage $dependencyPath (Join-Path (Join-Path $NodeModulesRoot $parts[0]) $parts[1])
@@ -101,13 +122,19 @@ function Copy-ProductionDependencyClosure([string]$NodeModulesRoot) {
 }
 
 try {
+  Write-PackageStep "Preparing staging directories"
   New-Item -ItemType Directory -Force -Path $staging, $app, $runtime, $releaseBuild, $downloadCache | Out-Null
 
+  Write-PackageStep "Building the Next.js standalone application"
   Remove-Item -LiteralPath (Join-Path $root ".next\standalone") -Recurse -Force -ErrorAction SilentlyContinue
   Invoke-Tool (Join-Path $root "node_modules\.bin\next.cmd") @("build")
+
+  Write-PackageStep "Bundling the parser child process"
   Invoke-Tool (Join-Path $root "node_modules\.bin\esbuild.cmd") @(
     "scripts/parser-child.ts", "--bundle", "--platform=node", "--format=esm", "--packages=external", "--outfile=.release/parser-child.mjs"
   )
+
+  Write-PackageStep "Bundling the local migration runner"
   Invoke-Tool (Join-Path $root "node_modules\.bin\esbuild.cmd") @(
     "scripts/local-migrate.ts", "--bundle", "--platform=node", "--format=esm", "--outfile=.release/local-migrate.mjs"
   )
@@ -115,8 +142,13 @@ try {
   # Copying Next standalone wholesale follows pnpm junctions on Windows before
   # they can be flattened. Copy the application shell first, then build a flat
   # runtime node_modules from the production dependency closure.
+  Write-PackageStep "Copying the standalone application shell"
   Copy-StandaloneApplication (Join-Path $root ".next\standalone") $app
+
+  Write-PackageStep "Flattening production dependencies"
   Copy-ProductionDependencyClosure (Join-Path $app "node_modules")
+
+  Write-PackageStep "Copying static assets, migrations, and runtime bundles"
   New-Item -ItemType Directory -Force -Path (Join-Path $app ".next\static") | Out-Null
   Copy-Item -Path (Join-Path $root ".next\static\*") -Destination (Join-Path $app ".next\static") -Recurse -Force
   Copy-Item -LiteralPath (Join-Path $root "assets") -Destination (Join-Path $app "assets") -Recurse
@@ -124,6 +156,7 @@ try {
   Copy-Item -LiteralPath (Join-Path $releaseBuild "parser-child.mjs") -Destination $app
   Copy-Item -LiteralPath (Join-Path $releaseBuild "local-migrate.mjs") -Destination $app
 
+  Write-PackageStep "Downloading and verifying Node.js $nodeVersion"
   if (-not (Test-Path -LiteralPath $nodeArchive)) {
     Invoke-WebRequest -UseBasicParsing -Uri "https://nodejs.org/dist/v$nodeVersion/$nodeName.zip" -OutFile $nodeArchive
   }
@@ -133,11 +166,14 @@ try {
   $expectedHash = ($expectedLine -split '\s+')[0].ToLowerInvariant()
   $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $nodeArchive).Hash.ToLowerInvariant()
   if ($actualHash -ne $expectedHash) { throw "Node.js runtime checksum verification failed." }
+
+  Write-PackageStep "Extracting the bundled Node.js runtime"
   $nodeExtract = Join-Path $stagingRoot "node"
   Expand-Archive -LiteralPath $nodeArchive -DestinationPath $nodeExtract
   Copy-Item -LiteralPath (Join-Path $nodeExtract "$nodeName\node.exe") -Destination $runtime
   Copy-Item -LiteralPath (Join-Path $nodeExtract "$nodeName\LICENSE") -Destination (Join-Path $runtime "NODE_LICENSE")
 
+  Write-PackageStep "Copying launchers and release documents"
   foreach ($relative in @(
     "Start Vitae Stack.cmd",
     "Stop Vitae Stack.cmd",
@@ -154,12 +190,14 @@ try {
     [Text.UTF8Encoding]::new($false)
   )
 
+  Write-PackageStep "Validating package contents"
   foreach ($relative in @(
     "runtime/node.exe",
     "app/server.js",
     "app/local-migrate.mjs",
     "app/parser-child.mjs",
     "app/db/migrations/0001_initial.sql",
+    "app/db/migrations/0002_integrity_guards.sql",
     "Start Vitae Stack.cmd",
     "PERSONAL_README.md"
   )) {
@@ -177,14 +215,18 @@ try {
     throw "Release bundle contains the pnpm virtual store."
   }
 
+  Write-PackageStep "Creating the ZIP archive"
   New-Item -ItemType Directory -Force -Path $destinationDirectory | Out-Null
   Remove-Item -LiteralPath $archive, $checksum -Force -ErrorAction SilentlyContinue
   Invoke-Tool "tar.exe" @("-a", "-c", "-f", $archive, "-C", $stagingRoot, $name)
+
+  Write-PackageStep "Writing the SHA-256 checksum"
   $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
   [IO.File]::WriteAllText($checksum, "$hash  $name.zip`n", [Text.UTF8Encoding]::new($false))
   Write-Host "Created $archive"
   Write-Host "Created $checksum"
 } finally {
+  Write-Progress -Activity $script:PackageProgressActivity -Completed
   $temporaryRoot = [IO.Path]::GetFullPath([IO.Path]::GetPathRoot($root))
   $resolvedStagingRoot = [IO.Path]::GetFullPath($stagingRoot)
   if ($resolvedStagingRoot.StartsWith($temporaryRoot, [StringComparison]::OrdinalIgnoreCase) -and (Split-Path $resolvedStagingRoot -Leaf).StartsWith("vts-", [StringComparison]::Ordinal)) {

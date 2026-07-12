@@ -12,11 +12,17 @@ describe("personal no-account release", () => {
     for (const source of [powershell, shell]) {
       expect(source).toContain("127.0.0.1");
       expect(source).toContain("DATABASE_PATH");
+      expect(source).toContain("MIGRATIONS_PATH");
       expect(source).toContain("vitae.sqlite");
       expect(source).toContain("TELEMETRY_ENABLED");
       expect(source).not.toMatch(/docker|postgres/iu);
       expect(source).not.toMatch(/OPENAI_API_KEY|ANTHROPIC/iu);
     }
+
+    expect(powershell).toContain('Join-Path $root "app\\db\\migrations"');
+    expect(powershell).toContain("$env:MIGRATIONS_PATH = $migrationsPath");
+    expect(shell).toContain('MIGRATIONS_PATH="$ROOT/app/db/migrations"');
+    expect(shell).toContain("DATABASE_PATH MIGRATIONS_PATH");
   });
 
   it("creates private local settings and preserves the data folder on stop", async () => {
@@ -37,7 +43,12 @@ describe("personal no-account release", () => {
     expect(packager).toContain("runtime/node.exe");
     expect(packager).toContain("app/server.js");
     expect(packager).toContain("app/db/migrations/0001_initial.sql");
+    expect(packager).toContain("app/db/migrations/0002_integrity_guards.sql");
     expect(packager).toContain("Node.js runtime checksum verification failed");
     expect(packager).toContain("Release bundle is missing required file");
+    expect(packager).toContain('$excludedStandaloneNames = @("node_modules"');
+    expect(packager).toContain(
+      '".release", "dist", "tmp", "var", ".vitae-stack"',
+    );
   });
 });

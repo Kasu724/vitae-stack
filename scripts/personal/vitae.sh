@@ -31,8 +31,14 @@ running() {
 configure_environment() {
   CREDENTIAL_ENCRYPTION_KEY=$(sed -n 's/^CREDENTIAL_ENCRYPTION_KEY=//p' "$SETTINGS_FILE" | head -n 1)
   [ -n "$CREDENTIAL_ENCRYPTION_KEY" ] || { echo "Local credential key is missing." >&2; exit 1; }
+  if [ -f "$ROOT/app/server.js" ]; then
+    MIGRATIONS_PATH="$ROOT/app/db/migrations"
+  else
+    MIGRATIONS_PATH="$ROOT/db/migrations"
+  fi
+  [ -d "$MIGRATIONS_PATH" ] || { echo "Database migrations are missing from $MIGRATIONS_PATH." >&2; exit 1; }
   export NODE_ENV=production HOSTNAME=127.0.0.1 PORT=3000
-  export APP_BASE_URL="$BASE_URL" APP_BIND_HOST=127.0.0.1 DATABASE_PATH
+  export APP_BASE_URL="$BASE_URL" APP_BIND_HOST=127.0.0.1 DATABASE_PATH MIGRATIONS_PATH
   export ARTIFACT_STORAGE_ROOT="$DATA_DIR/files"
   export PARSER_QUEUE_ROOT="$RUNTIME_DIR/parser-queue" JOB_FETCH_QUEUE_ROOT="$RUNTIME_DIR/fetch-queue"
   export PARSER_MODE=inline JOB_FETCH_MODE=inline TELEMETRY_ENABLED=false
