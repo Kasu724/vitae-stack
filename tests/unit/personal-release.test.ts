@@ -21,7 +21,7 @@ describe("personal no-account release", () => {
 
     expect(powershell).toContain('Join-Path $root "app\\db\\migrations"');
     expect(powershell).toContain("$env:MIGRATIONS_PATH = $migrationsPath");
-    expect(powershell).toContain("$handler.UseProxy = $false");
+    expect(powershell).toContain("$request.Proxy = $null");
     expect(powershell).toContain("Get-Content -Raw -LiteralPath $log");
     expect(shell).toContain('MIGRATIONS_PATH="$ROOT/app/db/migrations"');
     expect(shell).toContain("DATABASE_PATH MIGRATIONS_PATH");

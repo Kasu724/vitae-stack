@@ -112,37 +112,38 @@ function Get-RunningServer {
 }
 
 function Wait-ForReady([Diagnostics.Process]$ServerProcess) {
-  Add-Type -AssemblyName System.Net.Http
-  $handler = [Net.Http.HttpClientHandler]::new()
-  $handler.UseProxy = $false
-  $client = [Net.Http.HttpClient]::new($handler)
-  $client.Timeout = [TimeSpan]::FromSeconds(2)
-  try {
-    for ($attempt = 0; $attempt -lt 90; $attempt += 1) {
-      if ($ServerProcess.HasExited) {
-        $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
-        throw "Vitae Stack exited during startup.`n$details"
-      }
-      try {
-        $response = $client.GetAsync("$baseUrl/api/ready").GetAwaiter().GetResult()
-        if ($response.IsSuccessStatusCode) {
-          $payload = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
-          if ($payload.status -eq "ready") { return }
-        }
-      } catch {}
-      Start-Sleep -Milliseconds 500
+  for ($attempt = 0; $attempt -lt 90; $attempt += 1) {
+    if ($ServerProcess.HasExited) {
+      $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
+      throw "Vitae Stack exited during startup.`n$details"
     }
-    $details = @()
-    foreach ($log in @($stdoutLog, $stderrLog)) {
-      if (Test-Path -LiteralPath $log) {
-        $details += "--- $log`n$((Get-Content -Raw -LiteralPath $log).Trim())"
-      }
+    $response = $null
+    $reader = $null
+    try {
+      $request = [Net.WebRequest]::Create("$baseUrl/api/ready")
+      $request.Proxy = $null
+      $request.Timeout = 2000
+      $response = $request.GetResponse()
+      $reader = [IO.StreamReader]::new($response.GetResponseStream())
+      $payload = $reader.ReadToEnd() | ConvertFrom-Json
+      if ($payload.status -eq "ready") { return }
+    } catch {
+      # The server may still be starting or the database may not be ready yet.
+    } finally {
+      if ($null -ne $reader) { $reader.Dispose() }
+      if ($null -ne $response) { $response.Dispose() }
     }
-    throw "Vitae Stack did not become ready.`n$($details -join "`n")"
-  } finally {
-    $client.Dispose()
-    $handler.Dispose()
+    Start-Sleep -Milliseconds 500
   }
+  $details = @()
+  foreach ($log in @($stdoutLog, $stderrLog)) {
+    if (Test-Path -LiteralPath $log) {
+      $content = Get-Content -Raw -LiteralPath $log
+      if ($null -eq $content) { $content = "" }
+      $details += "--- $log`n$($content.Trim())"
+      }
+  }
+  throw "Vitae Stack did not become ready.`n$($details -join "`n")"
 }
 
 if ($Action -eq "Start") {
