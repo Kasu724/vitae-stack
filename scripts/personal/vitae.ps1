@@ -112,18 +112,37 @@ function Get-RunningServer {
 }
 
 function Wait-ForReady([Diagnostics.Process]$ServerProcess) {
-  for ($attempt = 0; $attempt -lt 90; $attempt += 1) {
-    if ($ServerProcess.HasExited) {
-      $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
-      throw "Vitae Stack exited during startup.`n$details"
+  Add-Type -AssemblyName System.Net.Http
+  $handler = [Net.Http.HttpClientHandler]::new()
+  $handler.UseProxy = $false
+  $client = [Net.Http.HttpClient]::new($handler)
+  $client.Timeout = [TimeSpan]::FromSeconds(2)
+  try {
+    for ($attempt = 0; $attempt -lt 90; $attempt += 1) {
+      if ($ServerProcess.HasExited) {
+        $details = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -Raw -LiteralPath $stderrLog) } else { "No error log was written." }
+        throw "Vitae Stack exited during startup.`n$details"
+      }
+      try {
+        $response = $client.GetAsync("$baseUrl/api/ready").GetAwaiter().GetResult()
+        if ($response.IsSuccessStatusCode) {
+          $payload = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult() | ConvertFrom-Json
+          if ($payload.status -eq "ready") { return }
+        }
+      } catch {}
+      Start-Sleep -Milliseconds 500
     }
-    try {
-      $response = Invoke-RestMethod -Uri "$baseUrl/api/ready" -TimeoutSec 2
-      if ($response.status -eq "ready") { return }
-    } catch {}
-    Start-Sleep -Milliseconds 500
+    $details = @()
+    foreach ($log in @($stdoutLog, $stderrLog)) {
+      if (Test-Path -LiteralPath $log) {
+        $details += "--- $log`n$((Get-Content -Raw -LiteralPath $log).Trim())"
+      }
+    }
+    throw "Vitae Stack did not become ready.`n$($details -join "`n")"
+  } finally {
+    $client.Dispose()
+    $handler.Dispose()
   }
-  throw "Vitae Stack did not become ready. Review $stderrLog."
 }
 
 if ($Action -eq "Start") {

@@ -80,13 +80,13 @@ jobs:
           $bundle = (Get-ChildItem $extract -Directory | Select-Object -First 1).FullName
           $launcher = Join-Path $bundle "scripts/personal/vitae.ps1"
           $env:VITAE_DATA_DIR = $data
-          Push-Location $bundle
           try {
-            & $launcher Start -NoBrowser
-          } finally {
-            Pop-Location
-          }
-          try {
+            Push-Location $bundle
+            try {
+              & $launcher Start -NoBrowser
+            } finally {
+              Pop-Location
+            }
             $env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:3000"
             pnpm test:smoke
             if ($LASTEXITCODE) { throw "Package smoke failed" }
