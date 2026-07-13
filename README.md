@@ -52,13 +52,25 @@ The build creates `dist\vitae-stack-personal-<version>-windows-x64.zip` and `dis
 
 Node.js 24.18.0 and pnpm 11.9.0 are the supported toolchain.
 
+### First run
+
+From a PowerShell window in the repository root, enable Corepack, install the pinned dependencies, apply the local SQLite migrations, and start the development server:
+
 ```text
 corepack pnpm install --frozen-lockfile
 corepack pnpm db:migrate
 corepack pnpm dev
 ```
 
-Development defaults to `./var/vitae.sqlite` and private artifacts/queues under `./var/private/`. Copy `.env.example` only when overriding defaults. Build the portable Windows package with `scripts/personal/package.ps1` or `Build Personal Bundle.cmd`.
+When the server reports that it is ready, open <http://127.0.0.1:3000> in a browser. Keep that terminal window open while working; press `Ctrl+C` in it to stop the development server.
+
+### Iterating on UI changes
+
+Use `corepack pnpm dev` for UI work. It watches the source files, so after saving a component or style change, refresh the browser if it does not update automatically. You do not need to build the portable ZIP or run the Start/Stop `.cmd` files for normal development.
+
+Development data defaults to `./var/vitae.sqlite` and private artifacts/queues under `./var/private/`; these paths are ignored by Git and are separate from the portable application's `%LOCALAPPDATA%\Vitae Stack` data. Copy `.env.example` only when overriding defaults. For destructive manual tests, set `DATABASE_PATH` and `ARTIFACT_STORAGE_ROOT` to isolated temporary locations.
+
+Build the portable Windows package with `scripts/personal/package.ps1` or `Build Personal Bundle.cmd` only when validating the release bundle, bundled runtime, or launcher behavior.
 
 ## Architecture and scope
 

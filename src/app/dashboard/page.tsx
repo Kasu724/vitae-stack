@@ -27,59 +27,93 @@ export default async function DashboardPage() {
   if (!account) redirect("/");
 
   return (
-    <main id="main-content" className="mx-auto max-w-4xl px-6 py-12">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
-            Personal workspace
-          </p>
-          <h1 className="mt-2 text-3xl font-bold">Welcome to Vitae Stack</h1>
-        </div>
-      </header>
-      <section
-        className="mt-10 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6"
-        aria-labelledby="status-heading"
-      >
-        <h2 id="status-heading" className="text-xl font-semibold">
-          Workspace ready
-        </h2>
-        <p className="mt-3 text-[var(--muted)]">
-          Your workspace and documents are stored in this local installation.
-          Build verified, reusable evidence before creating career documents.
+    <main
+      id="main-content"
+      className="mx-auto max-w-6xl px-4 py-10 sm:px-8 lg:py-14"
+    >
+      <header className="max-w-3xl">
+        <p className="text-sm font-semibold text-[var(--action)]">
+          Personal workspace · {account.workspace_name}
         </p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link href="/career" className="button inline-block">
+        <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
+          Welcome to Vitae Stack
+        </h1>
+        <p className="mt-3 text-lg text-[var(--muted)]">
+          Build reusable evidence first, then create and assess documents with a
+          clear record of where each factual claim came from.
+        </p>
+      </header>
+
+      <div className="dashboard-grid mt-10">
+        <section
+          className="dashboard-panel dashboard-panel-primary"
+          aria-labelledby="evidence-heading"
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--action)]">
+            Recommended starting point
+          </p>
+          <h2 id="evidence-heading" className="mt-2 text-xl font-semibold">
+            Build your evidence library
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Approved facts become immutable evidence. Imported facts stay out of
+            generation until you review them.
+          </p>
+          <Link href="/career" className="button mt-5">
             Open Career Information Bank
           </Link>
-          <Link href="/documents" className="secondary-button inline-block">
-            Open document library
-          </Link>
-          <Link href="/sources" className="secondary-button inline-block">
-            Import source documents
-          </Link>
-          <Link href="/jobs" className="secondary-button inline-block">
-            Add a job description
-          </Link>
-          <Link href="/ats" className="secondary-button inline-block">
-            Run estimated ATS analysis
-          </Link>
-          <Link href="/exports" className="secondary-button inline-block">
-            Export a document
-          </Link>
-          <Link
-            href="/settings/providers"
-            className="secondary-button inline-block"
-          >
-            Configure model providers
-          </Link>
-          <Link
-            href="/settings/privacy"
-            className="secondary-button inline-block"
-          >
-            Privacy and data controls
-          </Link>
-        </div>
-      </section>
+          <ul className="dashboard-link-list">
+            <li>
+              <Link href="/sources">Import source documents</Link>
+            </li>
+            <li>
+              <Link href="/jobs">Add a job description</Link>
+            </li>
+          </ul>
+        </section>
+
+        <section
+          className="dashboard-panel"
+          aria-labelledby="documents-heading"
+        >
+          <h2 id="documents-heading" className="text-xl font-semibold">
+            Documents & analysis
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Work from immutable versions and keep final exports grounded in
+            current approved evidence.
+          </p>
+          <ul className="dashboard-link-list">
+            <li>
+              <Link href="/documents">Open document library</Link>
+            </li>
+            <li>
+              <Link href="/ats">Run estimated ATS analysis</Link>
+            </li>
+            <li>
+              <Link href="/exports">Export a document</Link>
+            </li>
+          </ul>
+        </section>
+
+        <section className="dashboard-panel" aria-labelledby="controls-heading">
+          <h2 id="controls-heading" className="text-xl font-semibold">
+            Privacy & controls
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[var(--muted)]">
+            Your records stay in this installation. Model providers are optional
+            and their destinations remain explicit.
+          </p>
+          <ul className="dashboard-link-list">
+            <li>
+              <Link href="/settings/providers">Configure model providers</Link>
+            </li>
+            <li>
+              <Link href="/settings/privacy">Privacy and data controls</Link>
+            </li>
+          </ul>
+        </section>
+      </div>
     </main>
   );
 }

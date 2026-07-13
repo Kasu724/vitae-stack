@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import type { ReactNode } from "react";
 
+import { AppShell } from "@/components/app-shell";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,8 +16,10 @@ export default async function RootLayout({
 }: Readonly<{ children: ReactNode }>) {
   await connection();
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" data-scroll-behavior="smooth">
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

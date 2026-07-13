@@ -13,6 +13,19 @@ test("foundation shell and health endpoint are available", async ({
     page.getByRole("heading", { level: 1, name: "Vitae Stack" }),
   ).toBeVisible();
 
+  await page.goto("/dashboard");
+  const applicationNavigation = page.getByRole("complementary", {
+    name: "Application navigation",
+  });
+  await expect(applicationNavigation).toBeVisible();
+  await expect(
+    applicationNavigation.getByRole("link", { name: "Career evidence" }),
+  ).toBeVisible();
+  await expect(
+    applicationNavigation.getByText("Local installation", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("#main-content")).toBeVisible();
+
   const response = await request.get("/api/health");
   expect(response.ok()).toBe(true);
   await expect(response.json()).resolves.toMatchObject({
