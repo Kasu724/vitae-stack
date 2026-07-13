@@ -3,16 +3,33 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { partialDateSchema } from "@/modules/career/domain";
+import { SourceRepository } from "@/modules/ingestion/source-repository";
+import { ProviderConfigurationRepository } from "@/modules/providers/repository";
+import { ProviderConfigurationService } from "@/modules/providers/service";
 
 import { extractionProposalEditSchema } from "./domain";
 import { ExtractionRepository } from "./repository";
+import { ExtractionAnalysisService } from "./service";
 
 function text(form: FormData, key: string): string {
   const value = form.get(key);
   return typeof value === "string" ? value.trim() : "";
+}
+
+function reviewLocation(
+  batchId: string,
+  form: FormData,
+  kind: "error" | "notice",
+  value: string,
+): string {
+  const parameters = new URLSearchParams({ [kind]: value });
+  const page = text(form, "page");
+  if (/^[1-9][0-9]*$/u.test(page)) parameters.set("page", page);
+  return `/extractions/${batchId}?${parameters.toString()}`;
 }
 
 async function context() {
@@ -79,6 +96,27 @@ export async function startExtractionAction(form: FormData): Promise<void> {
   redirect(`/extractions/${batchId}`);
 }
 
+export async function startAiExtractionAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const sourceId = text(form, "sourceId");
+  const providerConfigurationId = text(form, "providerConfigurationId");
+  let batchId: string;
+  try {
+    const pool = getRuntimePool();
+    batchId = await new ExtractionAnalysisService(
+      repository,
+      new SourceRepository(pool),
+      new ProviderConfigurationService(
+        new ProviderConfigurationRepository(pool),
+        readServerEnvironment(),
+      ),
+    ).createAiBatch(principal, { sourceId, providerConfigurationId });
+  } catch {
+    redirect(`/sources/${sourceId}?error=ai-extraction`);
+  }
+  redirect(`/extractions/${batchId}`);
+}
+
 export async function updateExtractionProposalAction(
   form: FormData,
 ): Promise<void> {
@@ -98,9 +136,9 @@ export async function updateExtractionProposalAction(
       edit,
     );
   } catch {
-    redirect(`/extractions/${batchId}?error=proposal-update`);
+    redirect(reviewLocation(batchId, form, "error", "proposal-update"));
   }
-  redirect(`/extractions/${batchId}?notice=proposal-updated`);
+  redirect(reviewLocation(batchId, form, "notice", "proposal-updated"));
 }
 
 export async function approveExtractionProposalAction(
@@ -111,9 +149,9 @@ export async function approveExtractionProposalAction(
   try {
     await repository.approve(principal, text(form, "proposalId"));
   } catch {
-    redirect(`/extractions/${batchId}?error=proposal-resolution`);
+    redirect(reviewLocation(batchId, form, "error", "proposal-resolution"));
   }
-  redirect(`/extractions/${batchId}?notice=proposal-approved`);
+  redirect(reviewLocation(batchId, form, "notice", "proposal-approved"));
 }
 
 export async function rejectExtractionProposalAction(
@@ -124,9 +162,9 @@ export async function rejectExtractionProposalAction(
   try {
     await repository.reject(principal, text(form, "proposalId"));
   } catch {
-    redirect(`/extractions/${batchId}?error=proposal-resolution`);
+    redirect(reviewLocation(batchId, form, "error", "proposal-resolution"));
   }
-  redirect(`/extractions/${batchId}?notice=proposal-rejected`);
+  redirect(reviewLocation(batchId, form, "notice", "proposal-rejected"));
 }
 
 export async function mergeExtractionProposalAction(
@@ -137,9 +175,9 @@ export async function mergeExtractionProposalAction(
   try {
     await repository.mergeDuplicate(principal, text(form, "proposalId"));
   } catch {
-    redirect(`/extractions/${batchId}?error=proposal-resolution`);
+    redirect(reviewLocation(batchId, form, "error", "proposal-resolution"));
   }
-  redirect(`/extractions/${batchId}?notice=proposal-merged`);
+  redirect(reviewLocation(batchId, form, "notice", "proposal-merged"));
 }
 
 export async function bulkApproveExtractionAction(
@@ -157,7 +195,7 @@ export async function bulkApproveExtractionAction(
       Number(text(form, "confirmedCount")),
     );
   } catch {
-    redirect(`/extractions/${batchId}?error=bulk-confirmation`);
+    redirect(reviewLocation(batchId, form, "error", "bulk-confirmation"));
   }
-  redirect(`/extractions/${batchId}?notice=bulk-approved`);
+  redirect(reviewLocation(batchId, form, "notice", "bulk-approved"));
 }

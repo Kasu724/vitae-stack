@@ -7,6 +7,7 @@ import type {
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { consumeApplicationRateLimit } from "@/infrastructure/security/rate-limit";
 
+import type { AiTaskId } from "./contracts";
 import type { CredentialEnvelope } from "./credential-envelope";
 import type { ProviderKind } from "./domain";
 
@@ -92,6 +93,18 @@ export class ProviderConfigurationRepository {
       [principal.workspaceId],
     );
     return result.rows;
+  }
+
+  public async listReadyForTask(
+    principal: WorkspacePrincipal,
+    taskId: AiTaskId,
+  ): Promise<ProviderConfigurationSummary[]> {
+    return (await this.list(principal)).filter(
+      (configuration) =>
+        configuration.status === "available" &&
+        configuration.capabilities.structuredOutput &&
+        Boolean(configuration.task_assignments[taskId]),
+    );
   }
 
   public async getPrivate(

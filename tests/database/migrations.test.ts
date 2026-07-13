@@ -17,6 +17,7 @@ describe("SQLite migration artifacts", () => {
     expect(migrationFiles).toEqual([
       "0001_initial.sql",
       "0002_integrity_guards.sql",
+      "0003_extraction_ai.sql",
     ]);
     expect(migrationFiles).toHaveLength(EXPECTED_MIGRATION_COUNT);
   });
@@ -29,6 +30,7 @@ describe("SQLite migration artifacts", () => {
           path.resolve("db/migrations/0002_integrity_guards.sql"),
           "utf8",
         ),
+        readFile(path.resolve("db/migrations/0003_extraction_ai.sql"), "utf8"),
       ])
     ).join("\n");
 
@@ -37,6 +39,8 @@ describe("SQLite migration artifacts", () => {
     expect(sql).toContain("CREATE TRIGGER");
     expect(sql).toContain("immutable");
     expect(sql).toContain("_frozen_delete");
+    expect(sql).toContain("proposed_entry_key");
+    expect(sql).toContain("extraction_batches_metadata_insert");
     expect(sql).not.toMatch(/GRANT|CREATE ROLE|JSONB|UUID_GENERATE/iu);
   });
 });

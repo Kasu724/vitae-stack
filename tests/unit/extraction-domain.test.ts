@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aiExtractionJsonSchema,
+  aiExtractionOutputSchema,
+  aiProposalEvidenceValue,
   deterministicLineCandidates,
   sourceEntryTitle,
+  validateExtractionSourceSpans,
 } from "@/modules/extraction/domain";
 
 describe("deterministic extraction fallback", () => {
@@ -25,5 +29,86 @@ describe("deterministic extraction fallback", () => {
     expect(sourceEntryTitle("synthetic.resume.pdf")).toBe("synthetic.resume");
     expect(sourceEntryTitle(".txt")).toBe("Imported career evidence");
     expect(deterministicLineCandidates("x".repeat(5001))).toEqual([]);
+  });
+});
+
+describe("AI extraction boundary", () => {
+  const source = "Synthetic Employer\nBuilt synthetic systems\nTypeScript";
+  const proposal = {
+    entryKey: "entry_1",
+    entryType: "work" as const,
+    entryTitleStart: source.indexOf("Synthetic Employer"),
+    entryTitleEnd:
+      source.indexOf("Synthetic Employer") + "Synthetic Employer".length,
+    entryTitleText: "Synthetic Employer",
+    factType: "statement" as const,
+    sourceStart: source.indexOf("Built synthetic systems"),
+    sourceEnd:
+      source.indexOf("Built synthetic systems") +
+      "Built synthetic systems".length,
+    sourceText: "Built synthetic systems",
+  };
+
+  it("accepts only closed exact-span AI-01 output", () => {
+    const output = aiExtractionOutputSchema.parse({
+      schemaVersion: "ai-01.v1",
+      proposals: [proposal],
+      warnings: [],
+    });
+    expect(() =>
+      validateExtractionSourceSpans(source, output.proposals),
+    ).not.toThrow();
+    expect(aiProposalEvidenceValue(proposal)).toEqual({
+      kind: "text",
+      text: "Built synthetic systems",
+    });
+    expect(
+      aiExtractionOutputSchema.safeParse({
+        ...output,
+        unexpected: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      aiExtractionOutputSchema.safeParse({
+        ...output,
+        proposals: [{ ...proposal, unexpected: true }],
+      }).success,
+    ).toBe(false);
+    expect(aiExtractionJsonSchema.additionalProperties).toBe(false);
+    expect(
+      (
+        aiExtractionJsonSchema.properties.proposals.items as {
+          additionalProperties: boolean;
+        }
+      ).additionalProperties,
+    ).toBe(false);
+  });
+
+  it("rejects fabricated, duplicate, or inconsistently grouped spans", () => {
+    expect(() =>
+      validateExtractionSourceSpans(source, [
+        { ...proposal, sourceText: "Invented systems" },
+      ]),
+    ).toThrow("source span");
+    expect(() =>
+      validateExtractionSourceSpans(source, [proposal, proposal]),
+    ).toThrow("duplicate");
+    expect(() =>
+      validateExtractionSourceSpans(source, [
+        proposal,
+        {
+          ...proposal,
+          factType: "skill",
+          sourceStart: source.indexOf("TypeScript"),
+          sourceEnd: source.indexOf("TypeScript") + "TypeScript".length,
+          sourceText: "TypeScript",
+          entryTitleStart: source.indexOf("Built synthetic systems"),
+          entryTitleEnd:
+            source.indexOf("Built synthetic systems") +
+            "Built synthetic systems".length,
+          entryTitleText: "Built synthetic systems",
+        },
+      ]),
+    ).toThrow("grouping");
   });
 });

@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { createDatabaseConnection } from "@/infrastructure/database/connection";
+
 import {
   ensureSyntheticAuthUser,
   signInSyntheticUser,
@@ -8,6 +10,37 @@ import {
 
 test.beforeAll(async () => {
   await ensureSyntheticAuthUser();
+  const connection = createDatabaseConnection(
+    process.env.DATABASE_PATH ?? "./var/vitae.sqlite",
+  );
+  try {
+    const context = await connection.pool.query<{
+      user_id: string;
+      workspace_id: string;
+    }>(
+      "SELECT u.id user_id,m.workspace_id FROM users u JOIN workspace_memberships m ON m.user_id=u.id LIMIT 1",
+    );
+    const principal = context.rows[0]!;
+    await connection.pool.query(
+      `INSERT INTO model_provider_configurations (workspace_id,created_by_user_id,kind,label,base_url,auth_type,capabilities,task_assignments,status,last_tested_at)
+       VALUES ($1,$2,'openai_compatible','Synthetic AI-01 review provider','https://models.example/v1/','none',$3::jsonb,$4::jsonb,'available',now())`,
+      [
+        principal.workspace_id,
+        principal.user_id,
+        JSON.stringify({
+          schemaVersion: 1,
+          structuredOutput: true,
+          usage: false,
+          refusal: true,
+          testedAt: new Date().toISOString(),
+          warnings: [],
+        }),
+        JSON.stringify({ "AI-01": "synthetic-extraction-model" }),
+      ],
+    );
+  } finally {
+    await connection.pool.end();
+  }
 });
 
 test("user edits, approves, rejects, and bulk-confirms imported fact proposals", async ({
@@ -31,6 +64,15 @@ test("user edits, approves, rejects, and bulk-confirms imported fact proposals",
     });
   await page.getByRole("button", { name: "Upload and parse" }).click();
   await waitForSourceReady(page);
+  await expect(page.getByLabel("AI extraction provider")).toContainText(
+    "Synthetic AI-01 review provider — synthetic-extraction-model — https://models.example",
+  );
+  await expect(page.getByText(/Transmission preview:/u)).toContainText(
+    "full extracted source text",
+  );
+  await expect(
+    page.getByRole("button", { name: "Review extracted facts" }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Review extracted facts" }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Review extracted facts" }),

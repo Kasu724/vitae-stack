@@ -30,6 +30,7 @@ async function syntheticPdf(): Promise<Buffer> {
   const page = document.addPage([500, 700]);
   const font = await document.embedFont(StandardFonts.Helvetica);
   page.drawText("Synthetic PDF resume", { x: 50, y: 650, font, size: 16 });
+  page.drawText("Synthetic second line", { x: 50, y: 620, font, size: 12 });
   return Buffer.from(await document.save());
 }
 
@@ -63,6 +64,10 @@ describe("document parsers", () => {
     ).resolves.toBe("application/pdf");
     const parsed = await parseSourceBuffer("application/pdf", bytes);
     expect(parsed.text).toContain("Synthetic PDF resume");
+    expect(parsed.text.split("\n")).toEqual([
+      "Synthetic PDF resume",
+      "Synthetic second line",
+    ]);
     expect(parsed.metadata.pageCount).toBe(1);
   }, 20_000);
 

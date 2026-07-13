@@ -4,6 +4,8 @@ export interface SourceLocatorValue {
   page?: number;
   section?: string;
   sourceDocumentId?: string;
+  startOffset?: number;
+  endOffset?: number;
 }
 
 export type EvidenceValue =
@@ -33,6 +35,17 @@ export interface JobRequirementAnalysisMetadata {
   attempts?: number;
   inputHash: string;
   outputHash?: string;
+}
+
+export interface ExtractionAnalysisMetadata {
+  schemaVersion: 1;
+  taskVersion: "deterministic-lines@1" | "ai-01.v1";
+  warnings: string[];
+  inputHash: string;
+  outputHash?: string;
+  providerConfigurationId?: string;
+  model?: string;
+  attempts?: number;
 }
 
 export interface ModelProviderCapabilities {

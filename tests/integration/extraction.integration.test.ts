@@ -11,6 +11,10 @@ import {
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { CareerRepository } from "@/modules/career/repository";
 import {
+  hashExtractionValue,
+  type AiExtractionProposal,
+} from "@/modules/extraction/domain";
+import {
   ExtractionConflictError,
   ExtractionNotFoundError,
   ExtractionRepository,
@@ -90,6 +94,154 @@ afterAll(async () => {
 });
 
 describe("extraction review and approval", () => {
+  it("stores AI proposals atomically as unverified exact spans and preserves entry grouping", async () => {
+    const aiPrincipal = await createPrincipal("ai-grouping");
+    const text = [
+      "Synthetic Employer",
+      "Built synthetic systems",
+      "Synthetic Project",
+      "Shipped a synthetic project",
+    ].join("\n");
+    const sourceId = await readySource(aiPrincipal, "ai-extraction", text);
+    const exact = (value: string) => ({
+      start: text.indexOf(value),
+      end: text.indexOf(value) + value.length,
+      text: value,
+    });
+    const employer = exact("Synthetic Employer");
+    const built = exact("Built synthetic systems");
+    const project = exact("Synthetic Project");
+    const shipped = exact("Shipped a synthetic project");
+    const proposals: AiExtractionProposal[] = [
+      {
+        entryKey: "employment_1",
+        entryType: "work",
+        entryTitleStart: employer.start,
+        entryTitleEnd: employer.end,
+        entryTitleText: employer.text,
+        factType: "statement",
+        sourceStart: built.start,
+        sourceEnd: built.end,
+        sourceText: built.text,
+      },
+      {
+        entryKey: "project_1",
+        entryType: "project",
+        entryTitleStart: project.start,
+        entryTitleEnd: project.end,
+        entryTitleText: project.text,
+        factType: "accomplishment",
+        sourceStart: shipped.start,
+        sourceEnd: shipped.end,
+        sourceText: shipped.text,
+      },
+    ];
+    const metadata = {
+      schemaVersion: 1 as const,
+      taskVersion: "ai-01.v1" as const,
+      warnings: [],
+      providerConfigurationId: "40000000-0000-4000-8000-000000000001",
+      model: "synthetic-model",
+      attempts: 1,
+      inputHash: hashExtractionValue(text),
+      outputHash: hashExtractionValue({
+        schemaVersion: "ai-01.v1",
+        proposals,
+        warnings: [],
+      }),
+    };
+    const source = await runtimePool.query<{ content_hash: string }>(
+      "SELECT content_hash FROM source_documents WHERE id=$1",
+      [sourceId],
+    );
+    const batchId = await repository.createAiBatch(aiPrincipal, {
+      sourceId,
+      expectedSourceContentHash: source.rows[0]!.content_hash,
+      proposals,
+      metadata,
+    });
+    const review = await repository.getBatch(aiPrincipal, batchId);
+    expect(review.batch).toMatchObject({
+      method: "ai",
+      task_version: "ai-01.v1",
+      metadata: expect.objectContaining({
+        model: "synthetic-model",
+        inputHash: metadata.inputHash,
+      }),
+    });
+    expect(review.proposals).toEqual([
+      expect.objectContaining({
+        status: "pending",
+        proposed_entry_key: "employment_1",
+        source_locator: expect.objectContaining({
+          sourceDocumentId: sourceId,
+          startOffset: built.start,
+          endOffset: built.end,
+        }),
+      }),
+      expect.objectContaining({
+        status: "pending",
+        proposed_entry_key: "project_1",
+        source_locator: expect.objectContaining({
+          sourceDocumentId: sourceId,
+          startOffset: shipped.start,
+          endOffset: shipped.end,
+        }),
+      }),
+    ]);
+    expect(await career.listEligibleFacts(aiPrincipal)).toEqual([]);
+    await repository.approve(aiPrincipal, review.proposals[0]!.id);
+    await repository.approve(aiPrincipal, review.proposals[1]!.id);
+    const entries = await runtimePool.query<{ career_entry_id: string }>(
+      "SELECT DISTINCT career_entry_id FROM evidence_facts WHERE workspace_id=$1 AND display_text=ANY($2::text[])",
+      [
+        aiPrincipal.workspaceId,
+        proposals.map((proposal) => proposal.sourceText),
+      ],
+    );
+    expect(entries.rows).toHaveLength(2);
+    const audit = await runtimePool.query<{ metadata: unknown }>(
+      "SELECT metadata FROM audit_events WHERE target_id=$1",
+      [batchId],
+    );
+    const serializedAudit = JSON.stringify(audit.rows);
+    expect(serializedAudit).not.toContain(text);
+    expect(serializedAudit).not.toContain(built.text);
+    expect(serializedAudit).toContain(metadata.inputHash);
+  });
+
+  it("persists no AI batch when the pinned source hash changed", async () => {
+    const aiPrincipal = await createPrincipal("ai-race");
+    const text = "Synthetic Employer\nBuilt synthetic systems";
+    const sourceId = await readySource(aiPrincipal, "ai-race", text);
+    await expect(
+      repository.createAiBatch(aiPrincipal, {
+        sourceId,
+        expectedSourceContentHash: `sha256:${"f".repeat(64)}`,
+        proposals: [],
+        metadata: {
+          schemaVersion: 1,
+          taskVersion: "ai-01.v1",
+          warnings: [],
+          providerConfigurationId: "40000000-0000-4000-8000-000000000001",
+          model: "synthetic-model",
+          attempts: 1,
+          inputHash: hashExtractionValue(text),
+          outputHash: hashExtractionValue({
+            schemaVersion: "ai-01.v1",
+            proposals: [],
+            warnings: [],
+          }),
+        },
+      }),
+    ).rejects.toBeInstanceOf(ExtractionConflictError);
+    const rows = await runtimePool.query<{ count: string }>(
+      "SELECT count(*)::text count FROM extraction_batches WHERE source_document_id=$1",
+      [sourceId],
+    );
+    expect(Number(rows.rows[0]!.count)).toBe(0);
+  });
+
   it("keeps candidates ineligible, preserves locators, and isolates workspaces", async () => {
     const sourceId = await readySource(
       first,

@@ -213,7 +213,10 @@ export class ProviderConfigurationService {
     configurationId: string,
     input: Omit<StructuredTaskInput<T>, "model">,
   ): Promise<
-    StructuredTaskResult<T> & { providerKind: "openai_compatible" | "ollama" }
+    StructuredTaskResult<T> & {
+      configuredModel: string;
+      providerKind: "openai_compatible" | "ollama";
+    }
   > {
     await this.repository.consumeRateLimit(principal, "provider-task", 60);
     const config = await this.repository.getPrivate(principal, configurationId);
@@ -230,6 +233,6 @@ export class ProviderConfigurationService {
         model,
       }),
     );
-    return { ...result, providerKind: config.kind };
+    return { ...result, configuredModel: model, providerKind: config.kind };
   }
 }

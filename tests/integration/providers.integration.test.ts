@@ -72,6 +72,72 @@ afterAll(async () => {
 });
 
 describe("model provider configuration", () => {
+  it("lists only tested providers assigned to the requested AI task", async () => {
+    const ai01 = await service.create(first, {
+      label: "Z synthetic AI-01 provider",
+      kind: "openai_compatible",
+      baseUrl: "https://ai01.example/v1/",
+      authType: "none",
+    });
+    let configuration = await repository.getPrivate(first, ai01);
+    await repository.recordCapabilityResult(
+      first,
+      ai01,
+      configuration.revision,
+      {
+        schemaVersion: 1,
+        structuredOutput: true,
+        usage: false,
+        refusal: false,
+        testedAt: new Date().toISOString(),
+        warnings: [],
+      },
+      true,
+    );
+    configuration = await repository.getPrivate(first, ai01);
+    await repository.assignTask(
+      first,
+      ai01,
+      "AI-01",
+      "synthetic-model",
+      configuration.revision,
+    );
+    const ai02Only = await service.create(first, {
+      label: "Z synthetic AI-02-only provider",
+      kind: "openai_compatible",
+      baseUrl: "https://ai02.example/v1/",
+      authType: "none",
+    });
+    configuration = await repository.getPrivate(first, ai02Only);
+    await repository.recordCapabilityResult(
+      first,
+      ai02Only,
+      configuration.revision,
+      {
+        schemaVersion: 1,
+        structuredOutput: true,
+        usage: false,
+        refusal: false,
+        testedAt: new Date().toISOString(),
+        warnings: [],
+      },
+      true,
+    );
+    configuration = await repository.getPrivate(first, ai02Only);
+    await repository.assignTask(
+      first,
+      ai02Only,
+      "AI-02",
+      "synthetic-model",
+      configuration.revision,
+    );
+
+    expect(await repository.listReadyForTask(first, "AI-01")).toEqual([
+      expect.objectContaining({ id: ai01, status: "available" }),
+    ]);
+    expect(await repository.listReadyForTask(second, "AI-01")).toEqual([]);
+  });
+
   it("encrypts a write-only credential and isolates workspace reads", async () => {
     const secret = "synthetic-provider-secret-never-log";
     const id = await service.create(first, {

@@ -107,13 +107,29 @@ export const careerEntryInputSchema = z
 
 export type CareerEntryInput = z.infer<typeof careerEntryInputSchema>;
 
-const sourceLocatorSchema = z.object({
-  kind: z.enum(["manual", "document"]),
-  label: z.string().trim().min(1).max(500),
-  page: z.number().int().positive().optional(),
-  section: z.string().trim().max(500).optional(),
-  sourceDocumentId: z.string().uuid().optional(),
-});
+const sourceLocatorSchema = z
+  .object({
+    kind: z.enum(["manual", "document"]),
+    label: z.string().trim().min(1).max(500),
+    page: z.number().int().positive().optional(),
+    section: z.string().trim().max(500).optional(),
+    sourceDocumentId: z.string().uuid().optional(),
+    startOffset: z.number().int().nonnegative().optional(),
+    endOffset: z.number().int().positive().optional(),
+  })
+  .superRefine((value, context) => {
+    const hasStart = value.startOffset !== undefined;
+    const hasEnd = value.endOffset !== undefined;
+    if (
+      hasStart !== hasEnd ||
+      (hasStart && value.endOffset! <= value.startOffset!)
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["startOffset"],
+        message: "Source offsets must form a complete increasing range.",
+      });
+  });
 
 export const evidenceValueSchema = z.discriminatedUnion("kind", [
   z.object({

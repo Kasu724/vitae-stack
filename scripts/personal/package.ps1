@@ -198,6 +198,7 @@ try {
     "app/parser-child.mjs",
     "app/db/migrations/0001_initial.sql",
     "app/db/migrations/0002_integrity_guards.sql",
+    "app/db/migrations/0003_extraction_ai.sql",
     "Start Vitae Stack.cmd",
     "PERSONAL_README.md"
   )) {

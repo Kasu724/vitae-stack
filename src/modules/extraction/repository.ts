@@ -2,13 +2,21 @@ import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
 
 import type {
   EvidenceValue,
+  ExtractionAnalysisMetadata,
   SourceLocatorValue,
 } from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import {
+  aiExtractionOutputSchema,
+  aiExtractionMetadataSchema,
+  aiProposalEvidenceValue,
   extractionProposalEditSchema,
   deterministicLineCandidates,
+  hashExtractionValue,
   sourceEntryTitle,
+  validateExtractionSourceSpans,
+  type AiExtractionProposal,
+  type AiExtractionMetadata,
   type ExtractionProposalEdit,
 } from "./domain";
 
@@ -33,6 +41,7 @@ export interface ExtractionBatchRecord {
   target_career_entry_id: string | null;
   method: "deterministic" | "ai";
   task_version: string;
+  metadata: Partial<ExtractionAnalysisMetadata>;
   status: "pending" | "completed" | "cancelled";
   original_name: string;
   extracted_text: string;
@@ -41,6 +50,7 @@ export interface ExtractionBatchRecord {
 export interface ExtractionProposalRecord {
   id: string;
   batch_id: string;
+  proposed_entry_key: string | null;
   target_career_entry_id: string | null;
   proposed_entry_type: string;
   proposed_entry_title: string;
@@ -106,6 +116,17 @@ async function completeIfResolved(
 export class ExtractionRepository {
   public constructor(private readonly pool: Pool) {}
 
+  public async findPendingBatchId(
+    principal: WorkspacePrincipal,
+    sourceId: string,
+  ): Promise<string | null> {
+    const result = await this.pool.query<{ id: string }>(
+      `SELECT id FROM extraction_batches WHERE workspace_id=$1 AND source_document_id=$2 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
+      [principal.workspaceId, sourceId],
+    );
+    return result.rows[0]?.id ?? null;
+  }
+
   public async createDeterministicBatch(
     principal: WorkspacePrincipal,
     sourceId: string,
@@ -134,9 +155,23 @@ export class ExtractionRepository {
         throw new ExtractionConflictError(
           "No extractable candidate lines were found.",
         );
+      const metadata: ExtractionAnalysisMetadata = {
+        schemaVersion: 1,
+        taskVersion: "deterministic-lines@1",
+        warnings: candidates.length
+          ? ["Line-based proposals require review and classification."]
+          : [],
+        inputHash: hashExtractionValue(row.extracted_text),
+        outputHash: hashExtractionValue(candidates),
+      };
       const batch = await client.query<{ id: string }>(
-        `INSERT INTO extraction_batches (workspace_id,source_document_id,method,task_version,created_by_user_id) VALUES ($1,$2,'deterministic','deterministic-lines@1',$3) RETURNING id`,
-        [principal.workspaceId, sourceId, principal.userId],
+        `INSERT INTO extraction_batches (workspace_id,source_document_id,method,task_version,metadata,created_by_user_id) VALUES ($1,$2,'deterministic','deterministic-lines@1',$3::jsonb,$4) RETURNING id`,
+        [
+          principal.workspaceId,
+          sourceId,
+          JSON.stringify(metadata),
+          principal.userId,
+        ],
       );
       const batchId = batch.rows[0]!.id;
       const entryTitle = sourceEntryTitle(row.original_name);
@@ -174,6 +209,105 @@ export class ExtractionRepository {
     });
   }
 
+  public async createAiBatch(
+    principal: WorkspacePrincipal,
+    input: {
+      sourceId: string;
+      expectedSourceContentHash: string;
+      proposals: AiExtractionProposal[];
+      metadata: AiExtractionMetadata;
+    },
+  ): Promise<string> {
+    const metadata = aiExtractionMetadataSchema.parse(input.metadata);
+    const output = aiExtractionOutputSchema.parse({
+      schemaVersion: "ai-01.v1",
+      proposals: input.proposals,
+      warnings: [],
+    });
+    return transaction(this.pool, async (client) => {
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+        [`extract:${principal.workspaceId}:${input.sourceId}`],
+      );
+      const existing = await client.query<{ id: string }>(
+        `SELECT id FROM extraction_batches WHERE workspace_id=$1 AND source_document_id=$2 AND status='pending' ORDER BY created_at DESC LIMIT 1`,
+        [principal.workspaceId, input.sourceId],
+      );
+      if (existing.rows[0]) return existing.rows[0].id;
+      const source = await client.query<{
+        content_hash: string;
+        extracted_text: string;
+      }>(
+        `SELECT content_hash,extracted_text FROM source_documents WHERE id=$1 AND workspace_id=$2 AND status='ready' AND purpose<>'job_description'`,
+        [input.sourceId, principal.workspaceId],
+      );
+      const row = source.rows[0];
+      if (
+        !row ||
+        row.content_hash !== input.expectedSourceContentHash ||
+        hashExtractionValue(row.extracted_text) !== metadata.inputHash
+      )
+        throw new ExtractionConflictError(
+          "The source changed before AI extraction could be saved.",
+        );
+      validateExtractionSourceSpans(row.extracted_text, output.proposals);
+      const status = output.proposals.length ? "pending" : "completed";
+      const batch = await client.query<{ id: string }>(
+        `INSERT INTO extraction_batches (workspace_id,source_document_id,method,task_version,metadata,status,completed_at,created_by_user_id) VALUES ($1,$2,'ai','ai-01.v1',$3::jsonb,$4,CASE WHEN $4='completed' THEN now() ELSE NULL END,$5) RETURNING id`,
+        [
+          principal.workspaceId,
+          input.sourceId,
+          JSON.stringify(metadata),
+          status,
+          principal.userId,
+        ],
+      );
+      const batchId = batch.rows[0]!.id;
+      for (const proposal of output.proposals) {
+        const duplicate = await client.query<{ id: string }>(
+          `SELECT id FROM evidence_facts WHERE workspace_id=$1 AND status='approved' AND lower(display_text)=lower($2) ORDER BY approved_at LIMIT 1`,
+          [principal.workspaceId, proposal.sourceText],
+        );
+        const locator: SourceLocatorValue = {
+          kind: "document",
+          label: `Characters ${proposal.sourceStart}-${proposal.sourceEnd}`,
+          section: `Characters ${proposal.sourceStart}-${proposal.sourceEnd}`,
+          sourceDocumentId: input.sourceId,
+          startOffset: proposal.sourceStart,
+          endOffset: proposal.sourceEnd,
+        };
+        const value = aiProposalEvidenceValue(proposal);
+        await client.query(
+          `INSERT INTO extraction_proposals (workspace_id,batch_id,source_document_id,proposed_entry_key,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,duplicate_of_fact_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10::jsonb,$11)`,
+          [
+            principal.workspaceId,
+            batchId,
+            input.sourceId,
+            proposal.entryKey,
+            proposal.entryType,
+            proposal.entryTitleText,
+            proposal.factType,
+            JSON.stringify(value),
+            proposal.sourceText,
+            JSON.stringify(locator),
+            duplicate.rows[0]?.id ?? null,
+          ],
+        );
+      }
+      await audit(client, principal, "extraction.create", batchId, {
+        attempts: metadata.attempts,
+        candidateCount: output.proposals.length,
+        inputHash: metadata.inputHash,
+        method: "ai",
+        model: metadata.model,
+        outputHash: metadata.outputHash,
+        providerConfigurationId: metadata.providerConfigurationId,
+        taskVersion: "ai-01.v1",
+      });
+      return batchId;
+    });
+  }
+
   public async getBatch(
     principal: WorkspacePrincipal,
     batchId: string,
@@ -183,19 +317,22 @@ export class ExtractionRepository {
     entries: Array<{ id: string; title: string; type: string }>;
   }> {
     const batch = await this.pool.query<ExtractionBatchRecord>(
-      `SELECT b.id,b.source_document_id,b.target_career_entry_id,b.method,b.task_version,b.status,s.original_name,COALESCE(s.extracted_text,'') extracted_text,(s.status<>'deleted' AND s.extracted_text IS NOT NULL) source_available FROM extraction_batches b JOIN source_documents s ON s.id=b.source_document_id AND s.workspace_id=b.workspace_id WHERE b.id=$1 AND b.workspace_id=$2`,
+      `SELECT b.id,b.source_document_id,b.target_career_entry_id,b.method,b.task_version,b.metadata,b.status,s.original_name,COALESCE(s.extracted_text,'') extracted_text,(s.status<>'deleted' AND s.extracted_text IS NOT NULL) source_available FROM extraction_batches b JOIN source_documents s ON s.id=b.source_document_id AND s.workspace_id=b.workspace_id WHERE b.id=$1 AND b.workspace_id=$2`,
       [batchId, principal.workspaceId],
     );
     if (!batch.rows[0]) throw new ExtractionNotFoundError();
     const [proposals, entries] = await Promise.all([
       this.pool.query<ExtractionProposalRecord>(
-        `SELECT id,batch_id,target_career_entry_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,status,duplicate_of_fact_id,approved_fact_id,revision
+        `SELECT id,batch_id,proposed_entry_key,target_career_entry_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,status,duplicate_of_fact_id,approved_fact_id,revision
          FROM extraction_proposals
          WHERE batch_id=$1 AND workspace_id=$2
-         ORDER BY CASE
-           WHEN source_locator->>'section' ~ '^Line [0-9]+$'
-           THEN CAST(split_part(source_locator->>'section',' ',2) AS INTEGER)
-         END NULLS LAST,created_at,id`,
+         ORDER BY COALESCE(
+           CASE
+             WHEN source_locator->>'section' ~ '^Line [0-9]+$'
+             THEN CAST(split_part(source_locator->>'section',' ',2) AS INTEGER)
+           END,
+           CAST(source_locator->>'startOffset' AS INTEGER)
+         ) NULLS LAST,created_at,id`,
         [batchId, principal.workspaceId],
       ),
       this.pool.query<{ id: string; title: string; type: string }>(
@@ -219,7 +356,7 @@ export class ExtractionRepository {
     const input = extractionProposalEditSchema.parse(raw);
     await transaction(this.pool, async (client) => {
       const result = await client.query<{ batch_id: string }>(
-        `UPDATE extraction_proposals SET target_career_entry_id=$3,proposed_entry_type=$4,proposed_entry_title=$5,fact_type=$6,proposed_value=$7::jsonb,display_text=$8,revision=revision+1,updated_at=now() WHERE id=$1 AND workspace_id=$2 AND status='pending' AND revision=$9 RETURNING batch_id`,
+        `UPDATE extraction_proposals SET target_career_entry_id=$3,proposed_entry_key=CASE WHEN proposed_entry_key IS NULL THEN NULL ELSE id END,proposed_entry_type=$4,proposed_entry_title=$5,fact_type=$6,proposed_value=$7::jsonb,display_text=$8,revision=revision+1,updated_at=now() WHERE id=$1 AND workspace_id=$2 AND status='pending' AND revision=$9 RETURNING batch_id`,
         [
           proposalId,
           principal.workspaceId,
@@ -251,20 +388,30 @@ export class ExtractionRepository {
     const proposal = await client.query<
       ExtractionProposalRecord & { source_document_id: string }
     >(
-      `SELECT id,batch_id,source_document_id,target_career_entry_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,status,duplicate_of_fact_id,approved_fact_id,revision FROM extraction_proposals WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
+      `SELECT id,batch_id,source_document_id,proposed_entry_key,target_career_entry_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,status,duplicate_of_fact_id,approved_fact_id,revision FROM extraction_proposals WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
       [proposalId, principal.workspaceId],
     );
     const row = proposal.rows[0];
     if (!row) throw new ExtractionNotFoundError();
     if (row.status !== "pending") throw new ExtractionConflictError();
-    const batch = await client.query<{ target_career_entry_id: string | null }>(
-      `SELECT target_career_entry_id FROM extraction_batches WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
+    const batch = await client.query<{
+      method: "deterministic" | "ai";
+      target_career_entry_id: string | null;
+    }>(
+      `SELECT method,target_career_entry_id FROM extraction_batches WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
       [row.batch_id, principal.workspaceId],
     );
-    let entryId =
-      row.target_career_entry_id ??
-      batch.rows[0]?.target_career_entry_id ??
-      null;
+    const batchRow = batch.rows[0];
+    let entryId = row.target_career_entry_id ?? null;
+    if (!entryId && batchRow?.method === "deterministic")
+      entryId = batchRow.target_career_entry_id;
+    if (!entryId && batchRow?.method === "ai" && row.proposed_entry_key) {
+      const grouped = await client.query<{ target_career_entry_id: string }>(
+        `SELECT target_career_entry_id FROM extraction_proposals WHERE batch_id=$1 AND workspace_id=$2 AND proposed_entry_key=$3 AND target_career_entry_id IS NOT NULL ORDER BY resolved_at,created_at,id LIMIT 1`,
+        [row.batch_id, principal.workspaceId, row.proposed_entry_key],
+      );
+      entryId = grouped.rows[0]?.target_career_entry_id ?? null;
+    }
     if (!entryId) {
       const created = await client.query<{ id: string }>(
         `INSERT INTO career_entries (workspace_id,career_profile_id,type,title) SELECT $1,id,$2,$3 FROM career_profiles WHERE workspace_id=$1 RETURNING id`,
@@ -276,10 +423,11 @@ export class ExtractionRepository {
       );
       entryId = created.rows[0]?.id ?? null;
       if (!entryId) throw new ExtractionNotFoundError();
-      await client.query(
-        `UPDATE extraction_batches SET target_career_entry_id=$3,updated_at=now() WHERE id=$1 AND workspace_id=$2`,
-        [row.batch_id, principal.workspaceId, entryId],
-      );
+      if (batchRow?.method === "deterministic")
+        await client.query(
+          `UPDATE extraction_batches SET target_career_entry_id=$3,updated_at=now() WHERE id=$1 AND workspace_id=$2`,
+          [row.batch_id, principal.workspaceId, entryId],
+        );
     } else {
       const owned = await client.query(
         `SELECT 1 FROM career_entries WHERE id=$1 AND workspace_id=$2`,

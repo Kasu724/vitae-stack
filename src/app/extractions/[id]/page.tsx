@@ -175,6 +175,21 @@ export default async function ExtractionReviewPage({
             {pending.length} pending of {review.proposals.length} proposals.
             Nothing becomes verified evidence until you approve it.
           </p>
+          <p className="mt-2 text-sm text-[var(--muted)]">
+            Method:{" "}
+            {review.batch.method === "ai" ? "AI-assisted" : "deterministic"}
+            {" · "}Task: {review.batch.task_version}
+            {review.batch.metadata.model
+              ? ` · Model: ${review.batch.metadata.model}`
+              : ""}
+          </p>
+          {review.batch.metadata.warnings?.length ? (
+            <ul className="mt-2 list-disc pl-5 text-sm text-[var(--muted)]">
+              {review.batch.metadata.warnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <Link className="secondary-button" href="/career">
           Open Career Information Bank
@@ -211,6 +226,7 @@ export default async function ExtractionReviewPage({
             className="mt-4 grid gap-4"
           >
             <input type="hidden" name="batchId" value={review.batch.id} />
+            <input type="hidden" name="page" value={page} />
             <fieldset className="min-w-0">
               <legend className="font-semibold">
                 Pending proposals on this page
@@ -350,6 +366,7 @@ export default async function ExtractionReviewPage({
                             name="batchId"
                             value={review.batch.id}
                           />
+                          <input type="hidden" name="page" value={page} />
                           <input
                             type="hidden"
                             name="proposalId"
@@ -426,6 +443,7 @@ export default async function ExtractionReviewPage({
                             name="batchId"
                             value={review.batch.id}
                           />
+                          <input type="hidden" name="page" value={page} />
                           <input
                             type="hidden"
                             name="proposalId"
@@ -441,6 +459,7 @@ export default async function ExtractionReviewPage({
                             name="batchId"
                             value={review.batch.id}
                           />
+                          <input type="hidden" name="page" value={page} />
                           <input
                             type="hidden"
                             name="proposalId"
@@ -457,6 +476,7 @@ export default async function ExtractionReviewPage({
                               name="batchId"
                               value={review.batch.id}
                             />
+                            <input type="hidden" name="page" value={page} />
                             <input
                               type="hidden"
                               name="proposalId"

@@ -11,6 +11,7 @@ const requiredObjects = [
   { type: "trigger", name: "career_profiles_frozen_delete" },
   { type: "trigger", name: "document_versions_immutable_delete" },
   { type: "trigger", name: "source_documents_storage_key_insert" },
+  { type: "trigger", name: "extraction_proposals_entry_key_insert" },
 ];
 
 function readinessPool(

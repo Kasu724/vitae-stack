@@ -47,6 +47,7 @@ describe("personal no-account release", () => {
     expect(packager).toContain("app/server.js");
     expect(packager).toContain("app/db/migrations/0001_initial.sql");
     expect(packager).toContain("app/db/migrations/0002_integrity_guards.sql");
+    expect(packager).toContain("app/db/migrations/0003_extraction_ai.sql");
     expect(packager).toContain("Node.js runtime checksum verification failed");
     expect(packager).toContain("Release bundle is missing required file");
     expect(packager).toContain('$excludedStandaloneNames = @("node_modules"');

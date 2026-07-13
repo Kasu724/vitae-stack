@@ -11,6 +11,11 @@ export const EXPECTED_MIGRATIONS = [
     checksum:
       "469aa407456042af8d435c093535212c6be33587e1256fd774eea0a3b6329991",
   },
+  {
+    version: "0003_extraction_ai.sql",
+    checksum:
+      "d4ed32b696608bdeced8b568442944594bddc26673b193a1050b30c609cd5b1c",
+  },
 ] as const;
 
 export const EXPECTED_MIGRATION_COUNT = EXPECTED_MIGRATIONS.length;
@@ -20,6 +25,7 @@ const requiredSchemaObjects = new Set([
   "trigger:career_profiles_frozen_delete",
   "trigger:document_versions_immutable_delete",
   "trigger:source_documents_storage_key_insert",
+  "trigger:extraction_proposals_entry_key_insert",
 ]);
 
 function notCurrent(): never {
@@ -47,7 +53,7 @@ export async function checkDatabaseReadiness(pool: Pool): Promise<{
      WHERE (type='table' AND name='workspaces')
         OR (type='trigger' AND name IN
           ('career_profiles_frozen_delete','document_versions_immutable_delete',
-           'source_documents_storage_key_insert'))`,
+           'source_documents_storage_key_insert','extraction_proposals_entry_key_insert'))`,
   );
   const present = new Set(objects.rows.map((row) => `${row.type}:${row.name}`));
   if ([...requiredSchemaObjects].some((name) => !present.has(name)))

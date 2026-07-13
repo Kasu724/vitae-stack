@@ -39,6 +39,18 @@ function containsBidiControls(text: string): boolean {
   return /[\u202A-\u202E\u2066-\u2069]/u.test(text);
 }
 
+function extractPdfPageText(
+  items: Array<{ str: string; hasEOL: boolean }>,
+): string {
+  let text = "";
+  for (const item of items) {
+    text += item.str;
+    if (item.hasEOL) text = `${text.trimEnd()}\n`;
+    else if (item.str && !/\s$/u.test(item.str)) text += " ";
+  }
+  return text.trimEnd();
+}
+
 function decodeUtf8(buffer: Buffer, maximum: number): string {
   try {
     return boundedText(
@@ -84,9 +96,12 @@ export async function parseSourceBuffer(
         if (page.view.some((dimension) => Math.abs(dimension) > 20_000))
           throw new UnsafeUploadError("PDF_DIMENSION_LIMIT");
         const content = await page.getTextContent();
-        const pageText = content.items
-          .map((item) => ("str" in item ? item.str : ""))
-          .join(" ");
+        const pageText = extractPdfPageText(
+          content.items.filter(
+            (item): item is Extract<typeof item, { str: string }> =>
+              "str" in item,
+          ),
+        );
         if (!pageText.trim())
           warnings.push(
             `Page ${pageNumber} contains no extractable text; OCR is not available.`,
