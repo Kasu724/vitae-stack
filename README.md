@@ -291,7 +291,7 @@ When the server reports that it is ready, open <http://127.0.0.1:3000>. Keep tha
 
 ### Iterating on UI changes
 
-Use `corepack pnpm dev` for UI work. It watches source files, so after saving a component or style change, refresh the browser if it does not update automatically. You do not need to build the portable ZIP or run the Start/Stop `.cmd` files for normal development.
+Use `corepack pnpm dev` for UI work. It applies any pending forward migrations before starting and watches source files, so after saving a component or style change, refresh the browser if it does not update automatically. You do not need to build the portable ZIP or run the Start/Stop `.cmd` files for normal development.
 
 Development data defaults to `./var/vitae.sqlite` and private artifacts/queues under `./var/private/`; these paths are ignored by Git and separate from the portable application’s data. Copy `.env.example` only when overriding defaults. For destructive manual tests, set `DATABASE_PATH` and `ARTIFACT_STORAGE_ROOT` to isolated temporary locations.
 

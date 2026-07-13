@@ -23,10 +23,10 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | PR-001      | M04, M18                | `tests/integration/career.integration.test.ts`; `tests/integration/portability-deletion.integration.test.ts`; `tests/e2e/career-bank.spec.ts`    |
 | PR-002      | M04                     | `tests/unit/career-domain.test.ts`; `tests/unit/career-form-validation.test.ts`; `tests/integration/career.integration.test.ts`                  |
 | PR-003      | M04, M18                | `tests/integration/career.integration.test.ts`; `tests/deletion/workspace-deletion-recovery.test.ts`                                             |
-| PR-004      | M05                     | `tests/integration/documents.integration.test.ts`; `tests/e2e/document-library.spec.ts`                                                          |
+| PR-004      | M05                     | documents integration; `tests/e2e/document-library.spec.ts`; library-card action tests                                                           |
 | PR-005      | M05, M15                | `tests/integration/documents.integration.test.ts`; `tests/integration/requirements.integration.test.ts`                                          |
-| PR-006      | M06                     | `pnpm test:parsers`; `tests/integration/sources.integration.test.ts`; file-upload security fixtures                                              |
-| PR-007      | M07                     | `tests/integration/extraction.integration.test.ts`; `tests/e2e/extraction-review.spec.ts`                                                        |
+| PR-006      | M06                     | `pnpm test:parsers` (including PDF line-boundary reconstruction); `tests/integration/sources.integration.test.ts`; file-upload security fixtures |
+| PR-007      | M07                     | AI-01 domain/service unit tests; `tests/integration/extraction.integration.test.ts`; `tests/e2e/extraction-review.spec.ts`                       |
 | PR-008      | M08, M09                | `tests/integration/jobs.integration.test.ts`; `tests/e2e/job-ingestion.spec.ts`; `pnpm test:ssrf`                                                |
 | PR-009      | M09                     | `pnpm test:ssrf`; `tests/security/url-fetching.security.test.ts`                                                                                 |
 | PR-010      | M10                     | `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-02`; `tests/e2e/job-ingestion.spec.ts`                          |
@@ -44,7 +44,7 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | PR-022      | M12                     | `tests/integration/providers.integration.test.ts`; `tests/contract/provider-adapters.contract.test.ts`; provider settings E2E                    |
 | PR-023      | M21, M22                | `tests/unit/personal-release.test.ts`; `pnpm test:smoke`; `pnpm test:personal`; extracted-package restart/persistence drill                      |
 | PR-024      | M10, M12–M14            | provider request security tests; rendered AI-02/tailoring transmission-preview inspection; `pnpm test:evals --smoke`                             |
-| PR-025      | M18                     | `pnpm test:deletion`; `tests/deletion/workspace-deletion-recovery.test.ts`; restore-ledger drill                                                 |
+| PR-025      | M18                     | library-card unit/integration/E2E tests; `pnpm test:deletion`; restore-ledger drill                                                              |
 | PR-026      | M03, M19                | `tests/security/headers.security.test.ts`; cross-workspace integration tests; `tests/personal/no-account.spec.ts`                                |
 | PR-027      | M19                     | `pnpm test:security`; `pnpm test:ssrf`; `pnpm security:check`; abuse-case review                                                                 |
 | PR-028      | M02, M05, M09, M18, M21 | database/concurrency integration tests; editor recovery; fetch/deletion recovery; package restart drill                                          |
@@ -74,7 +74,7 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | AC-018    | M05           | document compare/restore copy-forward integration tests                                  |
 | AC-019    | M17           | `pnpm test:exports`; PDF/DOCX parse-back; rendered PDF visual inspection                 |
 | AC-020    | M18           | portability schema/unit tests; semantic round-trip/no-write integration tests            |
-| AC-021    | M18           | deletion domain/recovery tests; frozen-write/delete database tests; restore drill        |
+| AC-021    | M18           | library-card confirmation/rollback tests; deletion domain/recovery tests; restore drill  |
 | AC-022    | M12           | provider encryption/integration tests; credential-envelope unit tests; secret scan       |
 | AC-023    | M03, M19, M22 | header/proxy security tests; launcher/package contracts; real listener/Host probe        |
 | AC-024    | M19           | security, SSRF, deletion, grounding, parser, and dependency gates                        |

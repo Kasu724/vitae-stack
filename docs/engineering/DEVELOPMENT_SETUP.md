@@ -21,6 +21,9 @@ pnpm dev
 
 Open <http://127.0.0.1:3000>. Defaults store development data under `var/`, which is ignored by Git. `.env.example` documents optional overrides. Set `DATABASE_PATH` and `ARTIFACT_STORAGE_ROOT` to isolated temporary locations for manual destructive testing.
 
+`pnpm dev` runs the forward migration check before starting, so subsequent
+development starts apply newly added migrations automatically.
+
 ## Common validation
 
 ```text

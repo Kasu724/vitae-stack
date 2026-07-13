@@ -28,7 +28,7 @@ M18 persists the operation outside the workspace aggregate and writes a content-
 
 ## Implemented Career Information Bank lifecycle
 
-M04 implements manual proposals, approval, supersession, withdrawal, archive, and permanent entry deletion. Approval records the actor, timestamp, typed value, source locator, and immutable UUID. A correction inserts a new fact that references the old fact and then marks the old fact superseded. Withdrawal excludes a fact from the approved-evidence query. Entry deletion first presents counts for facts, proposals, and skill links, requires an explicit `DELETE` confirmation, and removes the workspace-scoped graph in one transaction. Audit metadata contains identifiers and counts but no fact, entry, goal, or preference text.
+M04 implements manual proposals, approval, supersession, withdrawal, archive, and permanent entry deletion. Approval records the actor, timestamp, typed value, source locator, and immutable UUID. A correction inserts a new fact that references the old fact and then marks the old fact superseded. Withdrawal excludes a fact from the approved-evidence query. Entry deletion first presents counts for facts, proposals, skill links, extraction batches, requirement-matching runs, tailoring runs, and saved document claims, then requires an explicit `DELETE` confirmation and removes the workspace-scoped derived analysis graph before the entry in one transaction. An entry supporting immutable saved document claims is blocked until a separate document-impact choice is available; the user can archive it without deleting document history. Audit metadata contains identifiers and counts but no fact, entry, goal, or preference text.
 
 ## Implemented extraction-review lifecycle
 

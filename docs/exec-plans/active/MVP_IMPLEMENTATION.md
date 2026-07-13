@@ -106,7 +106,7 @@
 
 ## M07 — Extraction review and approval
 
-**Implementation status:** Complete locally. The baseline schema, deterministic extraction, proposal review/merge, immutable evidence creation, redacted audit metadata, and review UI pass SQLite integration, browser E2E, clean migration, supported Node 24, and production build checks. AI-01 remains an optional provider path through M12; deterministic extraction keeps the MVP usable without it.
+**Implementation status:** Complete locally. The baseline schema, deterministic extraction, optional closed-schema AI-01 exact-span extraction, multi-entry proposal grouping, proposal review/merge, immutable evidence creation, redacted task/audit metadata, destination disclosure, and review UI are implemented with unit, SQLite integration, and browser coverage. Deterministic extraction keeps the MVP usable without a provider. Current full-gate revalidation remains part of M21.
 
 - **Objective:** Add AI-01/provider-independent proposal ingestion and side-by-side approve/edit/reject/merge workflow.
 - **User-visible outcome:** imported facts enter the bank only after granular review.
@@ -293,7 +293,7 @@
 
 ## M18 — Settings, privacy, and data portability
 
-**Implementation status:** Complete locally. Versioned allowlisted JSON export/import, optional bytes, provider-secret exclusion, relational/provenance validation, transactionally repeated dry-run conflicts, privacy UI, source-unavailable markers, full write freeze, content-free tombstones/receipts, synchronous deletion, and startup/recurring replay maintenance pass SQLite round-trip/deletion, browser E2E, clean migration, restore-ledger replay, and portable-package gates.
+**Implementation status:** Complete locally. Versioned allowlisted JSON export/import, optional bytes, provider-secret exclusion, relational/provenance validation, transactionally repeated dry-run conflicts, privacy UI, source-unavailable markers, card-level and selected-group archive/delete confirmations, full write freeze, content-free tombstones/receipts, synchronous deletion, and startup/recurring replay maintenance are implemented. SQLite round-trip/deletion, focused card-action browser coverage, clean migration, restore-ledger replay, and portable-package gates provide the recorded baseline evidence; current-run evidence must still be reported separately.
 
 - **Objective:** Complete settings, task defaults/disclosures, archive export/import preview, record/source/workspace deletion and receipts.
 - **User-visible outcome:** users control providers/privacy, export all portable data, and permanently delete scoped/all data.
