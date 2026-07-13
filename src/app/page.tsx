@@ -38,7 +38,7 @@ export default function HomePage() {
           </p>
         </div>
         <section
-          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--surface)] p-6 shadow-[var(--shadow-raised)] sm:p-8"
+          className="border-y border-[var(--border)] py-6 sm:py-8"
           aria-labelledby="principles-heading"
         >
           <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--muted)]">
