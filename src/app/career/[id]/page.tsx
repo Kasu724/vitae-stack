@@ -329,13 +329,31 @@ export default async function CareerEntryPage({
           Permanently delete entry
         </h2>
         <p className="mt-2">
-          Impact: {preview.facts} facts, {preview.proposals} proposals, and{" "}
-          {preview.skillLinks} skill links will be deleted. This cannot be
+          Impact: {preview.facts} facts, {preview.proposals} manual proposals,{" "}
+          {preview.skillLinks} skill links, {preview.extractionBatches}{" "}
+          extraction batches, {preview.matchingRuns} evidence-matching runs, and{" "}
+          {preview.tailoringRuns} tailoring runs will be deleted. This cannot be
           undone.
         </p>
+        {preview.documentClaims > 0 ? (
+          <p role="alert" className="mt-3 font-semibold">
+            This entry supports {preview.documentClaims} saved document{" "}
+            {preview.documentClaims === 1 ? "claim" : "claims"}. Permanent
+            deletion is unavailable here because saved document history must not
+            be removed without a separate document-impact choice. Archive the
+            entry to exclude it from future use.
+          </p>
+        ) : null}
         {query.error === "confirmation" ? (
           <p role="alert" className="mt-3 font-semibold">
             Type DELETE exactly to confirm.
+          </p>
+        ) : null}
+        {query.error === "document-dependency" ? (
+          <p role="alert" className="mt-3 font-semibold">
+            This entry was linked to saved document history before deletion
+            completed. Nothing was deleted. Reload and review the updated
+            impact.
           </p>
         ) : null}
         <form
@@ -347,7 +365,11 @@ export default async function CareerEntryPage({
             Type DELETE
             <input className="field" name="confirmation" autoComplete="off" />
           </label>
-          <button className="danger-button" type="submit">
+          <button
+            className="danger-button"
+            type="submit"
+            disabled={preview.documentClaims > 0}
+          >
             Permanently delete
           </button>
         </form>

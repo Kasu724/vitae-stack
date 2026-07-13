@@ -159,10 +159,17 @@ export class SourceService {
     principal: WorkspacePrincipal,
     id: string,
   ): Promise<void> {
-    await this.repository.deleteWithArtifacts(
+    await this.deleteBinariesAndRecords(principal, [id]);
+  }
+
+  public async deleteBinariesAndRecords(
+    principal: WorkspacePrincipal,
+    ids: string[],
+  ): Promise<void> {
+    await this.repository.deleteManyWithArtifacts(
       principal,
-      id,
-      async (storageKey) => {
+      ids,
+      async (id, storageKey) => {
         await Promise.all([
           this.store.delete(storageKey),
           this.queueStore.delete(parserMessageKey(principal.workspaceId, id)),

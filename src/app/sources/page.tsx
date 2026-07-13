@@ -2,8 +2,10 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { ResourceCardList } from "@/components/resource-card-list";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { deleteSourcesAction } from "@/modules/ingestion/actions";
 import { SourceRepository } from "@/modules/ingestion/source-repository";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +72,15 @@ export default async function SourcesPage({
           The source bytes and active source record were deleted.
         </p>
       ) : null}
+      {query.notice === "delete-blocked" ? (
+        <p
+          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
+          role="alert"
+        >
+          Resolve pending extraction proposals for every selected source, then
+          try deleting them again.
+        </p>
+      ) : null}
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
         aria-labelledby="import-heading"
@@ -119,28 +130,29 @@ export default async function SourcesPage({
           {sources.length} {sources.length === 1 ? "source" : "sources"}
         </p>
         {sources.length ? (
-          <ul className="mt-4 grid gap-4 md:grid-cols-2">
-            {sources.map((source) => (
-              <li
-                key={source.id}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
-              >
-                <div className="flex flex-wrap justify-between gap-2">
-                  <span className="status-label">{source.status}</span>
-                  <span>{source.purpose.replaceAll("_", " ")}</span>
-                </div>
-                <h3 className="mt-3 text-xl font-semibold">
-                  <Link href={`/sources/${source.id}`}>
-                    {source.original_name}
-                  </Link>
-                </h3>
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  {source.detected_media_type} ·{" "}
-                  {source.byte_size.toLocaleString()} bytes
-                </p>
-              </li>
-            ))}
-          </ul>
+          <ResourceCardList
+            items={sources.map((source) => ({
+              id: source.id,
+              title: source.original_name,
+              href: `/sources/${source.id}`,
+              status: source.status,
+              category: source.purpose.replaceAll("_", " "),
+              metadata: [
+                `${source.detected_media_type} · ${source.byte_size.toLocaleString()} bytes`,
+              ],
+              deleteImpact: [
+                "The private source bytes and extracted preview will be removed.",
+                "Approved facts remain available with a source-unavailable marker.",
+              ],
+            }))}
+            resourceName="source"
+            resourceNamePlural="sources"
+            headingLevel={3}
+            status="active"
+            deleteAction={deleteSourcesAction}
+            deleteWarning="Deletion cannot be undone. A source with pending extraction proposals is blocked until that review is resolved."
+            returnPath="/sources"
+          />
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-[var(--border)] p-8">
             No source documents have been imported.

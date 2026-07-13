@@ -2,11 +2,14 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { ResourceCardList } from "@/components/resource-card-list";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import {
   createSkillAction,
+  deleteCareerEntriesAction,
   updateCareerSettingsAction,
+  updateCareerEntriesStatusAction,
 } from "@/modules/career/actions";
 import { CareerRepository } from "@/modules/career/repository";
 
@@ -53,6 +56,17 @@ export default async function CareerBankPage({
     const suffix = next.toString();
     return suffix ? "/career?" + suffix : "/career";
   };
+  const dependencyPreviews = new Map(
+    await Promise.all(
+      entries.map(
+        async (entry) =>
+          [
+            entry.id,
+            await repository.dependencyPreview(principal, entry.id),
+          ] as const,
+      ),
+    ),
+  );
   return (
     <main id="main-content" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <nav aria-label="Breadcrumb">
@@ -71,12 +85,25 @@ export default async function CareerBankPage({
         </Link>
       </div>
       {typeof params.notice === "string" ? (
-        <p role="status" className="notice mt-6">
+        <p
+          role={params.notice === "delete-blocked" ? "alert" : "status"}
+          className={
+            params.notice === "delete-blocked"
+              ? "mt-6 rounded-lg border border-[var(--danger)] p-4"
+              : "notice mt-6"
+          }
+        >
           {params.notice === "deleted"
-            ? "The entry and the dependencies shown in its preview were deleted."
-            : params.notice === "skill-saved"
-              ? "Skill saved."
-              : "Career goals and writing preferences saved."}
+            ? "The selected entries and the dependencies shown in their previews were deleted."
+            : params.notice === "delete-blocked"
+              ? "At least one selected entry supports saved document history, so none of the selected entries were deleted. Archive it or remove the document dependency first."
+              : params.notice === "archived"
+                ? "Selected entries were archived."
+                : params.notice === "restored"
+                  ? "Selected entries were restored."
+                  : params.notice === "skill-saved"
+                    ? "Skill saved."
+                    : "Career goals and writing preferences saved."}
         </p>
       ) : null}
       <form
@@ -114,42 +141,48 @@ export default async function CareerBankPage({
           </p>
         </section>
       ) : (
-        <ul className="mt-4 grid gap-4 md:grid-cols-2">
-          {entries.map((entry) => (
-            <li
-              key={entry.id}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
-            >
-              <div className="flex flex-wrap justify-between gap-2">
-                <span className="status-label">{entry.status}</span>
-                <span className="text-sm text-[var(--muted)]">
-                  {entry.type}
-                </span>
-              </div>
-              <h2 className="mt-3 text-xl font-semibold">
-                <Link href={`/career/${entry.id}`}>{entry.title}</Link>
-              </h2>
-              <p className="mt-1 text-[var(--muted)]">
-                {entry.organization || "No organization"}
-              </p>
-              {entry.possible_duplicate ? (
-                <p className="mt-3 font-semibold">
-                  Possible duplicate: another entry has the same title and
-                  organization.
-                </p>
-              ) : null}
-              <p className="mt-3 text-sm">
-                {entry.approved_fact_count} approved facts ·{" "}
-                {entry.pending_proposal_count} pending proposals
-              </p>
-              {entry.tags.length ? (
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  Tags: {entry.tags.join(", ")}
-                </p>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <ResourceCardList
+          items={entries.map((entry) => {
+            const preview = dependencyPreviews.get(entry.id)!;
+            const dependentCount =
+              preview.facts +
+              preview.extractionBatches +
+              preview.matchingRuns +
+              preview.proposals +
+              preview.skillLinks +
+              preview.tailoringRuns;
+            return {
+              id: entry.id,
+              title: entry.title,
+              href: `/career/${entry.id}`,
+              status: entry.status,
+              category: entry.type,
+              subtitle: entry.organization || "No organization",
+              warning: entry.possible_duplicate
+                ? "Possible duplicate: another entry has the same title and organization."
+                : undefined,
+              metadata: [
+                `${entry.approved_fact_count} approved facts · ${entry.pending_proposal_count} pending proposals`,
+              ],
+              tags: entry.tags,
+              deleteImpact: [
+                preview.documentClaims > 0
+                  ? `${preview.documentClaims} saved document ${preview.documentClaims === 1 ? "claim blocks" : "claims block"} permanent deletion.`
+                  : "No saved document claims block permanent deletion.",
+                dependentCount > 0
+                  ? `${dependentCount} dependent fact, proposal, skill, extraction, matching, or tailoring records will also be deleted.`
+                  : "No dependent records will also be deleted.",
+              ],
+            };
+          })}
+          resourceName="entry"
+          resourceNamePlural="entries"
+          status={status}
+          archiveAction={updateCareerEntriesStatusAction}
+          deleteAction={deleteCareerEntriesAction}
+          deleteWarning="Permanent deletion cannot be undone. If any selected entry supports saved document history, the whole selection is blocked and nothing is deleted."
+          returnPath={pageHref(page)}
+        />
       )}
       {totalPages > 1 ? (
         <nav

@@ -24,6 +24,25 @@ export class CareerNotFoundError extends Error {
   }
 }
 
+export class CareerDocumentDependencyError extends Error {
+  public constructor() {
+    super(
+      "This entry supports saved document history and cannot be permanently deleted from this screen.",
+    );
+    this.name = "CareerDocumentDependencyError";
+  }
+}
+
+export interface CareerEntryDependencyPreview {
+  documentClaims: number;
+  facts: number;
+  extractionBatches: number;
+  matchingRuns: number;
+  proposals: number;
+  skillLinks: number;
+  tailoringRuns: number;
+}
+
 export interface CareerEntryRecord {
   id: string;
   type: string;
@@ -341,19 +360,30 @@ export class CareerRepository {
     id: string,
     archived: boolean,
   ): Promise<void> {
-    const result = await this.pool.query(
-      `UPDATE career_entries SET status=$3::career_entry_status,archived_at=CASE WHEN $3::text='archived' THEN now() ELSE NULL END,revision=revision+1,updated_at=now()
-       WHERE id=$1 AND workspace_id=$2`,
-      [id, principal.workspaceId, archived ? "archived" : "active"],
-    );
-    if (!result.rowCount) throw new CareerNotFoundError();
-    await writeAudit(
-      this.pool,
-      principal,
-      archived ? "career_entry.archive" : "career_entry.restore",
-      "career_entry",
-      id,
-    );
+    await this.setArchivedMany(principal, [id], archived);
+  }
+
+  public async setArchivedMany(
+    principal: WorkspacePrincipal,
+    ids: string[],
+    archived: boolean,
+  ): Promise<void> {
+    await transaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE career_entries SET status=$3::career_entry_status,archived_at=CASE WHEN $3::text='archived' THEN now() ELSE NULL END,revision=revision+1,updated_at=now()
+         WHERE workspace_id=$1 AND id=ANY($2::uuid[])`,
+        [principal.workspaceId, ids, archived ? "archived" : "active"],
+      );
+      if (result.rowCount !== ids.length) throw new CareerNotFoundError();
+      for (const id of ids)
+        await writeAudit(
+          client,
+          principal,
+          archived ? "career_entry.archive" : "career_entry.restore",
+          "career_entry",
+          id,
+        );
+    });
   }
 
   public async createProposal(
@@ -708,25 +738,84 @@ export class CareerRepository {
   public async dependencyPreview(
     principal: WorkspacePrincipal,
     entryId: string,
-  ): Promise<{ facts: number; proposals: number; skillLinks: number }> {
-    const result = await this.pool.query<{
+  ): Promise<CareerEntryDependencyPreview> {
+    return this.loadDependencyPreview(this.pool, principal, entryId);
+  }
+
+  private async loadDependencyPreview(
+    queryable: Queryable,
+    principal: WorkspacePrincipal,
+    entryId: string,
+  ): Promise<CareerEntryDependencyPreview> {
+    const result = await queryable.query<{
+      document_claims: number;
       facts: number;
+      extraction_batches: number;
+      matching_runs: number;
       proposals: number;
       skill_links: number;
+      tailoring_runs: number;
     }>(
       `SELECT
+         (SELECT count(DISTINCT ce.claim_id)::int
+            FROM claim_evidence ce
+            JOIN evidence_facts f ON f.id=ce.evidence_fact_id AND f.workspace_id=ce.workspace_id
+           WHERE f.career_entry_id=$1 AND f.workspace_id=$2) document_claims,
          (SELECT count(*)::int FROM evidence_facts WHERE career_entry_id=$1 AND workspace_id=$2) facts,
-         (SELECT count(*)::int FROM fact_proposals WHERE career_entry_id=$1 AND workspace_id=$2) proposals,
-         (SELECT count(*)::int FROM career_entry_skills WHERE career_entry_id=$1 AND workspace_id=$2) skill_links
+         (SELECT count(DISTINCT b.id)::int
+            FROM extraction_batches b
+           WHERE b.workspace_id=$2 AND (
+             b.target_career_entry_id=$1 OR EXISTS (
+               SELECT 1 FROM extraction_proposals p
+                LEFT JOIN evidence_facts approved ON approved.id=p.approved_fact_id AND approved.workspace_id=p.workspace_id
+                LEFT JOIN evidence_facts duplicate ON duplicate.id=p.duplicate_of_fact_id AND duplicate.workspace_id=p.workspace_id
+               WHERE p.batch_id=b.id AND p.workspace_id=b.workspace_id
+                 AND (p.target_career_entry_id=$1 OR approved.career_entry_id=$1 OR duplicate.career_entry_id=$1)
+             )
+           )) extraction_batches,
+         (SELECT count(DISTINCT m.match_run_id)::int
+            FROM requirement_evidence_matches m
+            JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
+           WHERE f.career_entry_id=$1 AND f.workspace_id=$2) matching_runs,
+         (SELECT count(*)::int FROM fact_proposals p
+           WHERE p.workspace_id=$2 AND (
+             p.career_entry_id=$1 OR EXISTS (
+               SELECT 1 FROM evidence_facts f
+                WHERE f.id=p.approved_fact_id AND f.workspace_id=p.workspace_id AND f.career_entry_id=$1
+             )
+           )) proposals,
+         (SELECT count(*)::int FROM career_entry_skills link
+           WHERE link.workspace_id=$2 AND (
+             link.career_entry_id=$1 OR EXISTS (
+               SELECT 1 FROM evidence_facts f
+                WHERE f.id=link.evidence_fact_id AND f.workspace_id=link.workspace_id AND f.career_entry_id=$1
+             )
+           )) skill_links,
+         (SELECT count(DISTINCT r.id)::int
+            FROM tailoring_runs r
+           WHERE r.workspace_id=$2 AND (
+             EXISTS (SELECT 1 FROM tailoring_run_entries e
+                      WHERE e.run_id=r.id AND e.workspace_id=r.workspace_id AND e.career_entry_id=$1)
+             OR EXISTS (SELECT 1 FROM tailoring_run_evidence re
+                        JOIN evidence_facts f ON f.id=re.evidence_fact_id AND f.workspace_id=re.workspace_id
+                        WHERE re.run_id=r.id AND re.workspace_id=r.workspace_id AND f.career_entry_id=$1)
+             OR EXISTS (SELECT 1 FROM requirement_evidence_matches m
+                        JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
+                        WHERE m.match_run_id=r.match_run_id AND m.workspace_id=r.workspace_id AND f.career_entry_id=$1)
+           )) tailoring_runs
        WHERE EXISTS (SELECT 1 FROM career_entries WHERE id=$1 AND workspace_id=$2)`,
       [entryId, principal.workspaceId],
     );
     const row = result.rows[0];
     if (!row) throw new CareerNotFoundError();
     return {
+      documentClaims: row.document_claims,
       facts: row.facts,
+      extractionBatches: row.extraction_batches,
+      matchingRuns: row.matching_runs,
       proposals: row.proposals,
       skillLinks: row.skill_links,
+      tailoringRuns: row.tailoring_runs,
     };
   }
 
@@ -740,12 +829,74 @@ export class CareerRepository {
         [entryId, principal.workspaceId],
       );
       if (!locked.rowCount) throw new CareerNotFoundError();
+
+      const preview = await this.loadDependencyPreview(
+        client,
+        principal,
+        entryId,
+      );
+      if (preview.documentClaims > 0) throw new CareerDocumentDependencyError();
+
+      // Match history is append-only during ordinary use. Explicit permanent
+      // deletion is the narrow exception: the transaction is already scoped
+      // to the locked workspace entry, and authorization resets at its end.
+      client.authorizeWorkspaceDeletion();
+
       await client.query(
-        `DELETE FROM career_entry_skills WHERE career_entry_id=$1 AND workspace_id=$2`,
+        `DELETE FROM tailoring_runs WHERE workspace_id=$2 AND (
+           EXISTS (SELECT 1 FROM tailoring_run_entries e
+                    WHERE e.run_id=tailoring_runs.id AND e.workspace_id=tailoring_runs.workspace_id AND e.career_entry_id=$1)
+           OR EXISTS (SELECT 1 FROM tailoring_run_evidence re
+                      JOIN evidence_facts f ON f.id=re.evidence_fact_id AND f.workspace_id=re.workspace_id
+                      WHERE re.run_id=tailoring_runs.id AND re.workspace_id=tailoring_runs.workspace_id AND f.career_entry_id=$1)
+           OR EXISTS (SELECT 1 FROM requirement_evidence_matches m
+                      JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
+                      WHERE m.match_run_id=tailoring_runs.match_run_id AND m.workspace_id=tailoring_runs.workspace_id AND f.career_entry_id=$1)
+         )`,
         [entryId, principal.workspaceId],
       );
       await client.query(
-        `DELETE FROM fact_proposals WHERE career_entry_id=$1 AND workspace_id=$2`,
+        `DELETE FROM requirement_match_runs WHERE workspace_id=$2 AND EXISTS (
+           SELECT 1 FROM requirement_evidence_matches m
+           JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
+           WHERE m.match_run_id=requirement_match_runs.id
+             AND m.workspace_id=requirement_match_runs.workspace_id
+             AND f.career_entry_id=$1
+         )`,
+        [entryId, principal.workspaceId],
+      );
+      await client.query(
+        `DELETE FROM extraction_batches WHERE workspace_id=$2 AND (
+           target_career_entry_id=$1 OR EXISTS (
+             SELECT 1 FROM extraction_proposals p
+             LEFT JOIN evidence_facts approved ON approved.id=p.approved_fact_id AND approved.workspace_id=p.workspace_id
+             LEFT JOIN evidence_facts duplicate ON duplicate.id=p.duplicate_of_fact_id AND duplicate.workspace_id=p.workspace_id
+             WHERE p.batch_id=extraction_batches.id AND p.workspace_id=extraction_batches.workspace_id
+               AND (p.target_career_entry_id=$1 OR approved.career_entry_id=$1 OR duplicate.career_entry_id=$1)
+           )
+         )`,
+        [entryId, principal.workspaceId],
+      );
+      await client.query(
+        `DELETE FROM career_entry_skills WHERE workspace_id=$2 AND (
+           career_entry_id=$1 OR EXISTS (
+             SELECT 1 FROM evidence_facts f
+             WHERE f.id=career_entry_skills.evidence_fact_id
+               AND f.workspace_id=career_entry_skills.workspace_id
+               AND f.career_entry_id=$1
+           )
+         )`,
+        [entryId, principal.workspaceId],
+      );
+      await client.query(
+        `DELETE FROM fact_proposals WHERE workspace_id=$2 AND (
+           career_entry_id=$1 OR EXISTS (
+             SELECT 1 FROM evidence_facts f
+             WHERE f.id=fact_proposals.approved_fact_id
+               AND f.workspace_id=fact_proposals.workspace_id
+               AND f.career_entry_id=$1
+           )
+         )`,
         [entryId, principal.workspaceId],
       );
       let removed = 1;
@@ -766,6 +917,14 @@ export class CareerRepository {
         "career_entry.delete",
         "career_entry",
         entryId,
+        {
+          extractionBatches: preview.extractionBatches,
+          factCount: preview.facts,
+          matchingRuns: preview.matchingRuns,
+          proposalCount: preview.proposals,
+          skillLinkCount: preview.skillLinks,
+          tailoringRuns: preview.tailoringRuns,
+        },
       );
     });
   }

@@ -11,6 +11,12 @@ import {
   JobUrlImportRepository,
   JobUrlRateLimitError,
 } from "@/modules/job-fetch/repository";
+import {
+  archivedValue,
+  safeReturnPath,
+  selectedIds,
+  withNotice,
+} from "@/modules/shared/bulk-actions";
 
 import { JobRepository } from "./repository";
 
@@ -103,4 +109,17 @@ export async function archiveJobAction(form: FormData): Promise<void> {
     text(form, "archived") === "true",
   );
   redirect(`/jobs/${id}?notice=status-updated`);
+}
+
+export async function updateJobsStatusAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const ids = selectedIds(form);
+  const archived = archivedValue(form);
+  await repository.setArchivedMany(principal, ids, archived);
+  redirect(
+    withNotice(
+      safeReturnPath(form, "/jobs", "/jobs"),
+      archived ? "archived" : "restored",
+    ),
+  );
 }

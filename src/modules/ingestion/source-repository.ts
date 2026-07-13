@@ -185,33 +185,49 @@ export class SourceRepository {
     id: string,
     removeArtifacts: (storageKey: string) => Promise<void>,
   ): Promise<void> {
+    await this.deleteManyWithArtifacts(
+      principal,
+      [id],
+      async (_sourceId, storageKey) => removeArtifacts(storageKey),
+    );
+  }
+
+  public async deleteManyWithArtifacts(
+    principal: WorkspacePrincipal,
+    ids: string[],
+    removeArtifacts: (sourceId: string, storageKey: string) => Promise<void>,
+  ): Promise<void> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query(
-        "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
-        [`extract:${principal.workspaceId}:${id}`],
+      for (const id of ids)
+        await client.query(
+          "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
+          [`extract:${principal.workspaceId}:${id}`],
+        );
+      const sources = await client.query<{ id: string; storage_key: string }>(
+        `SELECT id,storage_key FROM source_documents WHERE workspace_id=$1 AND status<>'deleted' AND id=ANY($2::uuid[]) FOR UPDATE`,
+        [principal.workspaceId, ids],
       );
-      const source = await client.query<{ storage_key: string }>(
-        `SELECT storage_key FROM source_documents WHERE id=$1 AND workspace_id=$2 AND status<>'deleted' FOR UPDATE`,
-        [id, principal.workspaceId],
-      );
-      if (!source.rows[0]) throw new SourceNotFoundError();
+      if (sources.rowCount !== ids.length) throw new SourceNotFoundError();
       const pending = await client.query(
-        `SELECT 1 FROM extraction_batches WHERE source_document_id=$1 AND workspace_id=$2 AND status='pending' LIMIT 1`,
-        [id, principal.workspaceId],
+        `SELECT 1 FROM extraction_batches WHERE workspace_id=$1 AND status='pending' AND source_document_id=ANY($2::uuid[]) LIMIT 1`,
+        [principal.workspaceId, ids],
       );
       if (pending.rowCount) throw new SourceDependencyError();
-      await removeArtifacts(source.rows[0].storage_key);
-      await client.query(
-        `UPDATE source_documents SET status='deleted',extracted_text=NULL,deleted_at=now(),updated_at=now() WHERE id=$1 AND workspace_id=$2`,
-        [id, principal.workspaceId],
+      for (const source of sources.rows)
+        await removeArtifacts(source.id, source.storage_key);
+      const updated = await client.query(
+        `UPDATE source_documents SET status='deleted',extracted_text=NULL,deleted_at=now(),updated_at=now() WHERE workspace_id=$1 AND id=ANY($2::uuid[])`,
+        [principal.workspaceId, ids],
       );
-      await client.query(
-        `INSERT INTO audit_events (workspace_id,actor_user_id,action,target_type,target_id,outcome,correlation_id,metadata)
-         VALUES ($1,$2,'source.delete','source_document',$3,'succeeded',$4,'{}'::jsonb)`,
-        [principal.workspaceId, principal.userId, id, crypto.randomUUID()],
-      );
+      if (updated.rowCount !== ids.length) throw new SourceNotFoundError();
+      for (const id of ids)
+        await client.query(
+          `INSERT INTO audit_events (workspace_id,actor_user_id,action,target_type,target_id,outcome,correlation_id,metadata)
+           VALUES ($1,$2,'source.delete','source_document',$3,'succeeded',$4,'{}'::jsonb)`,
+          [principal.workspaceId, principal.userId, id, crypto.randomUUID()],
+        );
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");

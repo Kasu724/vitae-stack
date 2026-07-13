@@ -2,9 +2,13 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { ResourceCardList } from "@/components/resource-card-list";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
-import { createDocumentAction } from "@/modules/documents/actions";
+import {
+  createDocumentAction,
+  updateDocumentsStatusAction,
+} from "@/modules/documents/actions";
 import { DocumentRepository } from "@/modules/documents/repository";
 
 export const dynamic = "force-dynamic";
@@ -34,6 +38,11 @@ export default async function DocumentsPage({
         extracted facts, tailor against evidence, and create private exports
         without rewriting version history.
       </p>
+      {query.notice === "archived" || query.notice === "restored" ? (
+        <p className="notice mt-6" role="status">
+          Selected documents were {query.notice}.
+        </p>
+      ) : null}
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
         aria-labelledby="create-document-heading"
@@ -77,28 +86,26 @@ export default async function DocumentsPage({
         {documents.length} {documents.length === 1 ? "document" : "documents"}
       </p>
       {documents.length ? (
-        <ul className="mt-4 grid gap-4 md:grid-cols-2">
-          {documents.map((document) => (
-            <li
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
-              key={document.id}
-            >
-              <div className="flex justify-between gap-3">
-                <span className="status-label">{document.status}</span>
-                <span>
-                  {document.kind === "cover_letter" ? "Cover letter" : "Resume"}
-                </span>
-              </div>
-              <h2 className="mt-3 text-xl font-semibold">
-                <Link href={`/documents/${document.id}`}>{document.title}</Link>
-              </h2>
-              <p className="mt-2 text-sm text-[var(--muted)]">
-                Revision {document.revision} · updated{" "}
-                {document.updated_at.toISOString().slice(0, 10)}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <ResourceCardList
+          items={documents.map((document) => ({
+            id: document.id,
+            title: document.title,
+            href: `/documents/${document.id}`,
+            status: document.status,
+            category:
+              document.kind === "cover_letter" ? "Cover letter" : "Resume",
+            metadata: [
+              `Revision ${document.revision} · updated ${document.updated_at.toISOString().slice(0, 10)}`,
+            ],
+          }))}
+          resourceName="document"
+          resourceNamePlural="documents"
+          status={status}
+          archiveAction={updateDocumentsStatusAction}
+          returnPath={
+            status === "archived" ? "/documents?status=archived" : "/documents"
+          }
+        />
       ) : (
         <section className="mt-4 rounded-xl border border-dashed border-[var(--border)] p-8">
           <h2 className="text-xl font-semibold">No {status} documents</h2>

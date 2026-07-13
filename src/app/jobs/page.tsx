@@ -2,11 +2,13 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { ResourceCardList } from "@/components/resource-card-list";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import {
   createPastedJobAction,
   createUrlJobAction,
+  updateJobsStatusAction,
 } from "@/modules/jobs/actions";
 import { JobRepository } from "@/modules/jobs/repository";
 
@@ -37,6 +39,11 @@ export default async function JobsPage({
         Save an immutable normalized snapshot before requirement analysis or
         tailoring. Imported instructions remain untrusted data.
       </p>
+      {query.notice === "archived" || query.notice === "restored" ? (
+        <p className="notice mt-6" role="status">
+          Selected jobs were {query.notice}.
+        </p>
+      ) : null}
       {query.error === "invalid-text" ? (
         <p
           className="mt-6 rounded-lg border border-[var(--danger)] p-4"
@@ -198,25 +205,24 @@ export default async function JobsPage({
           </Link>
         </div>
         {jobs.length ? (
-          <ul className="mt-4 grid gap-4 md:grid-cols-2">
-            {jobs.map((job) => (
-              <li
-                key={job.id}
-                className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
-              >
-                <div className="flex flex-wrap justify-between gap-2">
-                  <span className="status-label">{job.status}</span>
-                  <span>Revision {job.current_revision_number}</span>
-                </div>
-                <h3 className="mt-3 text-xl font-semibold">
-                  <Link href={`/jobs/${job.id}`}>{job.title}</Link>
-                </h3>
-                <p className="mt-1 text-[var(--muted)]">
-                  {job.company || "Company not specified"}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <ResourceCardList
+            items={jobs.map((job) => ({
+              id: job.id,
+              title: job.title,
+              href: `/jobs/${job.id}`,
+              status: job.status,
+              category: `Revision ${job.current_revision_number}`,
+              subtitle: job.company || "Company not specified",
+            }))}
+            resourceName="job"
+            resourceNamePlural="jobs"
+            headingLevel={3}
+            status={status}
+            archiveAction={updateJobsStatusAction}
+            returnPath={
+              status === "archived" ? "/jobs?status=archived" : "/jobs"
+            }
+          />
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-[var(--border)] p-8">
             No {status} job descriptions. Paste text or import a file above.

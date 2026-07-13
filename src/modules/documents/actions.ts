@@ -6,6 +6,12 @@ import { redirect } from "next/navigation";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { CareerRepository } from "@/modules/career/repository";
+import {
+  archivedValue,
+  safeReturnPath,
+  selectedIds,
+  withNotice,
+} from "@/modules/shared/bulk-actions";
 
 import { canonicalDocumentSchema, documentKindSchema } from "./document-schema";
 import { DocumentConflictError, DocumentRepository } from "./repository";
@@ -76,6 +82,21 @@ export async function archiveDocumentAction(form: FormData): Promise<void> {
     text(form, "archived") === "true",
   );
   redirect(`/documents/${id}?notice=status-updated`);
+}
+
+export async function updateDocumentsStatusAction(
+  form: FormData,
+): Promise<void> {
+  const { principal, repository } = await context();
+  const ids = selectedIds(form);
+  const archived = archivedValue(form);
+  await repository.setArchivedMany(principal, ids, archived);
+  redirect(
+    withNotice(
+      safeReturnPath(form, "/documents", "/documents"),
+      archived ? "archived" : "restored",
+    ),
+  );
 }
 
 export async function renameDocumentAction(form: FormData): Promise<void> {

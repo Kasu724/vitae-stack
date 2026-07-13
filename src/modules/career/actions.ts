@@ -5,6 +5,12 @@ import { redirect } from "next/navigation";
 
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import {
+  archivedValue,
+  safeReturnPath,
+  selectedIds,
+  withNotice,
+} from "@/modules/shared/bulk-actions";
 
 import { parseTags } from "./domain";
 import {
@@ -13,7 +19,11 @@ import {
   type CareerEntryFormState,
   type FactFormState,
 } from "./form-validation";
-import { CareerConflictError, CareerRepository } from "./repository";
+import {
+  CareerConflictError,
+  CareerDocumentDependencyError,
+  CareerRepository,
+} from "./repository";
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());
@@ -85,6 +95,21 @@ export async function setCareerEntryArchivedAction(
     text(form, "archived") === "true",
   );
   redirect(`/career/${id}?notice=status-updated`);
+}
+
+export async function updateCareerEntriesStatusAction(
+  form: FormData,
+): Promise<void> {
+  const { principal, repository } = await context();
+  const ids = selectedIds(form);
+  const archived = archivedValue(form);
+  await repository.setArchivedMany(principal, ids, archived);
+  redirect(
+    withNotice(
+      safeReturnPath(form, "/career", "/career"),
+      archived ? "archived" : "restored",
+    ),
+  );
 }
 
 export async function createFactProposalAction(
@@ -159,11 +184,31 @@ export async function withdrawFactAction(form: FormData): Promise<void> {
 
 export async function deleteCareerEntryAction(form: FormData): Promise<void> {
   const { principal, repository } = await context();
+  const entryId = text(form, "id");
   if (text(form, "confirmation") !== "DELETE") {
-    redirect(`/career/${text(form, "id")}?error=confirmation`);
+    redirect(`/career/${entryId}?error=confirmation`);
   }
-  await repository.deleteEntry(principal, text(form, "id"));
+  try {
+    await repository.deleteEntry(principal, entryId);
+  } catch (error) {
+    if (error instanceof CareerDocumentDependencyError)
+      redirect(`/career/${entryId}?error=document-dependency`);
+    throw error;
+  }
   redirect("/career?notice=deleted");
+}
+
+export async function deleteCareerEntriesAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const ids = selectedIds(form);
+  const returnPath = safeReturnPath(form, "/career", "/career");
+  const previews = await Promise.all(
+    ids.map((id) => repository.dependencyPreview(principal, id)),
+  );
+  if (previews.some((preview) => preview.documentClaims > 0))
+    redirect(withNotice(returnPath, "delete-blocked"));
+  for (const id of ids) await repository.deleteEntry(principal, id);
+  redirect(withNotice(returnPath, "deleted"));
 }
 
 export async function createSkillAction(form: FormData): Promise<void> {

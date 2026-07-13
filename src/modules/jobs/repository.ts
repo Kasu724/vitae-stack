@@ -342,10 +342,20 @@ export class JobRepository {
     id: string,
     archived: boolean,
   ): Promise<void> {
-    const result = await this.pool.query(
-      `UPDATE job_postings SET status=$3::job_posting_status,archived_at=CASE WHEN $3::text='archived' THEN now() ELSE NULL END,revision=revision+1,updated_at=now() WHERE id=$1 AND workspace_id=$2`,
-      [id, principal.workspaceId, archived ? "archived" : "active"],
-    );
-    if (!result.rowCount) throw new JobNotFoundError();
+    await this.setArchivedMany(principal, [id], archived);
+  }
+
+  public async setArchivedMany(
+    principal: WorkspacePrincipal,
+    ids: string[],
+    archived: boolean,
+  ): Promise<void> {
+    await transaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE job_postings SET status=$3::job_posting_status,archived_at=CASE WHEN $3::text='archived' THEN now() ELSE NULL END,revision=revision+1,updated_at=now() WHERE workspace_id=$1 AND id=ANY($2::uuid[])`,
+        [principal.workspaceId, ids, archived ? "archived" : "active"],
+      );
+      if (result.rowCount !== ids.length) throw new JobNotFoundError();
+    });
   }
 }

@@ -845,11 +845,22 @@ export class DocumentRepository {
     documentId: string,
     archived: boolean,
   ): Promise<void> {
-    const result = await this.pool.query(
-      `UPDATE documents SET status=$3::document_status,archived_at=CASE WHEN $3::text='archived' THEN now() ELSE NULL END,revision=revision+1,updated_at=now() WHERE id=$1 AND workspace_id=$2`,
-      [documentId, principal.workspaceId, archived ? "archived" : "active"],
-    );
-    if (!result.rowCount) throw new DocumentNotFoundError();
+    await this.setArchivedMany(principal, [documentId], archived);
+  }
+
+  public async setArchivedMany(
+    principal: WorkspacePrincipal,
+    documentIds: string[],
+    archived: boolean,
+  ): Promise<void> {
+    await transaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE documents SET status=$3::document_status,archived_at=CASE WHEN $3::text='archived' THEN now() ELSE NULL END,revision=revision+1,updated_at=now() WHERE workspace_id=$1 AND id=ANY($2::uuid[])`,
+        [principal.workspaceId, documentIds, archived ? "archived" : "active"],
+      );
+      if (result.rowCount !== documentIds.length)
+        throw new DocumentNotFoundError();
+    });
   }
 
   public async rename(
