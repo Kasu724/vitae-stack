@@ -55,7 +55,7 @@
 
 ## M04 — Career Information Bank
 
-**Implementation status:** Complete in the local repository. The baseline schema contains structured entries, profile settings, reusable skills, proposals, immutable evidence, and composite workspace ownership. The UI supports all MVP entry types, partial dates, typed metric proposals, explicit fact review, correction/withdrawal, provenance inspection, search, duplicate indication, archive/restore, and counted permanent deletion. Unit, SQLite integration, and default-browser E2E checks pass locally; the explicit narrow-reflow matrix is tracked in M20. Remote CI remains unverified.
+**Implementation status:** Complete in the local repository. The baseline schema contains structured entries, profile settings, reusable skills, proposals, immutable evidence, and composite workspace ownership. The UI supports all MVP entry types, partial dates, typed metric proposals, explicit fact review, correction/withdrawal, provenance inspection, search, duplicate indication, archive/restore, and counted permanent deletion. Record deletion locks and rechecks the complete selection, blocks saved-document-claim dependencies, and removes eligible evidence/analysis atomically. Unit, SQLite integration, and default-browser E2E checks pass locally; the explicit narrow-reflow matrix is tracked in M20. Remote CI remains unverified.
 
 - **Objective:** Implement structured entries, skills, goals/preferences, fact proposals, approval/supersede/withdraw/delete lifecycle, search/filter.
 - **User-visible outcome:** users can build and manage verified career data manually.
@@ -72,17 +72,17 @@
 
 ## M05 — Document library and versioning
 
-**Implementation status:** Complete in the local repository. The baseline schema contains resumes/cover letters, immutable full snapshots, section projections, optimistic drafts, claim/evidence primitives, and locks. The structured editor autosaves drafts, creates idempotent versions, compares structure/text/claims/provenance, archives documents, and restores by copy-forward. Forward integrity guards prevent ordinary history mutation or deletion. Unit, SQLite integration, default-browser E2E, and XSS/plain-text checks pass locally; the explicit narrow-reflow matrix is tracked in M20. Remote CI remains unverified.
+**Implementation status:** Complete in the local repository. The baseline schema contains resumes/cover letters, immutable full snapshots, section projections, optimistic drafts, claim/evidence primitives, and locks. The structured editor autosaves drafts, creates idempotent versions, compares structure/text/claims/provenance, archives documents, restores by copy-forward, and deletes confirmed whole-document aggregates. Deletion locks/rechecks the complete selection, blocks unexpected external history references, stages private export bytes for rollback safety, and removes eligible histories and derived records atomically. Forward integrity guards prevent ordinary history mutation or individual-version deletion. Unit, SQLite integration, default-browser E2E, and XSS/plain-text checks pass locally; the explicit narrow-reflow matrix is tracked in M20. Remote CI remains unverified.
 
 - **Objective:** Implement logical resumes/letters, typed canonical schema, drafts, immutable versions, compare/restore, locks and claim primitives.
 - **User-visible outcome:** users create, edit metadata, save, compare, restore, archive, and select document versions.
-- **Scope:** safe basic structured editor, optimistic concurrency, lineage, autosave draft.
+- **Scope:** safe basic structured editor, optimistic concurrency, lineage, autosave draft, whole-document deletion and managed-artifact cleanup.
 - **Non-scope:** import, AI suggestions, rich export.
 - **Prerequisites/dependencies:** M04 (facts), M03.
 - **Likely files/subsystems:** documents domain/API/editor shell/version UI.
 - **Data-model impact:** Document, DocumentVersion, DocumentSection projection, GeneratedClaim, ClaimEvidence, draft/lock.
 - **Security:** restricted node schema, escaping, ownership/download absence, conflict integrity.
-- **Required tests:** schema/migration, immutable snapshots, concurrent draft, restore copy-forward, XSS/paste, AC-018.
+- **Required tests:** schema/migration, immutable snapshots, concurrent draft, restore copy-forward, aggregate deletion/rollback/artifact cleanup, XSS/paste, AC-018/021.
 - **Validation commands:** core/integration/contract/E2E/build gates.
 - **Completion criteria:** parent/child hashes and diffs reproduce; restore never rewrites; unsupported claim state representable.
 - **Rollback/recovery:** versions retained; prior reader remains one-release compatible. **Docs:** editor/versioning/design.
@@ -123,17 +123,17 @@
 
 ## M08 — Job-description text and file ingestion
 
-**Implementation status:** Complete locally. The baseline schema, pasted-text and isolated parsed-file inputs, immutable job revisions, corrections, archive/restore, provenance, source-unavailable handling, workspace isolation, and job screens pass SQLite integration, browser E2E, clean migration, supported Node 24, portable package, and production build checks. URL input remains scoped to M09.
+**Implementation status:** Complete locally. The baseline schema, pasted-text and isolated parsed-file inputs, immutable job revisions, corrections, archive/restore, whole-aggregate deletion, provenance, source-unavailable handling, workspace isolation, and job screens are implemented. Job deletion previews derived records, locks and rechecks the complete selection, rolls back missing/mixed/blocked selections, preserves separately managed sources, and blocks accepted-document-version dependencies. SQLite integration and browser card-action coverage exercise this boundary; broader release evidence remains governed by the current validation ledger. URL input remains scoped to M09.
 
 - **Objective:** Accept pasted text and allowed files, normalize immutable job snapshots, and support safe correction/versioning.
 - **User-visible outcome:** users can create a job record without AI or URL retrieval.
-- **Scope:** paste/file tabs, parsing reuse, metadata, immutable snapshot, size/quality warnings.
+- **Scope:** paste/file tabs, parsing reuse, metadata, immutable snapshot, archive/restore, whole-aggregate dependency preview/deletion, size/quality warnings.
 - **Non-scope:** URL fetch and requirement extraction.
 - **Prerequisites/dependencies:** M03, M06.
 - **Likely files/subsystems:** jobs domain/API/UI, source pipeline integration.
 - **Data-model impact:** JobPosting snapshot/revision and input provenance.
 - **Security:** same file controls, bounded text, workspace scope, no active HTML rendering.
-- **Required tests:** normalization/hash/version, allowed/hostile files, IDOR, XSS, immutable correction.
+- **Required tests:** normalization/hash/version, allowed/hostile files, IDOR, XSS, immutable correction, atomic aggregate deletion, and accepted-document-provenance blocker.
 - **Validation commands:** core/integration/contract/E2E/security gates.
 - **Completion criteria:** AC-006 text/file portions pass; original/revised snapshots are reproducible.
 - **Rollback/recovery:** disable input format; preserve existing immutable jobs/export. **Docs:** job pipeline/UX.

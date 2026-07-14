@@ -23,6 +23,8 @@ Version creation copies stable claim anchors and links. If text/structure change
 
 Deleting a fact previews dependent claims/versions/exports. Permanent deletion removes dependent material or whole affected versions per user choice; it never leaves dangling IDs masquerading as support. Binary-only source deletion leaves the approved fact but marks the source locator unavailable. Final export requires every current factual claim status to be supported.
 
+Deleting a generated document is an aggregate operation, never a mutation or selective removal of an immutable version. Its preview names the complete document and counts version/claim/tailoring/ATS/export dependencies. The transaction rejects unexpected references from a document outside the complete selection, then removes the document's provenance graph and managed export bytes together. This does not delete approved career evidence, job aggregates, or copies downloaded outside managed storage.
+
 ## Implemented M13 boundary
 
 M13 stores claim candidates on immutable suggestions before document insertion. Each candidate has exact UTF-16 offsets and a hash of the proposed substring, and each evidence link must reference a fact pinned to the same workspace/run. Persistence revalidates the source section/block hash, locked derived block set, accepted requirement set, pinned evidence set, direct/combined match context, numeric tokens, lexical entailment, and complete claim coverage. The review UI renders the exact substring and links to each career entry while showing the evidence fact's current lifecycle status and source label. These records become version-bound `GeneratedClaim`/`ClaimEvidence` only when M15 applies an accepted suggestion.

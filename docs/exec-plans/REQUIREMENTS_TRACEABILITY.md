@@ -22,12 +22,12 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | ----------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | PR-001      | M04, M18                | `tests/integration/career.integration.test.ts`; `tests/integration/portability-deletion.integration.test.ts`; `tests/e2e/career-bank.spec.ts`    |
 | PR-002      | M04                     | `tests/unit/career-domain.test.ts`; `tests/unit/career-form-validation.test.ts`; `tests/integration/career.integration.test.ts`                  |
-| PR-003      | M04, M18                | `tests/integration/career.integration.test.ts`; `tests/deletion/workspace-deletion-recovery.test.ts`                                             |
-| PR-004      | M05                     | documents integration; `tests/e2e/document-library.spec.ts`; library-card action tests                                                           |
+| PR-003      | M04, M18                | `tests/integration/career.integration.test.ts` atomic dependency/blocker cases; `tests/deletion/workspace-deletion-recovery.test.ts`             |
+| PR-004      | M05                     | document aggregate/artifact deletion integration; `tests/e2e/document-library.spec.ts`; library-card action tests                                |
 | PR-005      | M05, M15                | `tests/integration/documents.integration.test.ts`; `tests/integration/requirements.integration.test.ts`                                          |
 | PR-006      | M06                     | `pnpm test:parsers` (including PDF line-boundary reconstruction); `tests/integration/sources.integration.test.ts`; file-upload security fixtures |
 | PR-007      | M07                     | AI-01 domain/service unit tests; `tests/integration/extraction.integration.test.ts`; `tests/e2e/extraction-review.spec.ts`                       |
-| PR-008      | M08, M09                | `tests/integration/jobs.integration.test.ts`; `tests/e2e/job-ingestion.spec.ts`; `pnpm test:ssrf`                                                |
+| PR-008      | M08, M09                | `tests/integration/jobs.integration.test.ts` aggregate deletion cases; job-ingestion and library-card E2E; `pnpm test:ssrf`                      |
 | PR-009      | M09                     | `pnpm test:ssrf`; `tests/security/url-fetching.security.test.ts`                                                                                 |
 | PR-010      | M10                     | `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-02`; `tests/e2e/job-ingestion.spec.ts`                          |
 | PR-011      | M11                     | `tests/unit/matching-domain.test.ts`; `tests/integration/requirements.integration.test.ts`                                                       |
@@ -44,7 +44,7 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | PR-022      | M12                     | `tests/integration/providers.integration.test.ts`; `tests/contract/provider-adapters.contract.test.ts`; provider settings E2E                    |
 | PR-023      | M21, M22                | `tests/unit/personal-release.test.ts`; `pnpm test:smoke`; `pnpm test:personal`; extracted-package restart/persistence drill                      |
 | PR-024      | M10, M12–M14            | provider request security tests; rendered AI-02/tailoring transmission-preview inspection; `pnpm test:evals --smoke`                             |
-| PR-025      | M18                     | library-card unit/integration/E2E tests; `pnpm test:deletion`; restore-ledger drill                                                              |
+| PR-025      | M04, M05, M08, M18      | career/document/job atomic deletion integration; document/library-card E2E; `pnpm test:deletion`; restore-ledger drill                           |
 | PR-026      | M03, M19                | `tests/security/headers.security.test.ts`; cross-workspace integration tests; `tests/personal/no-account.spec.ts`                                |
 | PR-027      | M19                     | `pnpm test:security`; `pnpm test:ssrf`; `pnpm security:check`; abuse-case review                                                                 |
 | PR-028      | M02, M05, M09, M18, M21 | database/concurrency integration tests; editor recovery; fetch/deletion recovery; package restart drill                                          |
@@ -52,35 +52,35 @@ file. A mapping is not a claim that the evidence passed in the current run.
 
 ## Acceptance criteria
 
-| Criterion | Milestone(s)  | Primary automated/manual evidence                                                        |
-| --------- | ------------- | ---------------------------------------------------------------------------------------- |
-| AC-001    | M03, M19      | two-workspace cases across integration suites; `tests/security/headers.security.test.ts` |
-| AC-002    | M04, M07      | career/extraction integration approval and eligibility assertions                        |
-| AC-003    | M04           | `tests/integration/career.integration.test.ts` supersession/audit assertions             |
-| AC-004    | M06           | `pnpm test:parsers`; malicious upload/security corpus                                    |
-| AC-005    | M07           | `tests/integration/extraction.integration.test.ts`; extraction review E2E                |
-| AC-006    | M08, M09      | jobs integration; `pnpm test:ssrf`; URL-fetch security tests                             |
-| AC-007    | M10, M12      | structured-task runner unit/contract tests; AI-02 eval/integration fallback              |
-| AC-008    | M11           | matching engine and requirements integration matrix/gap assertions                       |
-| AC-009    | M13, M14      | tailoring service unit payload tests; log/secret scan                                    |
-| AC-010    | M13–M15       | grounding adversarial unit corpus; requirements/documents integration regressions        |
-| AC-011    | M15           | tailoring suggestion persistence/review integration; stale review E2E                    |
-| AC-012    | M13–M15       | tailoring lock validation integration and blocked-suggestion assertions                  |
-| AC-013    | M13–M15       | tailoring idempotency/version-count integration tests                                    |
-| AC-014    | M05, M15      | documents integration claim invalidation/remediation tests; editor UI inspection         |
-| AC-015    | M17           | exports integration binary blocking and draft-manifest tests                             |
-| AC-016    | M16           | ATS deterministic reuse/invariance tests and integration input pinning                   |
-| AC-017    | M16           | ATS engine/report UI tests and rendered report inspection                                |
-| AC-018    | M05           | document compare/restore copy-forward integration tests                                  |
-| AC-019    | M17           | `pnpm test:exports`; PDF/DOCX parse-back; rendered PDF visual inspection                 |
-| AC-020    | M18           | portability schema/unit tests; semantic round-trip/no-write integration tests            |
-| AC-021    | M18           | library-card confirmation/rollback tests; deletion domain/recovery tests; restore drill  |
-| AC-022    | M12           | provider encryption/integration tests; credential-envelope unit tests; secret scan       |
-| AC-023    | M03, M19, M22 | header/proxy security tests; launcher/package contracts; real listener/Host probe        |
-| AC-024    | M19           | security, SSRF, deletion, grounding, parser, and dependency gates                        |
-| AC-025    | M21, M22      | extracted Windows package smoke/personal/restart/persistence and ZIP inspection          |
-| AC-026    | M20, M21      | performance suite; production load smoke; rendered interaction/reflow observations       |
-| AC-027    | M21           | this complete matrix; `pnpm docs:check`; full audit command ledger                       |
+| Criterion | Milestone(s)       | Primary automated/manual evidence                                                                                            |
+| --------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| AC-001    | M03, M19           | two-workspace cases across integration suites; `tests/security/headers.security.test.ts`                                     |
+| AC-002    | M04, M07           | career/extraction integration approval and eligibility assertions                                                            |
+| AC-003    | M04                | `tests/integration/career.integration.test.ts` supersession/audit assertions                                                 |
+| AC-004    | M06                | `pnpm test:parsers`; malicious upload/security corpus                                                                        |
+| AC-005    | M07                | `tests/integration/extraction.integration.test.ts`; extraction review E2E                                                    |
+| AC-006    | M08, M09           | jobs integration; `pnpm test:ssrf`; URL-fetch security tests                                                                 |
+| AC-007    | M10, M12           | structured-task runner unit/contract tests; AI-02 eval/integration fallback                                                  |
+| AC-008    | M11                | matching engine and requirements integration matrix/gap assertions                                                           |
+| AC-009    | M13, M14           | tailoring service unit payload tests; log/secret scan                                                                        |
+| AC-010    | M13–M15            | grounding adversarial unit corpus; requirements/documents integration regressions                                            |
+| AC-011    | M15                | tailoring suggestion persistence/review integration; stale review E2E                                                        |
+| AC-012    | M13–M15            | tailoring lock validation integration and blocked-suggestion assertions                                                      |
+| AC-013    | M13–M15            | tailoring idempotency/version-count integration tests                                                                        |
+| AC-014    | M05, M15           | documents integration claim invalidation/remediation tests; editor UI inspection                                             |
+| AC-015    | M17                | exports integration binary blocking and draft-manifest tests                                                                 |
+| AC-016    | M16                | ATS deterministic reuse/invariance tests and integration input pinning                                                       |
+| AC-017    | M16                | ATS engine/report UI tests and rendered report inspection                                                                    |
+| AC-018    | M05                | document compare/restore copy-forward integration tests                                                                      |
+| AC-019    | M17                | `pnpm test:exports`; PDF/DOCX parse-back; rendered PDF visual inspection                                                     |
+| AC-020    | M18                | portability schema/unit tests; semantic round-trip/no-write integration tests                                                |
+| AC-021    | M04, M05, M08, M18 | career/document/job selection rollback, artifact staging, and blocker integration; library-card E2E; deletion recovery drill |
+| AC-022    | M12                | provider encryption/integration tests; credential-envelope unit tests; secret scan                                           |
+| AC-023    | M03, M19, M22      | header/proxy security tests; launcher/package contracts; real listener/Host probe                                            |
+| AC-024    | M19                | security, SSRF, deletion, grounding, parser, and dependency gates                                                            |
+| AC-025    | M21, M22           | extracted Windows package smoke/personal/restart/persistence and ZIP inspection                                              |
+| AC-026    | M20, M21           | performance suite; production load smoke; rendered interaction/reflow observations                                           |
+| AC-027    | M21                | this complete matrix; `pnpm docs:check`; full audit command ledger                                                           |
 
 ## Evidence expectations
 
