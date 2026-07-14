@@ -3,6 +3,8 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
+import { FilesystemArtifactStore } from "@/infrastructure/artifacts/filesystem-store";
+import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import { CareerRepository } from "@/modules/career/repository";
@@ -14,7 +16,12 @@ import {
 } from "@/modules/shared/bulk-actions";
 
 import { canonicalDocumentSchema, documentKindSchema } from "./document-schema";
-import { DocumentConflictError, DocumentRepository } from "./repository";
+import {
+  DocumentConflictError,
+  DocumentDependencyError,
+  DocumentNotFoundError,
+  DocumentRepository,
+} from "./repository";
 
 function text(form: FormData, key: string): string {
   const value = form.get(key);
@@ -97,6 +104,27 @@ export async function updateDocumentsStatusAction(
       archived ? "archived" : "restored",
     ),
   );
+}
+
+export async function deleteDocumentsAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const ids = selectedIds(form);
+  const returnPath = safeReturnPath(form, "/documents", "/documents");
+  const store = new FilesystemArtifactStore(
+    readServerEnvironment().ARTIFACT_STORAGE_ROOT,
+  );
+  try {
+    await repository.deleteManyWithArtifacts(principal, ids, (storageKeys) =>
+      store.stageDelete(storageKeys),
+    );
+  } catch (error) {
+    if (error instanceof DocumentDependencyError)
+      redirect(withNotice(returnPath, "delete-blocked"));
+    if (error instanceof DocumentNotFoundError)
+      redirect(withNotice(returnPath, "delete-unavailable"));
+    throw error;
+  }
+  redirect(withNotice(returnPath, "deleted"));
 }
 
 export async function renameDocumentAction(form: FormData): Promise<void> {

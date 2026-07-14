@@ -823,27 +823,39 @@ export class CareerRepository {
     principal: WorkspacePrincipal,
     entryId: string,
   ): Promise<void> {
+    await this.deleteEntries(principal, [entryId]);
+  }
+
+  public async deleteEntries(
+    principal: WorkspacePrincipal,
+    entryIds: string[],
+  ): Promise<void> {
     await transaction(this.pool, async (client) => {
       const locked = await client.query(
-        `SELECT 1 FROM career_entries WHERE id=$1 AND workspace_id=$2 FOR UPDATE`,
-        [entryId, principal.workspaceId],
+        `SELECT id FROM career_entries WHERE workspace_id=$1 AND id=ANY($2::uuid[]) FOR UPDATE`,
+        [principal.workspaceId, entryIds],
       );
-      if (!locked.rowCount) throw new CareerNotFoundError();
+      if (entryIds.length === 0 || locked.rowCount !== entryIds.length)
+        throw new CareerNotFoundError();
 
-      const preview = await this.loadDependencyPreview(
-        client,
-        principal,
-        entryId,
+      const previews = await Promise.all(
+        entryIds.map((entryId) =>
+          this.loadDependencyPreview(client, principal, entryId),
+        ),
       );
-      if (preview.documentClaims > 0) throw new CareerDocumentDependencyError();
+      if (previews.some((preview) => preview.documentClaims > 0))
+        throw new CareerDocumentDependencyError();
 
       // Match history is append-only during ordinary use. Explicit permanent
-      // deletion is the narrow exception: the transaction is already scoped
-      // to the locked workspace entry, and authorization resets at its end.
+      // deletion is the narrow exception: the transaction has preflighted and
+      // locked the complete workspace-scoped selection, and authorization
+      // resets at its end.
       client.authorizeWorkspaceDeletion();
 
-      await client.query(
-        `DELETE FROM tailoring_runs WHERE workspace_id=$2 AND (
+      for (const [index, entryId] of entryIds.entries()) {
+        const preview = previews[index]!;
+        await client.query(
+          `DELETE FROM tailoring_runs WHERE workspace_id=$2 AND (
            EXISTS (SELECT 1 FROM tailoring_run_entries e
                     WHERE e.run_id=tailoring_runs.id AND e.workspace_id=tailoring_runs.workspace_id AND e.career_entry_id=$1)
            OR EXISTS (SELECT 1 FROM tailoring_run_evidence re
@@ -853,20 +865,20 @@ export class CareerRepository {
                       JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
                       WHERE m.match_run_id=tailoring_runs.match_run_id AND m.workspace_id=tailoring_runs.workspace_id AND f.career_entry_id=$1)
          )`,
-        [entryId, principal.workspaceId],
-      );
-      await client.query(
-        `DELETE FROM requirement_match_runs WHERE workspace_id=$2 AND EXISTS (
+          [entryId, principal.workspaceId],
+        );
+        await client.query(
+          `DELETE FROM requirement_match_runs WHERE workspace_id=$2 AND EXISTS (
            SELECT 1 FROM requirement_evidence_matches m
            JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id
            WHERE m.match_run_id=requirement_match_runs.id
              AND m.workspace_id=requirement_match_runs.workspace_id
              AND f.career_entry_id=$1
          )`,
-        [entryId, principal.workspaceId],
-      );
-      await client.query(
-        `DELETE FROM extraction_batches WHERE workspace_id=$2 AND (
+          [entryId, principal.workspaceId],
+        );
+        await client.query(
+          `DELETE FROM extraction_batches WHERE workspace_id=$2 AND (
            target_career_entry_id=$1 OR EXISTS (
              SELECT 1 FROM extraction_proposals p
              LEFT JOIN evidence_facts approved ON approved.id=p.approved_fact_id AND approved.workspace_id=p.workspace_id
@@ -875,10 +887,10 @@ export class CareerRepository {
                AND (p.target_career_entry_id=$1 OR approved.career_entry_id=$1 OR duplicate.career_entry_id=$1)
            )
          )`,
-        [entryId, principal.workspaceId],
-      );
-      await client.query(
-        `DELETE FROM career_entry_skills WHERE workspace_id=$2 AND (
+          [entryId, principal.workspaceId],
+        );
+        await client.query(
+          `DELETE FROM career_entry_skills WHERE workspace_id=$2 AND (
            career_entry_id=$1 OR EXISTS (
              SELECT 1 FROM evidence_facts f
              WHERE f.id=career_entry_skills.evidence_fact_id
@@ -886,10 +898,10 @@ export class CareerRepository {
                AND f.career_entry_id=$1
            )
          )`,
-        [entryId, principal.workspaceId],
-      );
-      await client.query(
-        `DELETE FROM fact_proposals WHERE workspace_id=$2 AND (
+          [entryId, principal.workspaceId],
+        );
+        await client.query(
+          `DELETE FROM fact_proposals WHERE workspace_id=$2 AND (
            career_entry_id=$1 OR EXISTS (
              SELECT 1 FROM evidence_facts f
              WHERE f.id=fact_proposals.approved_fact_id
@@ -897,35 +909,36 @@ export class CareerRepository {
                AND f.career_entry_id=$1
            )
          )`,
-        [entryId, principal.workspaceId],
-      );
-      let removed = 1;
-      while (removed > 0) {
-        const result = await client.query(
-          `DELETE FROM evidence_facts WHERE career_entry_id=$1 AND workspace_id=$2 AND NOT EXISTS (SELECT 1 FROM evidence_facts child WHERE child.supersedes_fact_id=evidence_facts.id AND child.workspace_id=evidence_facts.workspace_id)`,
           [entryId, principal.workspaceId],
         );
-        removed = result.rowCount ?? 0;
+        let removed = 1;
+        while (removed > 0) {
+          const result = await client.query(
+            `DELETE FROM evidence_facts WHERE career_entry_id=$1 AND workspace_id=$2 AND NOT EXISTS (SELECT 1 FROM evidence_facts child WHERE child.supersedes_fact_id=evidence_facts.id AND child.workspace_id=evidence_facts.workspace_id)`,
+            [entryId, principal.workspaceId],
+          );
+          removed = result.rowCount ?? 0;
+        }
+        await client.query(
+          `DELETE FROM career_entries WHERE id=$1 AND workspace_id=$2`,
+          [entryId, principal.workspaceId],
+        );
+        await writeAudit(
+          client,
+          principal,
+          "career_entry.delete",
+          "career_entry",
+          entryId,
+          {
+            extractionBatches: preview.extractionBatches,
+            factCount: preview.facts,
+            matchingRuns: preview.matchingRuns,
+            proposalCount: preview.proposals,
+            skillLinkCount: preview.skillLinks,
+            tailoringRuns: preview.tailoringRuns,
+          },
+        );
       }
-      await client.query(
-        `DELETE FROM career_entries WHERE id=$1 AND workspace_id=$2`,
-        [entryId, principal.workspaceId],
-      );
-      await writeAudit(
-        client,
-        principal,
-        "career_entry.delete",
-        "career_entry",
-        entryId,
-        {
-          extractionBatches: preview.extractionBatches,
-          factCount: preview.facts,
-          matchingRuns: preview.matchingRuns,
-          proposalCount: preview.proposals,
-          skillLinkCount: preview.skillLinks,
-          tailoringRuns: preview.tailoringRuns,
-        },
-      );
     });
   }
 }

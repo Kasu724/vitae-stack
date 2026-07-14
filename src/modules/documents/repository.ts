@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import type { StagedArtifactDeletion } from "@/infrastructure/artifacts/filesystem-store";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
@@ -27,6 +28,27 @@ export class DocumentConflictError extends Error {
     );
     this.name = "DocumentConflictError";
   }
+}
+
+export class DocumentDependencyError extends Error {
+  public constructor() {
+    super(
+      "This document has an external immutable-history dependency and cannot be permanently deleted.",
+    );
+    this.name = "DocumentDependencyError";
+  }
+}
+
+export interface DocumentDependencyPreview {
+  versions: number;
+  claims: number;
+  drafts: number;
+  locks: number;
+  tailoringRuns: number;
+  atsReports: number;
+  exportArtifacts: number;
+  artifactBytes: number;
+  externalReferences: number;
 }
 
 export interface DocumentRecord {
@@ -861,6 +883,243 @@ export class DocumentRepository {
       if (result.rowCount !== documentIds.length)
         throw new DocumentNotFoundError();
     });
+  }
+
+  public async dependencyPreview(
+    principal: WorkspacePrincipal,
+    documentId: string,
+  ): Promise<DocumentDependencyPreview> {
+    return this.loadDependencyPreview(this.pool, principal, documentId);
+  }
+
+  private async loadDependencyPreview(
+    queryable: Pick<Pool | PoolClient, "query">,
+    principal: WorkspacePrincipal,
+    documentId: string,
+  ): Promise<DocumentDependencyPreview> {
+    const result = await queryable.query<{
+      versions: number;
+      claims: number;
+      drafts: number;
+      locks: number;
+      tailoring_runs: number;
+      ats_reports: number;
+      export_artifacts: number;
+      artifact_bytes: number;
+      external_references: number;
+    }>(
+      `SELECT
+         (SELECT count(*)::int FROM document_versions v
+           WHERE v.document_id=$1 AND v.workspace_id=$2) versions,
+         (SELECT count(*)::int FROM generated_claims c
+           JOIN document_versions v ON v.id=c.version_id AND v.workspace_id=c.workspace_id
+          WHERE v.document_id=$1 AND v.workspace_id=$2) claims,
+         (SELECT count(*)::int FROM document_drafts d
+           WHERE d.document_id=$1 AND d.workspace_id=$2) drafts,
+         (SELECT count(*)::int FROM document_locks l
+           WHERE l.document_id=$1 AND l.workspace_id=$2) locks,
+         (SELECT count(*)::int FROM tailoring_runs t
+           WHERE t.document_id=$1 AND t.workspace_id=$2) tailoring_runs,
+         (SELECT count(*)::int FROM ats_reports report
+           JOIN document_versions v ON v.id=report.document_version_id AND v.workspace_id=report.workspace_id
+          WHERE v.document_id=$1 AND v.workspace_id=$2) ats_reports,
+         (SELECT count(*)::int FROM export_artifacts artifact
+           JOIN document_versions v ON v.id=artifact.document_version_id AND v.workspace_id=artifact.workspace_id
+          WHERE v.document_id=$1 AND v.workspace_id=$2) export_artifacts,
+         (SELECT coalesce(sum(artifact.byte_size),0)::int FROM export_artifacts artifact
+           JOIN document_versions v ON v.id=artifact.document_version_id AND v.workspace_id=artifact.workspace_id
+          WHERE v.document_id=$1 AND v.workspace_id=$2) artifact_bytes,
+         ((SELECT count(*)::int FROM generated_claims dependent
+            JOIN document_versions dependent_version ON dependent_version.id=dependent.version_id AND dependent_version.workspace_id=dependent.workspace_id
+           WHERE dependent.workspace_id=$2 AND dependent_version.document_id<>$1
+             AND dependent.source_claim_id IN (
+               SELECT source.id FROM generated_claims source
+               JOIN document_versions source_version ON source_version.id=source.version_id AND source_version.workspace_id=source.workspace_id
+               WHERE source_version.document_id=$1 AND source_version.workspace_id=$2))
+          + (SELECT count(*)::int FROM document_versions dependent
+             WHERE dependent.workspace_id=$2 AND dependent.document_id<>$1 AND (
+               dependent.parent_version_id IN (SELECT id FROM document_versions WHERE document_id=$1 AND workspace_id=$2)
+               OR dependent.restored_from_version_id IN (SELECT id FROM document_versions WHERE document_id=$1 AND workspace_id=$2)))
+          + (SELECT count(*)::int FROM tailoring_runs dependent
+             WHERE dependent.workspace_id=$2 AND dependent.document_id<>$1
+               AND dependent.base_version_id IN (SELECT id FROM document_versions WHERE document_id=$1 AND workspace_id=$2))
+          + (SELECT count(*)::int FROM tailoring_suggestions suggestion
+             JOIN tailoring_runs dependent ON dependent.id=suggestion.run_id AND dependent.workspace_id=suggestion.workspace_id
+             WHERE suggestion.workspace_id=$2 AND dependent.document_id<>$1
+               AND suggestion.accepted_version_id IN (SELECT id FROM document_versions WHERE document_id=$1 AND workspace_id=$2))
+          + (SELECT count(*)::int FROM document_drafts dependent
+             WHERE dependent.workspace_id=$2 AND dependent.document_id<>$1
+               AND dependent.base_version_id IN (SELECT id FROM document_versions WHERE document_id=$1 AND workspace_id=$2))) external_references
+       WHERE EXISTS (SELECT 1 FROM documents WHERE id=$1 AND workspace_id=$2)`,
+      [documentId, principal.workspaceId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new DocumentNotFoundError();
+    return {
+      versions: row.versions,
+      claims: row.claims,
+      drafts: row.drafts,
+      locks: row.locks,
+      tailoringRuns: row.tailoring_runs,
+      atsReports: row.ats_reports,
+      exportArtifacts: row.export_artifacts,
+      artifactBytes: row.artifact_bytes,
+      externalReferences: row.external_references,
+    };
+  }
+
+  public async deleteManyWithArtifacts(
+    principal: WorkspacePrincipal,
+    documentIds: string[],
+    stageArtifacts: (storageKeys: string[]) => Promise<StagedArtifactDeletion>,
+  ): Promise<void> {
+    const client = await this.pool.connect();
+    let staged: StagedArtifactDeletion | null = null;
+    let committed = false;
+    try {
+      await client.query("BEGIN");
+      const locked = await client.query(
+        `SELECT id FROM documents WHERE workspace_id=$1 AND id=ANY($2::uuid[]) FOR UPDATE`,
+        [principal.workspaceId, documentIds],
+      );
+      if (documentIds.length === 0 || locked.rowCount !== documentIds.length)
+        throw new DocumentNotFoundError();
+
+      const previews = await Promise.all(
+        documentIds.map((documentId) =>
+          this.loadDependencyPreview(client, principal, documentId),
+        ),
+      );
+      const external = await client.query<{ count: number }>(
+        `SELECT (
+           (SELECT count(*)::int FROM generated_claims dependent
+             JOIN document_versions dependent_version ON dependent_version.id=dependent.version_id AND dependent_version.workspace_id=dependent.workspace_id
+            WHERE dependent.workspace_id=$1 AND NOT (dependent_version.document_id=ANY($2::uuid[]))
+              AND dependent.source_claim_id IN (
+                SELECT source.id FROM generated_claims source
+                JOIN document_versions source_version ON source_version.id=source.version_id AND source_version.workspace_id=source.workspace_id
+                WHERE source_version.workspace_id=$1 AND source_version.document_id=ANY($2::uuid[])))
+           + (SELECT count(*)::int FROM document_versions dependent
+              WHERE dependent.workspace_id=$1 AND NOT (dependent.document_id=ANY($2::uuid[])) AND (
+                dependent.parent_version_id IN (SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[]))
+                OR dependent.restored_from_version_id IN (SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[]))))
+           + (SELECT count(*)::int FROM tailoring_runs dependent
+              WHERE dependent.workspace_id=$1 AND NOT (dependent.document_id=ANY($2::uuid[]))
+                AND dependent.base_version_id IN (SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])))
+           + (SELECT count(*)::int FROM tailoring_suggestions suggestion
+              JOIN tailoring_runs dependent ON dependent.id=suggestion.run_id AND dependent.workspace_id=suggestion.workspace_id
+              WHERE suggestion.workspace_id=$1 AND NOT (dependent.document_id=ANY($2::uuid[]))
+                AND suggestion.accepted_version_id IN (SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])))
+           + (SELECT count(*)::int FROM document_drafts dependent
+              WHERE dependent.workspace_id=$1 AND NOT (dependent.document_id=ANY($2::uuid[]))
+                AND dependent.base_version_id IN (SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])))
+         ) count`,
+        [principal.workspaceId, documentIds],
+      );
+      if ((external.rows[0]?.count ?? 0) > 0)
+        throw new DocumentDependencyError();
+
+      const artifacts = await client.query<{ storage_key: string }>(
+        `SELECT artifact.storage_key FROM export_artifacts artifact
+         JOIN document_versions version ON version.id=artifact.document_version_id AND version.workspace_id=artifact.workspace_id
+         WHERE artifact.workspace_id=$1 AND version.document_id=ANY($2::uuid[])`,
+        [principal.workspaceId, documentIds],
+      );
+      staged = await stageArtifacts(
+        artifacts.rows.map((artifact) => artifact.storage_key),
+      );
+
+      // Whole-document deletion is the narrow exception to immutable history
+      // guards. The complete selection and cross-document references have
+      // already been locked and rechecked in this transaction.
+      client.authorizeWorkspaceDeletion();
+      const parameters = [principal.workspaceId, documentIds];
+      await client.query(
+        `DELETE FROM export_artifacts WHERE workspace_id=$1 AND document_version_id IN (
+           SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])
+         )`,
+        parameters,
+      );
+      await client.query(
+        `DELETE FROM ats_reports WHERE workspace_id=$1 AND document_version_id IN (
+           SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])
+         )`,
+        parameters,
+      );
+      await client.query(
+        `DELETE FROM tailoring_runs WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])`,
+        parameters,
+      );
+      await client.query(
+        `DELETE FROM document_drafts WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])`,
+        parameters,
+      );
+      await client.query(
+        `DELETE FROM document_locks WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])`,
+        parameters,
+      );
+
+      let removed = 1;
+      while (removed > 0) {
+        const result = await client.query(
+          `DELETE FROM generated_claims WHERE workspace_id=$1
+            AND version_id IN (SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[]))
+            AND NOT EXISTS (SELECT 1 FROM generated_claims child
+                            WHERE child.source_claim_id=generated_claims.id
+                              AND child.workspace_id=generated_claims.workspace_id)`,
+          parameters,
+        );
+        removed = result.rowCount ?? 0;
+      }
+      await client.query(
+        `DELETE FROM document_sections WHERE workspace_id=$1 AND version_id IN (
+           SELECT id FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])
+         )`,
+        parameters,
+      );
+      removed = 1;
+      while (removed > 0) {
+        const result = await client.query(
+          `DELETE FROM document_versions WHERE workspace_id=$1 AND document_id=ANY($2::uuid[])
+            AND NOT EXISTS (SELECT 1 FROM document_versions child
+                            WHERE child.workspace_id=document_versions.workspace_id AND (
+                              child.parent_version_id=document_versions.id
+                              OR child.restored_from_version_id=document_versions.id))`,
+          parameters,
+        );
+        removed = result.rowCount ?? 0;
+      }
+      const deleted = await client.query(
+        `DELETE FROM documents WHERE workspace_id=$1 AND id=ANY($2::uuid[])`,
+        parameters,
+      );
+      if (deleted.rowCount !== documentIds.length)
+        throw new DocumentNotFoundError();
+      for (const [index, documentId] of documentIds.entries()) {
+        const preview = previews[index]!;
+        await audit(client, principal, "document.delete", documentId, {
+          artifactBytes: preview.artifactBytes,
+          atsReports: preview.atsReports,
+          claims: preview.claims,
+          drafts: preview.drafts,
+          exportArtifacts: preview.exportArtifacts,
+          locks: preview.locks,
+          tailoringRuns: preview.tailoringRuns,
+          versions: preview.versions,
+        });
+      }
+      await client.query("COMMIT");
+      committed = true;
+      await staged.commit();
+    } catch (error) {
+      if (!committed) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        await staged?.rollback();
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   public async rename(

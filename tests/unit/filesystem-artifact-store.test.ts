@@ -62,6 +62,25 @@ describe("private filesystem artifact store", () => {
     });
   });
 
+  it("stages private-file deletion for database commit or rollback", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "vitae-staged-delete-"));
+    temporaryDirectories.push(root);
+    const store = new FilesystemArtifactStore(root);
+    const key = `${crypto.randomUUID()}/${crypto.randomUUID()}.bin`;
+    const bytes = Buffer.from("staged private bytes");
+    await store.putExclusive(key, bytes);
+
+    const rolledBack = await store.stageDelete([key, key]);
+    await expect(store.read(key)).rejects.toMatchObject({ code: "ENOENT" });
+    await rolledBack.rollback();
+    await expect(store.read(key)).resolves.toEqual(bytes);
+
+    const committed = await store.stageDelete([key]);
+    await committed.commit();
+    await expect(store.read(key)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await store.listKeysOlderThan(0, Date.now() + 1_000)).toEqual([]);
+  });
+
   it("enumerates only aged opaque keys for orphan reconciliation", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "vitae-orphans-"));
     temporaryDirectories.push(root);

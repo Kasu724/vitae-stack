@@ -394,6 +394,17 @@ describe("Career Information Bank lifecycle", () => {
       "INSERT INTO claim_evidence (workspace_id,claim_id,evidence_fact_id) VALUES ($1,$2,$3)",
       [first.workspaceId, claim.rows[0]!.id, factId],
     );
+    const otherwiseDeletableId = await repository.createEntry(first, {
+      type: "project",
+      title: "Atomic deletion companion",
+      organization: null,
+      location: null,
+      description: null,
+      startDate: undefined,
+      endDate: undefined,
+      isCurrent: false,
+      tags: [],
+    });
 
     expect(await repository.dependencyPreview(first, entryId)).toMatchObject({
       documentClaims: 1,
@@ -401,7 +412,13 @@ describe("Career Information Bank lifecycle", () => {
     await expect(repository.deleteEntry(first, entryId)).rejects.toBeInstanceOf(
       CareerDocumentDependencyError,
     );
+    await expect(
+      repository.deleteEntries(first, [otherwiseDeletableId, entryId]),
+    ).rejects.toBeInstanceOf(CareerDocumentDependencyError);
     await expect(repository.getEntry(first, entryId)).resolves.toBeDefined();
+    await expect(
+      repository.getEntry(first, otherwiseDeletableId),
+    ).resolves.toBeDefined();
   });
 
   it("rejects cross-workspace skill links at the database boundary", async () => {

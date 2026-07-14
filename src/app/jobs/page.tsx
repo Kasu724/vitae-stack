@@ -3,11 +3,13 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ResourceCardList } from "@/components/resource-card-list";
+import { StatusTabs } from "@/components/status-tabs";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import {
   createPastedJobAction,
   createUrlJobAction,
+  deleteJobsAction,
   updateJobsStatusAction,
 } from "@/modules/jobs/actions";
 import { JobRepository } from "@/modules/jobs/repository";
@@ -23,9 +25,18 @@ export default async function JobsPage({
   if (!principal) redirect("/");
   const query = await searchParams;
   const status = query.status === "archived" ? "archived" : "active";
-  const jobs = await new JobRepository(getRuntimePool()).list(
-    principal,
-    status,
+  const repository = new JobRepository(getRuntimePool());
+  const jobs = await repository.list(principal, status);
+  const dependencyPreviews = new Map(
+    await Promise.all(
+      jobs.map(
+        async (job) =>
+          [
+            job.id,
+            await repository.dependencyPreview(principal, job.id),
+          ] as const,
+      ),
+    ),
   );
 
   return (
@@ -39,9 +50,28 @@ export default async function JobsPage({
         Save an immutable normalized snapshot before requirement analysis or
         tailoring. Imported instructions remain untrusted data.
       </p>
-      {query.notice === "archived" || query.notice === "restored" ? (
-        <p className="notice mt-6" role="status">
-          Selected jobs were {query.notice}.
+      {typeof query.notice === "string" ? (
+        <p
+          className={
+            query.notice === "delete-blocked" ||
+            query.notice === "delete-unavailable"
+              ? "mt-6 rounded-lg border border-[var(--danger)] p-4"
+              : "notice mt-6"
+          }
+          role={
+            query.notice === "delete-blocked" ||
+            query.notice === "delete-unavailable"
+              ? "alert"
+              : "status"
+          }
+        >
+          {query.notice === "deleted"
+            ? "The selected jobs and the deletable analysis shown in their previews were deleted."
+            : query.notice === "delete-blocked"
+              ? "At least one selected job supports an accepted document version, so none of the selected jobs were deleted. Archive it to preserve document provenance."
+              : query.notice === "delete-unavailable"
+                ? "The selected jobs changed or are no longer available, so none of them were deleted. Reload and review the selection."
+                : `Selected jobs were ${query.notice}.`}
         </p>
       ) : null}
       {query.error === "invalid-text" ? (
@@ -188,37 +218,52 @@ export default async function JobsPage({
       </div>
 
       <section className="mt-10" aria-labelledby="saved-jobs-heading">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="saved-jobs-heading" className="text-2xl font-semibold">
-              Saved jobs
-            </h2>
-            <p className="mt-1 text-sm text-[var(--muted)]" role="status">
-              {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
-            </p>
-          </div>
-          <Link
-            className="secondary-button"
-            href={`/jobs?status=${status === "active" ? "archived" : "active"}`}
-          >
-            Show {status === "active" ? "archived" : "active"}
-          </Link>
+        <h2 id="saved-jobs-heading" className="text-2xl font-semibold">
+          Saved jobs
+        </h2>
+        <div className="mt-5">
+          <StatusTabs
+            activeHref="/jobs"
+            archivedHref="/jobs?status=archived"
+            currentStatus={status}
+            label="Saved job status"
+          />
         </div>
+        <p className="mt-4 text-sm text-[var(--muted)]" role="status">
+          {jobs.length} {jobs.length === 1 ? "job" : "jobs"}
+        </p>
         {jobs.length ? (
           <ResourceCardList
-            items={jobs.map((job) => ({
-              id: job.id,
-              title: job.title,
-              href: `/jobs/${job.id}`,
-              status: job.status,
-              category: `Revision ${job.current_revision_number}`,
-              subtitle: job.company || "Company not specified",
-            }))}
+            items={jobs.map((job) => {
+              const preview = dependencyPreviews.get(job.id)!;
+              const deletableDependents =
+                preview.requirementSets +
+                preview.matchingRuns +
+                preview.tailoringRuns +
+                preview.atsReports +
+                preview.urlImports;
+              return {
+                id: job.id,
+                title: job.title,
+                href: `/jobs/${job.id}`,
+                status: job.status,
+                category: `Revision ${job.current_revision_number}`,
+                subtitle: job.company || "Company not specified",
+                deleteImpact: [
+                  preview.acceptedDocumentVersions > 0
+                    ? `${preview.acceptedDocumentVersions} accepted document ${preview.acceptedDocumentVersions === 1 ? "version blocks" : "versions block"} permanent deletion.`
+                    : "No accepted document versions block permanent deletion.",
+                  `${preview.revisions} immutable job ${preview.revisions === 1 ? "revision" : "revisions"} and ${deletableDependents} requirement, matching, tailoring, ATS, or URL-import records will also be deleted.`,
+                ],
+              };
+            })}
             resourceName="job"
             resourceNamePlural="jobs"
             headingLevel={3}
             status={status}
             archiveAction={updateJobsStatusAction}
+            deleteAction={deleteJobsAction}
+            deleteWarning="Permanent deletion cannot be undone. If any selected job supports an accepted document version, the whole selection is blocked and nothing is deleted. Uploaded source files remain separately managed in Sources."
             returnPath={
               status === "archived" ? "/jobs?status=archived" : "/jobs"
             }

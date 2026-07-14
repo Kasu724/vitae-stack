@@ -48,4 +48,22 @@ test("user saves an autosaved draft, creates a version, compares, and restores c
   await expect(
     page.getByRole("listitem").filter({ hasText: /^restore/u }),
   ).toBeVisible();
+
+  await page.goto("/documents");
+  await page.getByLabel(`Select ${title}`).check();
+  await page.getByRole("button", { name: "Delete selected" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(
+    "Are you sure you want to delete the following document:",
+  );
+  await expect(dialog).toContainText(title);
+  await expect(dialog).toContainText(
+    "No external history references block permanent deletion.",
+  );
+  await dialog.getByRole("button", { name: "Delete 1 document" }).click();
+  await expect(
+    page.getByText(
+      "The selected documents, their complete version histories, and their private export artifacts were deleted.",
+    ),
+  ).toBeVisible();
 });

@@ -22,9 +22,11 @@ import {
 } from "@/modules/extraction/repository";
 import {
   JobConflictError,
+  JobDocumentDependencyError,
   JobNotFoundError,
   JobRepository,
 } from "@/modules/jobs/repository";
+import { DocumentRepository } from "@/modules/documents/repository";
 import {
   JobUrlImportNotFoundError,
   JobUrlImportRepository,
@@ -138,6 +140,167 @@ describe("immutable job-description snapshots", () => {
     ).rejects.toMatchObject({ code: "23514" });
   });
 
+  it("previews and atomically deletes complete job aggregates", async () => {
+    const owned = await repository.createFromText(first, {
+      title: "Disposable job aggregate",
+      company: "Example Company",
+      text: "Review privacy controls",
+    });
+    const current = (await repository.get(first, owned)).revisions[0]!;
+    await repository.revise(
+      first,
+      owned,
+      current.id,
+      "Review privacy and deletion controls",
+    );
+    const latest = (await repository.get(first, owned)).revisions[0]!;
+    const requirementSet = await runtimePool.query<{ id: string }>(
+      `INSERT INTO job_requirement_sets
+         (workspace_id,job_posting_revision_id,revision_number,method,status,metadata,created_by_user_id,reviewed_at)
+       VALUES ($1,$2,1,'manual','reviewed','{}',$3,now()) RETURNING id`,
+      [first.workspaceId, latest.id, first.userId],
+    );
+    const matchRun = await runtimePool.query<{ id: string }>(
+      `INSERT INTO requirement_match_runs
+         (workspace_id,requirement_set_id,revision_number,algorithm_version,input_hash,eligible_fact_count,created_by_user_id)
+       VALUES ($1,$2,1,'synthetic@1',$3,0,$4) RETURNING id`,
+      [
+        first.workspaceId,
+        requirementSet.rows[0]!.id,
+        `sha256:${"e".repeat(64)}`,
+        first.userId,
+      ],
+    );
+    const documents = new DocumentRepository(runtimePool);
+    const documentId = await documents.create(first, {
+      kind: "resume",
+      title: "Disposable job aggregate document",
+    });
+    const document = await documents.get(first, documentId);
+    await runtimePool.query(
+      `INSERT INTO tailoring_runs
+         (workspace_id,kind,document_id,base_version_id,job_posting_revision_id,
+          requirement_set_id,match_run_id,status,idempotency_key,manifest,created_by_user_id)
+       VALUES ($1,'resume',$2,$3,$4,$5,$6,'ready',$7,'{}',$8)`,
+      [
+        first.workspaceId,
+        documentId,
+        document.currentVersion.id,
+        latest.id,
+        requirementSet.rows[0]!.id,
+        matchRun.rows[0]!.id,
+        crypto.randomUUID(),
+        first.userId,
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO ats_reports
+         (workspace_id,document_version_id,job_posting_revision_id,requirement_set_id,
+          ruleset_version,document_hash,job_hash,input_hash,evaluated_weight,overall_score_basis_points,blocker_count)
+       VALUES ($1,$2,$3,$4,'synthetic@1',$5,$6,$7,100,7500,0)`,
+      [
+        first.workspaceId,
+        document.currentVersion.id,
+        latest.id,
+        requirementSet.rows[0]!.id,
+        document.currentVersion.content_hash,
+        latest.content_hash,
+        `sha256:${"f".repeat(64)}`,
+      ],
+    );
+    const foreign = await repository.createFromText(second, {
+      title: "Foreign disposable job",
+      company: "Other Company",
+      text: "This job belongs to another workspace",
+    });
+
+    expect(await repository.dependencyPreview(first, owned)).toMatchObject({
+      revisions: 2,
+      requirementSets: 1,
+      matchingRuns: 1,
+      tailoringRuns: 1,
+      atsReports: 1,
+      acceptedDocumentVersions: 0,
+    });
+    await expect(
+      repository.deleteMany(first, [owned, foreign]),
+    ).rejects.toBeInstanceOf(JobNotFoundError);
+    await expect(repository.get(first, owned)).resolves.toBeDefined();
+
+    await repository.deleteMany(first, [owned]);
+    await expect(repository.get(first, owned)).rejects.toBeInstanceOf(
+      JobNotFoundError,
+    );
+  });
+
+  it("blocks job deletion when an accepted document version needs its tailoring provenance", async () => {
+    const jobId = await repository.createFromText(first, {
+      title: "Document-backed job",
+      company: "Example Company",
+      text: "Build evidence-grounded documents",
+    });
+    const revision = (await repository.get(first, jobId)).revisions[0]!;
+    const requirementSet = await runtimePool.query<{ id: string }>(
+      `INSERT INTO job_requirement_sets
+         (workspace_id,job_posting_revision_id,revision_number,method,status,metadata,created_by_user_id,reviewed_at)
+       VALUES ($1,$2,1,'manual','reviewed','{}',$3,now()) RETURNING id`,
+      [first.workspaceId, revision.id, first.userId],
+    );
+    const matchRun = await runtimePool.query<{ id: string }>(
+      `INSERT INTO requirement_match_runs
+         (workspace_id,requirement_set_id,revision_number,algorithm_version,input_hash,eligible_fact_count,created_by_user_id)
+       VALUES ($1,$2,1,'synthetic@1',$3,0,$4) RETURNING id`,
+      [
+        first.workspaceId,
+        requirementSet.rows[0]!.id,
+        `sha256:${"d".repeat(64)}`,
+        first.userId,
+      ],
+    );
+    const documents = new DocumentRepository(runtimePool);
+    const documentId = await documents.create(first, {
+      kind: "resume",
+      title: "Accepted job deletion blocker",
+    });
+    const document = await documents.get(first, documentId);
+    const run = await runtimePool.query<{ id: string }>(
+      `INSERT INTO tailoring_runs
+         (workspace_id,kind,document_id,base_version_id,job_posting_revision_id,
+          requirement_set_id,match_run_id,status,idempotency_key,manifest,created_by_user_id)
+       VALUES ($1,'resume',$2,$3,$4,$5,$6,'ready',$7,'{}',$8) RETURNING id`,
+      [
+        first.workspaceId,
+        documentId,
+        document.currentVersion.id,
+        revision.id,
+        requirementSet.rows[0]!.id,
+        matchRun.rows[0]!.id,
+        crypto.randomUUID(),
+        first.userId,
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO tailoring_suggestions
+         (workspace_id,run_id,sequence,operation,target_section_id,rationale,task_id,task_version,status,decided_by_user_id,decided_at,accepted_version_id)
+       VALUES ($1,$2,1,'remove_block','synthetic-section','Synthetic fixture','AI-06','1','accepted',$3,now(),$4)`,
+      [
+        first.workspaceId,
+        run.rows[0]!.id,
+        first.userId,
+        document.currentVersion.id,
+      ],
+    );
+
+    expect(await repository.dependencyPreview(first, jobId)).toMatchObject({
+      tailoringRuns: 1,
+      acceptedDocumentVersions: 1,
+    });
+    await expect(repository.deleteMany(first, [jobId])).rejects.toBeInstanceOf(
+      JobDocumentDependencyError,
+    );
+    await expect(repository.get(first, jobId)).resolves.toBeDefined();
+  });
+
   it("creates a file-provenance snapshot once and blocks career extraction", async () => {
     const sourceDocumentId = crypto.randomUUID();
     const source = await runtimePool.query<{ id: string }>(
@@ -227,6 +390,13 @@ describe("immutable job-description snapshots", () => {
       },
     });
     await expect(imports.get(second, importId)).rejects.toBeInstanceOf(
+      JobUrlImportNotFoundError,
+    );
+    expect(
+      await repository.dependencyPreview(first, completed.job_posting_id!),
+    ).toMatchObject({ urlImports: 1 });
+    await repository.deleteMany(first, [completed.job_posting_id!]);
+    await expect(imports.get(first, importId)).rejects.toBeInstanceOf(
       JobUrlImportNotFoundError,
     );
   });

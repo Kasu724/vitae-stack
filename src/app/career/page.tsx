@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ResourceCardList } from "@/components/resource-card-list";
+import { StatusTabs } from "@/components/status-tabs";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
 import {
@@ -47,6 +48,14 @@ export default async function CareerBankPage({
     repository.getProfileSettings(principal),
   ]);
   const totalPages = Math.max(1, Math.ceil(totalEntries / pageSize));
+  const statusHref = (targetStatus: "active" | "archived") => {
+    const next = new URLSearchParams();
+    if (query) next.set("q", query);
+    if (type) next.set("type", type);
+    if (targetStatus === "archived") next.set("status", targetStatus);
+    const suffix = next.toString();
+    return suffix ? "/career?" + suffix : "/career";
+  };
   const pageHref = (targetPage: number) => {
     const next = new URLSearchParams();
     if (query) next.set("q", query);
@@ -86,9 +95,15 @@ export default async function CareerBankPage({
       </div>
       {typeof params.notice === "string" ? (
         <p
-          role={params.notice === "delete-blocked" ? "alert" : "status"}
+          role={
+            params.notice === "delete-blocked" ||
+            params.notice === "delete-unavailable"
+              ? "alert"
+              : "status"
+          }
           className={
-            params.notice === "delete-blocked"
+            params.notice === "delete-blocked" ||
+            params.notice === "delete-unavailable"
               ? "mt-6 rounded-lg border border-[var(--danger)] p-4"
               : "notice mt-6"
           }
@@ -97,19 +112,24 @@ export default async function CareerBankPage({
             ? "The selected entries and the dependencies shown in their previews were deleted."
             : params.notice === "delete-blocked"
               ? "At least one selected entry supports saved document history, so none of the selected entries were deleted. Archive it or remove the document dependency first."
-              : params.notice === "archived"
-                ? "Selected entries were archived."
-                : params.notice === "restored"
-                  ? "Selected entries were restored."
-                  : params.notice === "skill-saved"
-                    ? "Skill saved."
-                    : "Career goals and writing preferences saved."}
+              : params.notice === "delete-unavailable"
+                ? "The selected entries changed or are no longer available, so none of them were deleted. Reload and review the selection."
+                : params.notice === "archived"
+                  ? "Selected entries were archived."
+                  : params.notice === "restored"
+                    ? "Selected entries were restored."
+                    : params.notice === "skill-saved"
+                      ? "Skill saved."
+                      : "Career goals and writing preferences saved."}
         </p>
       ) : null}
       <form
-        className="mt-8 grid gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:grid-cols-[1fr_auto_auto]"
+        className="mt-8 grid gap-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 sm:grid-cols-[1fr_auto]"
         role="search"
       >
+        {status === "archived" ? (
+          <input type="hidden" name="status" value="archived" />
+        ) : null}
         <label className="grid gap-1 font-medium">
           Search entries and facts
           <input
@@ -119,17 +139,18 @@ export default async function CareerBankPage({
             defaultValue={query}
           />
         </label>
-        <label className="grid gap-1 font-medium">
-          Status
-          <select className="field" name="status" defaultValue={status}>
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-          </select>
-        </label>
         <button className="button self-end" type="submit">
           Apply filters
         </button>
       </form>
+      <div className="mt-8">
+        <StatusTabs
+          activeHref={statusHref("active")}
+          archivedHref={statusHref("archived")}
+          currentStatus={status}
+          label="Career entry status"
+        />
+      </div>
       <p className="mt-5 text-sm text-[var(--muted)]" role="status">
         {totalEntries} {totalEntries === 1 ? "entry" : "entries"}
       </p>
@@ -137,7 +158,7 @@ export default async function CareerBankPage({
         <section className="mt-4 rounded-xl border border-dashed border-[var(--border)] p-8">
           <h2 className="text-xl font-semibold">No matching entries</h2>
           <p className="mt-2 text-[var(--muted)]">
-            Create an entry or change the search and status filters.
+            Create an entry, change the search, or choose the other status tab.
           </p>
         </section>
       ) : (

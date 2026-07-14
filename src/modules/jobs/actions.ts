@@ -18,7 +18,11 @@ import {
   withNotice,
 } from "@/modules/shared/bulk-actions";
 
-import { JobRepository } from "./repository";
+import {
+  JobDocumentDependencyError,
+  JobNotFoundError,
+  JobRepository,
+} from "./repository";
 
 function text(form: FormData, key: string): string {
   const value = form.get(key);
@@ -122,4 +126,20 @@ export async function updateJobsStatusAction(form: FormData): Promise<void> {
       archived ? "archived" : "restored",
     ),
   );
+}
+
+export async function deleteJobsAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  const ids = selectedIds(form);
+  const returnPath = safeReturnPath(form, "/jobs", "/jobs");
+  try {
+    await repository.deleteMany(principal, ids);
+  } catch (error) {
+    if (error instanceof JobDocumentDependencyError)
+      redirect(withNotice(returnPath, "delete-blocked"));
+    if (error instanceof JobNotFoundError)
+      redirect(withNotice(returnPath, "delete-unavailable"));
+    throw error;
+  }
+  redirect(withNotice(returnPath, "deleted"));
 }

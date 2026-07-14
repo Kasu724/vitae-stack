@@ -27,6 +27,11 @@ export class InvalidStorageKeyError extends Error {
   }
 }
 
+export interface StagedArtifactDeletion {
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+}
+
 export class FilesystemArtifactStore {
   private readonly root: string;
 
@@ -73,6 +78,60 @@ export class FilesystemArtifactStore {
 
   public async delete(key: string): Promise<void> {
     await rm(this.resolve(key), { force: true });
+  }
+
+  public async stageDelete(keys: string[]): Promise<StagedArtifactDeletion> {
+    const staged: Array<{ original: string; temporary: string }> = [];
+    try {
+      for (const original of [...new Set(keys)]) {
+        const [workspaceId] = original.split("/", 1);
+        const temporary = `${workspaceId}/${crypto.randomUUID()}.bin`;
+        try {
+          await rename(this.resolve(original), this.resolve(temporary));
+          staged.push({ original, temporary });
+        } catch (error) {
+          if (!isNotFound(error)) throw error;
+        }
+      }
+    } catch (error) {
+      const rollbackErrors: unknown[] = [];
+      for (const item of staged.toReversed())
+        try {
+          await rename(
+            this.resolve(item.temporary),
+            this.resolve(item.original),
+          );
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      if (rollbackErrors.length)
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          "Private artifact deletion could not be staged safely.",
+        );
+      throw error;
+    }
+
+    return {
+      commit: async () => {
+        await Promise.all(
+          staged.map((item) =>
+            rm(this.resolve(item.temporary), { force: true }),
+          ),
+        );
+      },
+      rollback: async () => {
+        for (const item of staged.toReversed())
+          try {
+            await rename(
+              this.resolve(item.temporary),
+              this.resolve(item.original),
+            );
+          } catch (error) {
+            if (!isNotFound(error)) throw error;
+          }
+      },
+    };
   }
 
   public async listKeysOlderThan(

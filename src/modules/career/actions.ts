@@ -22,6 +22,7 @@ import {
 import {
   CareerConflictError,
   CareerDocumentDependencyError,
+  CareerNotFoundError,
   CareerRepository,
 } from "./repository";
 
@@ -202,12 +203,15 @@ export async function deleteCareerEntriesAction(form: FormData): Promise<void> {
   const { principal, repository } = await context();
   const ids = selectedIds(form);
   const returnPath = safeReturnPath(form, "/career", "/career");
-  const previews = await Promise.all(
-    ids.map((id) => repository.dependencyPreview(principal, id)),
-  );
-  if (previews.some((preview) => preview.documentClaims > 0))
-    redirect(withNotice(returnPath, "delete-blocked"));
-  for (const id of ids) await repository.deleteEntry(principal, id);
+  try {
+    await repository.deleteEntries(principal, ids);
+  } catch (error) {
+    if (error instanceof CareerDocumentDependencyError)
+      redirect(withNotice(returnPath, "delete-blocked"));
+    if (error instanceof CareerNotFoundError)
+      redirect(withNotice(returnPath, "delete-unavailable"));
+    throw error;
+  }
   redirect(withNotice(returnPath, "deleted"));
 }
 

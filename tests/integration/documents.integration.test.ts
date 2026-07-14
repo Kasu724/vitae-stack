@@ -8,8 +8,10 @@ import {
   type SqliteTestDatabase,
 } from "../helpers/sqlite-test-database";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
+import { JobRepository } from "@/modules/jobs/repository";
 import {
   DocumentConflictError,
+  DocumentDependencyError,
   DocumentNotFoundError,
   DocumentRepository,
 } from "@/modules/documents/repository";
@@ -351,5 +353,213 @@ describe("document library and versioning", () => {
     );
     expect(diff.changedClaims).toHaveLength(1);
     expect(diff.provenanceChanges).toHaveLength(1);
+  });
+
+  it("previews and atomically deletes a complete document history and export metadata", async () => {
+    const documentId = await repository.create(first, {
+      kind: "resume",
+      title: "Disposable generated document",
+    });
+    const initial = await repository.get(first, documentId);
+    const content = structuredClone(initial.currentVersion.content);
+    content.sections[1]!.blocks[0]!.text = "Disposable generated claim";
+    const currentVersionId = await repository.commitVersion(first, {
+      documentId,
+      baseVersionId: initial.currentVersion.id,
+      content,
+    });
+    await repository.saveDraft(first, {
+      documentId,
+      baseVersionId: currentVersionId,
+      expectedRevision: 0,
+      content,
+    });
+    await repository.setLock(first, {
+      documentId,
+      targetType: "block",
+      targetId: content.sections[1]!.blocks[0]!.id,
+      locked: true,
+    });
+    const jobs = new JobRepository(runtimePool);
+    const jobId = await jobs.createFromText(first, {
+      title: "Document deletion fixture job",
+      company: "Example Company",
+      text: "Review generated document deletion",
+    });
+    const jobRevision = (await jobs.get(first, jobId)).revisions[0]!;
+    const requirementSet = await runtimePool.query<{ id: string }>(
+      `INSERT INTO job_requirement_sets
+         (workspace_id,job_posting_revision_id,revision_number,method,status,metadata,created_by_user_id,reviewed_at)
+       VALUES ($1,$2,1,'manual','reviewed','{}',$3,now()) RETURNING id`,
+      [first.workspaceId, jobRevision.id, first.userId],
+    );
+    const matchRun = await runtimePool.query<{ id: string }>(
+      `INSERT INTO requirement_match_runs
+         (workspace_id,requirement_set_id,revision_number,algorithm_version,input_hash,eligible_fact_count,created_by_user_id)
+       VALUES ($1,$2,1,'synthetic@1',$3,0,$4) RETURNING id`,
+      [
+        first.workspaceId,
+        requirementSet.rows[0]!.id,
+        `sha256:${"f".repeat(64)}`,
+        first.userId,
+      ],
+    );
+    const tailoringRun = await runtimePool.query<{ id: string }>(
+      `INSERT INTO tailoring_runs
+         (workspace_id,kind,document_id,base_version_id,job_posting_revision_id,
+          requirement_set_id,match_run_id,status,idempotency_key,manifest,created_by_user_id)
+       VALUES ($1,'resume',$2,$3,$4,$5,$6,'ready',$7,'{}',$8) RETURNING id`,
+      [
+        first.workspaceId,
+        documentId,
+        currentVersionId,
+        jobRevision.id,
+        requirementSet.rows[0]!.id,
+        matchRun.rows[0]!.id,
+        crypto.randomUUID(),
+        first.userId,
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO ats_reports
+         (workspace_id,document_version_id,ruleset_version,document_hash,input_hash,
+          evaluated_weight,overall_score_basis_points,blocker_count)
+       VALUES ($1,$2,'synthetic@1',$3,$4,100,7500,0)`,
+      [
+        first.workspaceId,
+        currentVersionId,
+        (await repository.get(first, documentId)).currentVersion.content_hash,
+        `sha256:${"a".repeat(64)}`,
+      ],
+    );
+    const artifactId = crypto.randomUUID();
+    const storageKey = `${first.workspaceId}/${artifactId}.bin`;
+    await runtimePool.query(
+      `INSERT INTO export_artifacts
+         (id,workspace_id,document_version_id,requested_by_user_id,format,classification,
+          media_type,filename,storage_key,byte_size,content_hash,input_hash,manifest,expires_at)
+       VALUES ($1,$2,$3,$4,'pdf','final','application/pdf','synthetic.pdf',$5,4,$6,$7,'{}',date_add(now(),86400000))`,
+      [
+        artifactId,
+        first.workspaceId,
+        currentVersionId,
+        first.userId,
+        storageKey,
+        `sha256:${"b".repeat(64)}`,
+        `sha256:${"c".repeat(64)}`,
+      ],
+    );
+    const foreignDocumentId = await repository.create(second, {
+      kind: "resume",
+      title: "Foreign generated document",
+    });
+    let stagedKeys: string[] | null = null;
+    let committed = 0;
+    let rolledBack = 0;
+    const stage = async (keys: string[]) => {
+      stagedKeys = keys;
+      return {
+        commit: async () => {
+          committed += 1;
+        },
+        rollback: async () => {
+          rolledBack += 1;
+        },
+      };
+    };
+
+    expect(await repository.dependencyPreview(first, documentId)).toMatchObject(
+      {
+        versions: 2,
+        claims: 1,
+        drafts: 1,
+        locks: 1,
+        tailoringRuns: 1,
+        atsReports: 1,
+        exportArtifacts: 1,
+        artifactBytes: 4,
+        externalReferences: 0,
+      },
+    );
+    await expect(
+      repository.deleteManyWithArtifacts(
+        first,
+        [documentId, foreignDocumentId],
+        stage,
+      ),
+    ).rejects.toBeInstanceOf(DocumentNotFoundError);
+    expect(stagedKeys).toBeNull();
+    await expect(repository.get(first, documentId)).resolves.toBeDefined();
+
+    await repository.deleteManyWithArtifacts(first, [documentId], stage);
+    expect(stagedKeys).toEqual([storageKey]);
+    expect(committed).toBe(1);
+    expect(rolledBack).toBe(0);
+    await expect(repository.get(first, documentId)).rejects.toBeInstanceOf(
+      DocumentNotFoundError,
+    );
+    expect(
+      await runtimePool.query(
+        "SELECT id FROM export_artifacts WHERE id=$1 UNION ALL SELECT id FROM ats_reports WHERE document_version_id=$2",
+        [artifactId, currentVersionId],
+      ),
+    ).toMatchObject({ rowCount: 0 });
+    expect(
+      await runtimePool.query("SELECT id FROM tailoring_runs WHERE id=$1", [
+        tailoringRun.rows[0]!.id,
+      ]),
+    ).toMatchObject({ rowCount: 0 });
+  });
+
+  it("blocks deletion instead of severing cross-document claim history", async () => {
+    const sourceDocumentId = await repository.create(first, {
+      kind: "resume",
+      title: "Externally referenced source document",
+    });
+    const dependentDocumentId = await repository.create(first, {
+      kind: "resume",
+      title: "External claim dependent document",
+    });
+    const source = await repository.get(first, sourceDocumentId);
+    const dependent = await repository.get(first, dependentDocumentId);
+    const sourceClaim = await runtimePool.query<{ id: string }>(
+      `INSERT INTO generated_claims
+         (workspace_id,version_id,stable_block_id,start_offset,end_offset,text_hash,status)
+       VALUES ($1,$2,'source-block',0,1,$3,'unverified') RETURNING id`,
+      [first.workspaceId, source.currentVersion.id, `sha256:${"d".repeat(64)}`],
+    );
+    await runtimePool.query(
+      `INSERT INTO generated_claims
+         (workspace_id,version_id,stable_block_id,start_offset,end_offset,text_hash,status,source_claim_id)
+       VALUES ($1,$2,'dependent-block',0,1,$3,'unverified',$4)`,
+      [
+        first.workspaceId,
+        dependent.currentVersion.id,
+        `sha256:${"e".repeat(64)}`,
+        sourceClaim.rows[0]!.id,
+      ],
+    );
+
+    expect(
+      await repository.dependencyPreview(first, sourceDocumentId),
+    ).toMatchObject({ externalReferences: 1 });
+    let staged = false;
+    await expect(
+      repository.deleteManyWithArtifacts(
+        first,
+        [sourceDocumentId],
+        async () => {
+          staged = true;
+          return {
+            commit: async () => undefined,
+            rollback: async () => undefined,
+          };
+        },
+      ),
+    ).rejects.toBeInstanceOf(DocumentDependencyError);
+    expect(staged).toBe(false);
+    await expect(
+      repository.get(first, sourceDocumentId),
+    ).resolves.toBeDefined();
   });
 });

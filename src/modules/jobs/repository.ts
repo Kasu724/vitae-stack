@@ -24,6 +24,25 @@ export class JobConflictError extends Error {
   }
 }
 
+export class JobDocumentDependencyError extends Error {
+  public constructor() {
+    super(
+      "This job supports accepted document history and cannot be permanently deleted from this screen.",
+    );
+    this.name = "JobDocumentDependencyError";
+  }
+}
+
+export interface JobDependencyPreview {
+  revisions: number;
+  requirementSets: number;
+  matchingRuns: number;
+  tailoringRuns: number;
+  acceptedDocumentVersions: number;
+  atsReports: number;
+  urlImports: number;
+}
+
 export interface JobPostingRecord {
   id: string;
   title: string;
@@ -356,6 +375,171 @@ export class JobRepository {
         [principal.workspaceId, ids, archived ? "archived" : "active"],
       );
       if (result.rowCount !== ids.length) throw new JobNotFoundError();
+    });
+  }
+
+  public async dependencyPreview(
+    principal: WorkspacePrincipal,
+    id: string,
+  ): Promise<JobDependencyPreview> {
+    return this.loadDependencyPreview(this.pool, principal, id);
+  }
+
+  private async loadDependencyPreview(
+    queryable: Pick<Pool | PoolClient, "query">,
+    principal: WorkspacePrincipal,
+    id: string,
+  ): Promise<JobDependencyPreview> {
+    const result = await queryable.query<{
+      revisions: number;
+      requirement_sets: number;
+      matching_runs: number;
+      tailoring_runs: number;
+      accepted_document_versions: number;
+      ats_reports: number;
+      url_imports: number;
+    }>(
+      `SELECT
+         (SELECT count(*)::int FROM job_posting_revisions r
+           WHERE r.job_posting_id=$1 AND r.workspace_id=$2) revisions,
+         (SELECT count(*)::int FROM job_requirement_sets s
+           JOIN job_posting_revisions r ON r.id=s.job_posting_revision_id AND r.workspace_id=s.workspace_id
+          WHERE r.job_posting_id=$1 AND r.workspace_id=$2) requirement_sets,
+         (SELECT count(*)::int FROM requirement_match_runs m
+           JOIN job_requirement_sets s ON s.id=m.requirement_set_id AND s.workspace_id=m.workspace_id
+           JOIN job_posting_revisions r ON r.id=s.job_posting_revision_id AND r.workspace_id=s.workspace_id
+          WHERE r.job_posting_id=$1 AND r.workspace_id=$2) matching_runs,
+         (SELECT count(*)::int FROM tailoring_runs t
+           JOIN job_posting_revisions r ON r.id=t.job_posting_revision_id AND r.workspace_id=t.workspace_id
+          WHERE r.job_posting_id=$1 AND r.workspace_id=$2) tailoring_runs,
+         (SELECT count(DISTINCT suggestion.accepted_version_id)::int
+            FROM tailoring_suggestions suggestion
+            JOIN tailoring_runs t ON t.id=suggestion.run_id AND t.workspace_id=suggestion.workspace_id
+            JOIN job_posting_revisions r ON r.id=t.job_posting_revision_id AND r.workspace_id=t.workspace_id
+           WHERE r.job_posting_id=$1 AND r.workspace_id=$2 AND suggestion.accepted_version_id IS NOT NULL) accepted_document_versions,
+         (SELECT count(*)::int FROM ats_reports report
+           JOIN job_posting_revisions r ON r.id=report.job_posting_revision_id AND r.workspace_id=report.workspace_id
+          WHERE r.job_posting_id=$1 AND r.workspace_id=$2) ats_reports,
+         (SELECT count(*)::int FROM job_url_imports url_import
+           WHERE url_import.job_posting_id=$1 AND url_import.workspace_id=$2) url_imports
+       WHERE EXISTS (SELECT 1 FROM job_postings WHERE id=$1 AND workspace_id=$2)`,
+      [id, principal.workspaceId],
+    );
+    const row = result.rows[0];
+    if (!row) throw new JobNotFoundError();
+    return {
+      revisions: row.revisions,
+      requirementSets: row.requirement_sets,
+      matchingRuns: row.matching_runs,
+      tailoringRuns: row.tailoring_runs,
+      acceptedDocumentVersions: row.accepted_document_versions,
+      atsReports: row.ats_reports,
+      urlImports: row.url_imports,
+    };
+  }
+
+  public async deleteMany(
+    principal: WorkspacePrincipal,
+    ids: string[],
+  ): Promise<void> {
+    await transaction(this.pool, async (client) => {
+      const locked = await client.query(
+        `SELECT id FROM job_postings WHERE workspace_id=$1 AND id=ANY($2::uuid[]) FOR UPDATE`,
+        [principal.workspaceId, ids],
+      );
+      if (ids.length === 0 || locked.rowCount !== ids.length)
+        throw new JobNotFoundError();
+
+      const previews = await Promise.all(
+        ids.map((id) => this.loadDependencyPreview(client, principal, id)),
+      );
+      if (previews.some((preview) => preview.acceptedDocumentVersions > 0))
+        throw new JobDocumentDependencyError();
+
+      // Aggregate deletion is the narrow exception to immutable analysis and
+      // revision-history guards. The complete selection and its blockers are
+      // rechecked while locked in this transaction before authorization.
+      client.authorizeWorkspaceDeletion();
+
+      for (const [index, id] of ids.entries()) {
+        const preview = previews[index]!;
+        const parameters = [id, principal.workspaceId];
+        await client.query(
+          `DELETE FROM job_url_imports WHERE job_posting_id=$1 AND workspace_id=$2`,
+          parameters,
+        );
+        await client.query(
+          `DELETE FROM ats_reports WHERE workspace_id=$2 AND EXISTS (
+             SELECT 1 FROM job_posting_revisions r
+              WHERE r.id=ats_reports.job_posting_revision_id
+                AND r.workspace_id=ats_reports.workspace_id
+                AND r.job_posting_id=$1
+           )`,
+          parameters,
+        );
+        await client.query(
+          `DELETE FROM tailoring_runs WHERE workspace_id=$2 AND EXISTS (
+             SELECT 1 FROM job_posting_revisions r
+              WHERE r.id=tailoring_runs.job_posting_revision_id
+                AND r.workspace_id=tailoring_runs.workspace_id
+                AND r.job_posting_id=$1
+           )`,
+          parameters,
+        );
+        await client.query(
+          `DELETE FROM requirement_match_runs WHERE workspace_id=$2 AND EXISTS (
+             SELECT 1 FROM job_requirement_sets s
+             JOIN job_posting_revisions r ON r.id=s.job_posting_revision_id AND r.workspace_id=s.workspace_id
+              WHERE s.id=requirement_match_runs.requirement_set_id
+                AND s.workspace_id=requirement_match_runs.workspace_id
+                AND r.job_posting_id=$1
+           )`,
+          parameters,
+        );
+
+        let removed = 1;
+        while (removed > 0) {
+          const result = await client.query(
+            `DELETE FROM job_requirement_sets
+              WHERE workspace_id=$2
+                AND EXISTS (SELECT 1 FROM job_posting_revisions r
+                             WHERE r.id=job_requirement_sets.job_posting_revision_id
+                               AND r.workspace_id=job_requirement_sets.workspace_id
+                               AND r.job_posting_id=$1)
+                AND NOT EXISTS (SELECT 1 FROM job_requirement_sets child
+                                WHERE child.parent_set_id=job_requirement_sets.id
+                                  AND child.workspace_id=job_requirement_sets.workspace_id)`,
+            parameters,
+          );
+          removed = result.rowCount ?? 0;
+        }
+
+        removed = 1;
+        while (removed > 0) {
+          const result = await client.query(
+            `DELETE FROM job_posting_revisions
+              WHERE job_posting_id=$1 AND workspace_id=$2
+                AND NOT EXISTS (SELECT 1 FROM job_posting_revisions child
+                                WHERE child.parent_revision_id=job_posting_revisions.id
+                                  AND child.workspace_id=job_posting_revisions.workspace_id)`,
+            parameters,
+          );
+          removed = result.rowCount ?? 0;
+        }
+        await client.query(
+          `DELETE FROM job_postings WHERE id=$1 AND workspace_id=$2`,
+          parameters,
+        );
+        await audit(client, principal, "job.delete", id, {
+          acceptedDocumentVersions: preview.acceptedDocumentVersions,
+          atsReports: preview.atsReports,
+          matchingRuns: preview.matchingRuns,
+          requirementSets: preview.requirementSets,
+          revisions: preview.revisions,
+          tailoringRuns: preview.tailoringRuns,
+          urlImports: preview.urlImports,
+        });
+      }
     });
   }
 }
