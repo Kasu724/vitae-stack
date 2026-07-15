@@ -140,7 +140,7 @@ The audit used static trust-boundary tracing, executable negative tests, direct 
 #### AUD-011 - Extraction review could render an unbounded source/proposal DOM
 
 - **Status:** Fixed
-- **Remediation:** Source text renders once in a bounded scrollable `<pre>`; proposals are paginated 25 per page; bulk approval is page-bounded; hostile long strings wrap.
+- **Remediation:** Source text renders once in a bounded scrollable `<pre>`; proposals are paginated 25 per page; confirmed bulk approval/rejection is page-bounded; hostile long strings wrap.
 - **Verification:** Three pages containing 60 proposals, prompt-injection strings, script/image payload text, and a 4,999-character token passed 12 hostile viewport checks with no overflow or execution.
 
 #### AUD-012 - Career form validation failures escaped as server errors

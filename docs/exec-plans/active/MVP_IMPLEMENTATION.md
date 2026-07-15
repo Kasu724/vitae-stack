@@ -106,9 +106,9 @@
 
 ## M07 — Extraction review and approval
 
-**Implementation status:** Complete locally. The baseline schema, recommended closed-schema AI-01 exact-span extraction, provider-independent `deterministic-sections@2` fallback, canonical section/item proposal grouping, grouped review/merge, immutable evidence creation, redacted task/audit metadata, destination disclosure, and review UI are implemented. Focused unit and SQLite integration gates pass in the current change; deterministic extraction keeps review usable without a provider and full browser/release revalidation remains M21 scope.
+**Implementation status:** Complete locally. The baseline schema, recommended closed-schema AI-01 exact-span extraction, provider-independent `deterministic-sections@2` fallback, canonical section/item proposal grouping, checkbox-selected approve/reject confirmation, grouped review/merge, immutable evidence creation, redacted task/audit metadata, destination disclosure, and review UI are implemented. Focused unit, SQLite integration, and extraction-review browser gates pass in the current change; deterministic extraction keeps review usable without a provider and full browser/release revalidation remains M21 scope.
 
-- **Objective:** Make AI-01 the recommended path for section → item → fact proposal ingestion while retaining a provider-independent section/item heuristic and side-by-side approve/edit/reject/merge workflow.
+- **Objective:** Make AI-01 the recommended path for section → item → fact proposal ingestion while retaining a provider-independent section/item heuristic and a checkbox-selected approve/reject, edit, and duplicate-merge workflow.
 - **User-visible outcome:** imported facts enter the bank only after granular review.
 - **Scope:** deterministic/basic extraction fallback, model task hook, source locators, bulk confirmation, conflicts/duplicates.
 - **Non-scope:** automatic approval or tailoring.
