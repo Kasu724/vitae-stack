@@ -362,11 +362,14 @@ export class TailoringRepository {
         id: string;
         display_text: string;
         value: EvidenceValue;
+        fact_type: string;
         career_entry_id: string;
+        entry_type: string;
+        entry_title: string;
         requirement_id: string;
         strength: "direct" | "combined";
       }>(
-        `SELECT f.id,f.display_text,f.value,f.career_entry_id,m.requirement_id,m.strength
+        `SELECT f.id,f.display_text,f.value,f.type fact_type,f.career_entry_id,e.type entry_type,e.title entry_title,m.requirement_id,m.strength
          FROM requirement_evidence_matches m
          JOIN evidence_facts f ON f.id=m.evidence_fact_id AND f.workspace_id=m.workspace_id AND f.status='approved'
          JOIN career_entries e ON e.id=f.career_entry_id AND e.workspace_id=f.workspace_id AND e.status='active'
@@ -375,15 +378,16 @@ export class TailoringRepository {
          ORDER BY f.id,m.requirement_id`,
         [jobRow.match_run_id, principal.workspaceId, selectedEntries],
       );
-      const evidenceById = new Map<
-        string,
-        { id: string; displayText: string; value: EvidenceValue }
-      >();
+      const evidenceById = new Map<string, TailoringEvidenceInput>();
       for (const fact of facts.rows)
         evidenceById.set(fact.id, {
           id: fact.id,
           displayText: fact.display_text,
           value: fact.value,
+          factType: fact.fact_type,
+          careerEntryId: fact.career_entry_id,
+          careerEntryType: fact.entry_type,
+          careerEntryTitle: fact.entry_title,
         });
       if (!evidenceById.size) throw new TailoringInputConflictError();
       const locks = await client.query<{

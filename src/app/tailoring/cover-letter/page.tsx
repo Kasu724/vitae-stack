@@ -91,7 +91,9 @@ export default async function CoverLetterTailoringSetupPage({
       <p className="mt-2 max-w-3xl text-[var(--muted)]">
         This creates reviewable evidence-bearing body-paragraph suggestions
         against the pinned current version. It does not change the letter or
-        invent company details, contacts, salutations, or role facts.
+        invent company details, contacts, salutations, or role facts. A tested
+        AI-07/AI-08 model is required; cover-letter generation has no
+        deterministic fallback.
       </p>
       {query.error === "invalid-setup" ? (
         <p

@@ -251,6 +251,10 @@ export interface TailoringEvidenceInput {
   id: string;
   displayText: string;
   value: unknown;
+  factType?: string;
+  careerEntryId?: string;
+  careerEntryType?: string;
+  careerEntryTitle?: string;
 }
 
 export interface EvidenceRequirementSupport {

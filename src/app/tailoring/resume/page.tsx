@@ -88,7 +88,9 @@ export default async function ResumeTailoringSetupPage({
       <p className="mt-2 max-w-3xl text-[var(--muted)]">
         This creates reviewable suggestions against the pinned current version.
         It does not change the resume. Only explicitly included strong evidence
-        matches from selected entries are sent to the configured provider.
+        matches from selected entries are sent to the configured provider. A
+        tested AI-05/AI-06 model is required; resume generation has no
+        deterministic fallback.
       </p>
       {query.error === "invalid-setup" ? (
         <p
@@ -179,8 +181,9 @@ export default async function ResumeTailoringSetupPage({
               texts.
             </li>
             <li>
-              Reviewed requirements and approved fact display text/value only
-              from checked entries and explicitly included strong matches.
+              Reviewed requirements and approved bullets or detailed context,
+              grouped by checked career item and restricted to explicitly
+              included strong matches (up to 40,000 characters total).
             </li>
             <li>Selected tone, target length, and opaque local identifiers.</li>
           </ul>

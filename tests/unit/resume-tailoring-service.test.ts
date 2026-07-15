@@ -56,6 +56,10 @@ describe("resume tailoring service", () => {
             id: evidenceId,
             displayText: groundedText,
             value: { metric: "20%" },
+            factType: "metric",
+            careerEntryId: "11000000-0000-4000-8000-000000000001",
+            careerEntryType: "project",
+            careerEntryTitle: "Synthetic onboarding project",
           },
         ],
         support: [
@@ -84,6 +88,10 @@ describe("resume tailoring service", () => {
         expect(task.system).not.toContain(jobText);
         if (task.taskId === "AI-05") {
           expect(task.user).toContain(jobText);
+          expect(task.user).toContain('"section":"Projects"');
+          expect(task.user).toContain(
+            '"itemTitle":"Synthetic onboarding project"',
+          );
           const value = {
             schemaVersion: "ai-05.v1" as const,
             includedSectionIds: [sectionId],
