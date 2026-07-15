@@ -13,6 +13,21 @@ test("foundation shell and health endpoint are available", async ({
     page.getByRole("heading", { level: 1, name: "Vitae Stack" }),
   ).toBeVisible();
 
+  const entranceMotion = await page
+    .locator("#main-content > *")
+    .first()
+    .evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        name: style.animationName,
+        duration: style.animationDuration,
+      };
+    });
+  expect(entranceMotion).toEqual({
+    name: "motion-reveal",
+    duration: "0.18s",
+  });
+
   await page.goto("/dashboard");
   const applicationNavigation = page.getByRole("complementary", {
     name: "Application navigation",
@@ -32,4 +47,15 @@ test("foundation shell and health endpoint are available", async ({
     status: "ok",
     service: "vitae-stack",
   });
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  const reducedMotionDurationMs = await page
+    .locator("#main-content > *")
+    .first()
+    .evaluate(
+      (element) =>
+        Number.parseFloat(getComputedStyle(element).animationDuration) * 1_000,
+    );
+  expect(reducedMotionDurationMs).toBeLessThanOrEqual(0.01);
 });

@@ -28,6 +28,11 @@
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
+  --motion-duration-fast: 120ms;
+  --motion-duration-base: 160ms;
+  --motion-duration-enter: 180ms;
+  --motion-ease-standard: cubic-bezier(0.2, 0.75, 0.25, 1);
+  --motion-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -83,6 +88,7 @@ a {
   color: var(--action);
   text-underline-offset: 0.18em;
   text-decoration-thickness: 0.08em;
+  transition: color var(--motion-duration-fast) ease;
 }
 
 a:hover {
@@ -146,6 +152,8 @@ a:hover {
   background: var(--surface);
   overflow-y: auto;
   padding: 1.75rem 1.1rem;
+  animation: motion-sidebar-enter var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
 }
 
 .sidebar-brand-row {
@@ -177,6 +185,9 @@ a:hover {
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.08em;
+  transition:
+    transform var(--motion-duration-base) var(--motion-ease-emphasized),
+    border-radius var(--motion-duration-base) ease;
 }
 
 .sidebar-local-panel {
@@ -211,6 +222,8 @@ a:hover {
   border-radius: 999px;
   background: var(--success);
   box-shadow: 0 0 0 2px var(--success-soft);
+  animation: motion-status-enter var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
 }
 
 .app-navigation {
@@ -228,6 +241,10 @@ a:hover {
   font-size: 0.9rem;
   font-weight: 550;
   text-decoration: none;
+  transition:
+    color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    transform var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .app-nav-link:hover {
@@ -239,6 +256,32 @@ a:hover {
   background: var(--text-strong);
   color: var(--surface);
   font-weight: 650;
+}
+
+.app-navigation .app-nav-link,
+.mobile-navigation .app-nav-link {
+  animation: motion-nav-enter var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
+}
+
+.app-navigation .app-nav-link:nth-of-type(2),
+.mobile-navigation .app-nav-link:nth-of-type(2) {
+  animation-delay: 20ms;
+}
+
+.app-navigation .app-nav-link:nth-of-type(3),
+.mobile-navigation .app-nav-link:nth-of-type(3) {
+  animation-delay: 40ms;
+}
+
+.app-navigation .app-nav-link:nth-of-type(4),
+.mobile-navigation .app-nav-link:nth-of-type(4) {
+  animation-delay: 60ms;
+}
+
+.app-navigation .app-nav-link:nth-of-type(n + 5),
+.mobile-navigation .app-nav-link:nth-of-type(n + 5) {
+  animation-delay: 80ms;
 }
 
 .app-nav-label {
@@ -265,6 +308,8 @@ a:hover {
   border-bottom: 1px solid var(--border-subtle);
   background: var(--surface);
   padding: 0.75rem 1rem;
+  animation: motion-header-enter var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
 }
 
 .mobile-navigation-wrap {
@@ -297,6 +342,27 @@ a:hover {
   padding-bottom: clamp(3.5rem, 6vw, 6rem);
 }
 
+#main-content > * {
+  animation: motion-reveal var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
+}
+
+#main-content > :nth-child(2) {
+  animation-delay: 24ms;
+}
+
+#main-content > :nth-child(3) {
+  animation-delay: 48ms;
+}
+
+#main-content > :nth-child(4) {
+  animation-delay: 72ms;
+}
+
+#main-content > :nth-child(n + 5) {
+  animation-delay: 96ms;
+}
+
 main > nav[aria-label="Breadcrumb"] {
   color: var(--muted);
   font-size: 0.84rem;
@@ -317,9 +383,10 @@ main > nav[aria-label="Breadcrumb"] a {
   padding: 0.625rem 0.75rem;
   box-shadow: none;
   transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    background-color 140ms ease;
+    border-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-base) ease,
+    background-color var(--motion-duration-fast) ease,
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .field:hover:not(:disabled) {
@@ -329,6 +396,7 @@ main > nav[aria-label="Breadcrumb"] a {
 .field:focus {
   border-color: var(--focus);
   box-shadow: 0 0 0 3px var(--action-soft);
+  transform: translateY(-1px);
 }
 
 .field::placeholder {
@@ -352,11 +420,11 @@ main > nav[aria-label="Breadcrumb"] a {
   text-decoration: none;
   cursor: pointer;
   transition:
-    background-color 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    transform 140ms ease;
+    background-color var(--motion-duration-fast) ease,
+    border-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-base) ease,
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
 .button {
@@ -401,6 +469,32 @@ main > nav[aria-label="Breadcrumb"] a {
   opacity: 0.55;
 }
 
+button {
+  transition:
+    background-color var(--motion-duration-fast) ease,
+    border-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-base) ease,
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) ease;
+}
+
+:where(button, .button, .secondary-button, .danger-button):active:not(
+    :disabled
+  ) {
+  transform: translateY(1px) scale(0.985);
+  transition-duration: 60ms;
+}
+
+:where(input[type="checkbox"], input[type="radio"]) {
+  transition: transform var(--motion-duration-fast)
+    var(--motion-ease-emphasized);
+}
+
+:where(input[type="checkbox"], input[type="radio"]):active:not(:disabled) {
+  transform: scale(0.86);
+}
+
 textarea {
   resize: vertical;
 }
@@ -418,6 +512,11 @@ textarea {
   font-weight: 650;
   line-height: 1.2;
   text-transform: capitalize;
+  transition:
+    color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    border-color var(--motion-duration-fast) ease,
+    transform var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .notice {
@@ -427,6 +526,56 @@ textarea {
   background: var(--surface);
   padding: 1rem 1.1rem;
   box-shadow: none;
+}
+
+.status-tabs a {
+  transition:
+    color var(--motion-duration-fast) ease,
+    border-color var(--motion-duration-base) ease,
+    transform var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+.selection-toolbar,
+.resource-card,
+main
+  :where(section.rounded-xl, fieldset.rounded-xl, li.rounded-xl):not(
+    [role="dialog"]
+  ) {
+  transition:
+    background-color var(--motion-duration-base) ease,
+    border-color var(--motion-duration-base) ease,
+    box-shadow var(--motion-duration-base) ease,
+    transform var(--motion-duration-base) var(--motion-ease-standard);
+}
+
+.resource-card-grid > *,
+main :where(.dashboard-grid, .principles-list, ul.grid) > * {
+  animation: motion-reveal var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
+}
+
+.resource-card-grid > :nth-child(2n),
+main :where(.dashboard-grid, .principles-list, ul.grid) > :nth-child(2n) {
+  animation-delay: 36ms;
+}
+
+.resource-card-grid > :nth-child(3n),
+main :where(.dashboard-grid, .principles-list, ul.grid) > :nth-child(3n) {
+  animation-delay: 72ms;
+}
+
+.icon-button svg {
+  transition: transform var(--motion-duration-base)
+    var(--motion-ease-emphasized);
+}
+
+.motion-backdrop {
+  animation: motion-backdrop-enter var(--motion-duration-base) ease-out both;
+}
+
+.motion-dialog {
+  animation: motion-dialog-enter var(--motion-duration-enter)
+    var(--motion-ease-emphasized) both;
 }
 
 .rounded-xl {
@@ -509,6 +658,9 @@ textarea {
   background: transparent;
   padding: 1.5rem 0 0;
   box-shadow: none;
+  transition:
+    border-color var(--motion-duration-base) ease,
+    transform var(--motion-duration-base) var(--motion-ease-standard);
 }
 
 .dashboard-panel-primary {
@@ -538,10 +690,140 @@ textarea {
 .dashboard-link-list a::after {
   color: var(--muted);
   content: "→";
+  transition: transform var(--motion-duration-base)
+    var(--motion-ease-emphasized);
 }
 
 .dashboard-link-list a:hover {
   color: var(--action);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .app-brand:hover .app-brand-mark {
+    transform: rotate(-3deg) scale(1.04);
+    border-radius: var(--radius-md);
+  }
+
+  .app-nav-link:hover {
+    transform: translateX(2px);
+  }
+
+  .mobile-navigation .app-nav-link:hover {
+    transform: translateY(-1px);
+  }
+
+  :where(.button, .secondary-button, .danger-button):hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .icon-button:hover:not(:disabled) svg {
+    transform: scale(1.08);
+  }
+
+  .resource-card:hover,
+  main
+    :where(section.rounded-xl, fieldset.rounded-xl, li.rounded-xl):not(
+      [role="dialog"]
+    ):hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+
+  .dashboard-panel:hover {
+    transform: translateY(-2px);
+    border-color: var(--text-strong);
+  }
+
+  .dashboard-link-list a:hover::after {
+    transform: translateX(3px);
+  }
+
+  .status-tabs a:hover {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes motion-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motion-header-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-nav-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motion-status-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes motion-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (min-width: 48rem) {
@@ -584,5 +866,8 @@ textarea {
   *::after {
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

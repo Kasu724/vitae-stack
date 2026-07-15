@@ -19,7 +19,10 @@ export function StatusTabs({
   ] as const;
 
   return (
-    <nav aria-label={label} className="flex border-b border-[var(--border)]">
+    <nav
+      aria-label={label}
+      className="status-tabs flex border-b border-[var(--border)]"
+    >
       {tabs.map((tab) => {
         const isCurrent = currentStatus === tab.status;
         return (
