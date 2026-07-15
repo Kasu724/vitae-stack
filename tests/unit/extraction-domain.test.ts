@@ -5,6 +5,7 @@ import {
   aiExtractionOutputSchema,
   aiProposalEvidenceValue,
   deterministicLineCandidates,
+  deterministicStructuredCandidates,
   sourceEntryTitle,
   validateExtractionSourceSpans,
 } from "@/modules/extraction/domain";
@@ -29,6 +30,62 @@ describe("deterministic extraction fallback", () => {
     expect(sourceEntryTitle("synthetic.resume.pdf")).toBe("synthetic.resume");
     expect(sourceEntryTitle(".txt")).toBe("Imported career evidence");
     expect(deterministicLineCandidates("x".repeat(5001))).toEqual([]);
+  });
+
+  it("groups deterministic fallback facts by section and item", () => {
+    const candidates = deterministicStructuredCandidates(
+      [
+        "EXPERIENCE",
+        "Synthetic Labs — Engineer",
+        "- Built a local parser",
+        "",
+        "Example Co — Intern",
+        "- Shipped a safe import flow",
+        "",
+        "PROJECTS",
+        "Private Portfolio",
+        "- Used TypeScript",
+      ].join("\n"),
+      "Imported resume",
+    );
+    expect(
+      candidates.map(({ entryType, entryKey, entryTitle }) => ({
+        entryType,
+        entryKey,
+        entryTitle,
+      })),
+    ).toEqual([
+      {
+        entryType: "work",
+        entryKey: "work_1",
+        entryTitle: "Synthetic Labs — Engineer",
+      },
+      {
+        entryType: "work",
+        entryKey: "work_1",
+        entryTitle: "Synthetic Labs — Engineer",
+      },
+      {
+        entryType: "work",
+        entryKey: "work_2",
+        entryTitle: "Example Co — Intern",
+      },
+      {
+        entryType: "work",
+        entryKey: "work_2",
+        entryTitle: "Example Co — Intern",
+      },
+      {
+        entryType: "project",
+        entryKey: "project_1",
+        entryTitle: "Private Portfolio",
+      },
+      {
+        entryType: "project",
+        entryKey: "project_1",
+        entryTitle: "Private Portfolio",
+      },
+    ]);
   });
 });
 

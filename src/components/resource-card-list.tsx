@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useFormStatus } from "react-dom";
 
 export interface ResourceCardItem {
@@ -10,6 +17,7 @@ export interface ResourceCardItem {
   href: string;
   status: string;
   category?: string | undefined;
+  group?: string | undefined;
   subtitle?: string | undefined;
   metadata?: string[] | undefined;
   warning?: string | undefined;
@@ -130,7 +138,7 @@ function ConfirmationDialog({
   if (!formAction) return null;
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4"
+      className="motion-backdrop fixed inset-0 z-50 grid place-items-center bg-black/55 p-4"
       role="presentation"
       onKeyDown={(event) => {
         if (event.key === "Escape") onClose();
@@ -139,7 +147,7 @@ function ConfirmationDialog({
       <section
         aria-labelledby={headingId}
         aria-modal="true"
-        className="max-h-[min(42rem,90vh)] w-full max-w-xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6 shadow-[var(--shadow-raised)]"
+        className="motion-dialog max-h-[min(42rem,90vh)] w-full max-w-xl overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-raised)] p-6 shadow-[var(--shadow-raised)]"
         role="dialog"
       >
         <h2 id={headingId} className="text-2xl font-semibold">
@@ -236,7 +244,7 @@ export function ResourceCardList({
 
   return (
     <>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
+      <div className="selection-toolbar mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--surface)] p-3">
         <label className="flex min-h-11 items-center gap-3 font-medium">
           <input
             ref={selectAllRef}
@@ -291,85 +299,96 @@ export function ResourceCardList({
           ) : null}
         </div>
       </div>
-      <ul className="mt-4 grid gap-4 md:grid-cols-2">
-        {items.map((item) => {
+      <ul className="resource-card-grid mt-4 grid gap-4 md:grid-cols-2">
+        {items.map((item, index) => {
           const Heading = headingLevel === 3 ? "h3" : "h2";
           const checked = selected.has(item.id);
           return (
-            <li
-              key={item.id}
-              className={`rounded-xl border bg-[var(--surface)] p-5 ${
-                checked
-                  ? "border-[var(--text-strong)] ring-2 ring-[var(--action-soft)]"
-                  : "border-[var(--border)]"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <label className="flex min-h-10 min-w-0 items-center gap-3">
-                  <input
-                    type="checkbox"
-                    className="size-5 shrink-0 accent-[var(--action)]"
-                    checked={checked}
-                    onChange={(event) => {
-                      const next = new Set(selected);
-                      if (event.target.checked) next.add(item.id);
-                      else next.delete(item.id);
-                      setSelected(next);
-                    }}
-                  />
-                  <span className="sr-only">Select {item.title}</span>
-                  <span className="status-label">{item.status}</span>
-                </label>
-                <div className="flex shrink-0 items-center gap-1">
-                  {archiveAction ? (
-                    <button
-                      className="grid size-10 place-items-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--surface-subtle)]"
-                      type="button"
-                      title={`${statusActionLabel} ${item.title}`}
-                      aria-label={`${statusActionLabel} ${item.title}`}
-                      onClick={() => openConfirmation(statusAction, [item.id])}
-                    >
-                      <ActionIcon action={statusAction} />
-                    </button>
-                  ) : null}
-                  {deleteAction ? (
-                    <button
-                      className="grid size-10 place-items-center rounded-md border border-[var(--danger)] bg-[var(--surface)] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
-                      type="button"
-                      title={`Delete ${item.title}`}
-                      aria-label={`Delete ${item.title}`}
-                      onClick={() => openConfirmation("delete", [item.id])}
-                    >
-                      <TrashIcon />
-                    </button>
-                  ) : null}
+            <Fragment key={item.id}>
+              {item.group && item.group !== items[index - 1]?.group ? (
+                <li className="list-none md:col-span-2">
+                  <h2 className="text-2xl font-semibold">{item.group}</h2>
+                </li>
+              ) : null}
+              <li
+                className={`resource-card rounded-xl border bg-[var(--surface)] p-5 ${
+                  checked
+                    ? "border-[var(--text-strong)] ring-2 ring-[var(--action-soft)]"
+                    : "border-[var(--border)]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <label className="flex min-h-10 min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      className="size-5 shrink-0 accent-[var(--action)]"
+                      checked={checked}
+                      onChange={(event) => {
+                        const next = new Set(selected);
+                        if (event.target.checked) next.add(item.id);
+                        else next.delete(item.id);
+                        setSelected(next);
+                      }}
+                    />
+                    <span className="sr-only">Select {item.title}</span>
+                    <span className="status-label">{item.status}</span>
+                  </label>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {archiveAction ? (
+                      <button
+                        className="icon-button grid size-10 place-items-center rounded-md border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--surface-subtle)]"
+                        type="button"
+                        title={`${statusActionLabel} ${item.title}`}
+                        aria-label={`${statusActionLabel} ${item.title}`}
+                        onClick={() =>
+                          openConfirmation(statusAction, [item.id])
+                        }
+                      >
+                        <ActionIcon action={statusAction} />
+                      </button>
+                    ) : null}
+                    {deleteAction ? (
+                      <button
+                        className="icon-button grid size-10 place-items-center rounded-md border border-[var(--danger)] bg-[var(--surface)] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+                        type="button"
+                        title={`Delete ${item.title}`}
+                        aria-label={`Delete ${item.title}`}
+                        onClick={() => openConfirmation("delete", [item.id])}
+                      >
+                        <TrashIcon />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-              {item.category ? (
-                <p className="mt-2 text-sm capitalize text-[var(--muted)]">
-                  {item.category}
-                </p>
-              ) : null}
-              <Heading className="mt-2 text-xl font-semibold">
-                <Link href={item.href}>{item.title}</Link>
-              </Heading>
-              {item.subtitle ? (
-                <p className="mt-1 text-[var(--muted)]">{item.subtitle}</p>
-              ) : null}
-              {item.warning ? (
-                <p className="mt-3 font-semibold">{item.warning}</p>
-              ) : null}
-              {item.metadata?.map((metadata) => (
-                <p key={metadata} className="mt-2 text-sm text-[var(--muted)]">
-                  {metadata}
-                </p>
-              ))}
-              {item.tags?.length ? (
-                <p className="mt-2 text-sm text-[var(--muted)]">
-                  Tags: {item.tags.join(", ")}
-                </p>
-              ) : null}
-            </li>
+                {item.category ? (
+                  <p className="mt-2 text-sm capitalize text-[var(--muted)]">
+                    {item.category}
+                  </p>
+                ) : null}
+                <Heading className="mt-2 text-xl font-semibold">
+                  <Link href={item.href}>{item.title}</Link>
+                </Heading>
+                {item.subtitle ? (
+                  <p className="mt-1 text-[var(--muted)]">{item.subtitle}</p>
+                ) : null}
+                {item.warning ? (
+                  <p className="mt-3 font-semibold">{item.warning}</p>
+                ) : null}
+                {item.metadata?.map((metadata) => (
+                  <p
+                    key={metadata}
+                    className="mt-2 text-sm text-[var(--muted)]"
+                  >
+                    {metadata}
+                  </p>
+                ))}
+                {item.tags?.length ? (
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    Tags: {item.tags.join(", ")}
+                  </p>
+                ) : null}
+              </li>
+            </Fragment>
           );
         })}
       </ul>

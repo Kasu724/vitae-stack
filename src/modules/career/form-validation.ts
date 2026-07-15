@@ -15,6 +15,11 @@ export interface CareerEntryFormFields {
   endDate: string;
   isCurrent: boolean;
   tags: string;
+  major: string;
+  minor: string;
+  relevantCourses: string;
+  awards: string;
+  technologies: string;
 }
 
 export interface FactFormFields {
@@ -75,21 +80,48 @@ export function parseCareerEntryForm(
     endDate: rawText(form, "endDate"),
     isCurrent: form.get("isCurrent") === "on",
     tags: rawText(form, "tags"),
+    major: rawText(form, "major"),
+    minor: rawText(form, "minor"),
+    relevantCourses: rawText(form, "relevantCourses"),
+    awards: rawText(form, "awards"),
+    technologies: rawText(form, "technologies"),
   };
   const parsed = careerEntryInputSchema.safeParse({
     ...fields,
     tags: parseTags(fields.tags),
+    attributes: {
+      major: fields.major,
+      minor: fields.minor,
+      relevantCourses: parseLines(fields.relevantCourses),
+      awards: parseLines(fields.awards),
+      technologies: parseCommaList(fields.technologies),
+    },
   });
   const errors: FormErrors<CareerEntryFormFields> = {};
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
-      const field = issue.path[0];
+      const field =
+        issue.path[0] === "attributes" ? issue.path[1] : issue.path[0];
       if (typeof field === "string" && field in fields)
         addError(errors, field as keyof CareerEntryFormFields, issue.message);
     }
     return { fields, errors };
   }
   return { fields, value: parsed.data, errors };
+}
+
+function parseLines(value: string): string[] {
+  return value
+    .split(/\r?\n/gu)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function parseCommaList(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export function parseFactForm(

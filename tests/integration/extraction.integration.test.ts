@@ -254,12 +254,12 @@ describe("extraction review and approval", () => {
       [
         expect.objectContaining({
           label: "Line 1",
-          section: "Line 1",
+          section: "Line 1 · Additional information",
           sourceDocumentId: sourceId,
         }),
         expect.objectContaining({
           label: "Line 3",
-          section: "Line 3",
+          section: "Line 3 · Additional information",
           sourceDocumentId: sourceId,
         }),
       ],
@@ -267,6 +267,57 @@ describe("extraction review and approval", () => {
     expect(await career.listEligibleFacts(first)).toEqual([]);
     await expect(repository.getBatch(second, batchId)).rejects.toBeInstanceOf(
       ExtractionNotFoundError,
+    );
+  });
+
+  it("keeps deterministic section items separate through approval", async () => {
+    const principal = await createPrincipal("deterministic-grouping");
+    const sourceId = await readySource(
+      principal,
+      "grouped-resume",
+      [
+        "EXPERIENCE",
+        "Synthetic Labs — Engineer",
+        "- Built a private parser",
+        "",
+        "Example Co — Intern",
+        "- Shipped a local import flow",
+        "",
+        "PROJECTS",
+        "Private Portfolio",
+        "- Used TypeScript",
+      ].join("\n"),
+    );
+    const batchId = await repository.createDeterministicBatch(
+      principal,
+      sourceId,
+    );
+    const review = await repository.getBatch(principal, batchId);
+    expect(
+      new Set(review.proposals.map((item) => item.proposed_entry_key)),
+    ).toEqual(new Set(["work_1", "work_2", "project_1"]));
+    await repository.bulkApprove(
+      principal,
+      review.proposals.map((proposal) => proposal.id),
+      review.proposals.length,
+    );
+    const entries = await career.listEntries(principal);
+    expect(
+      entries.map(({ type, title, approved_fact_count }) => ({
+        type,
+        title,
+        approved_fact_count,
+      })),
+    ).toEqual(
+      expect.arrayContaining([
+        {
+          type: "work",
+          title: "Synthetic Labs — Engineer",
+          approved_fact_count: 2,
+        },
+        { type: "work", title: "Example Co — Intern", approved_fact_count: 2 },
+        { type: "project", title: "Private Portfolio", approved_fact_count: 2 },
+      ]),
     );
   });
 

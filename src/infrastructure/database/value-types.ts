@@ -39,7 +39,8 @@ export interface JobRequirementAnalysisMetadata {
 
 export interface ExtractionAnalysisMetadata {
   schemaVersion: 1;
-  taskVersion: "deterministic-lines@1" | "ai-01.v1";
+  taskVersion:
+    "deterministic-lines@1" | "deterministic-sections@2" | "ai-01.v1";
   warnings: string[];
   inputHash: string;
   outputHash?: string;

@@ -7,6 +7,7 @@ import {
   factProposalInputSchema,
   normalizePartialDate,
   type CareerEntryInput,
+  type CareerEntryAttributes,
   type FactProposalInput,
 } from "./domain";
 
@@ -56,6 +57,7 @@ export interface CareerEntryRecord {
   end_date_precision: "day" | "month" | "year" | null;
   is_current: boolean;
   tags: string[];
+  attributes: CareerEntryAttributes;
   status: "active" | "archived";
   revision: number;
   approved_fact_count: number;
@@ -156,7 +158,7 @@ export class CareerRepository {
     const result = await this.pool.query<CareerEntryRecord>(
       `SELECT e.id, e.type, e.title, e.organization, e.location, e.description,
                e.start_date::text, e.start_date_precision, e.end_date::text,
-               e.end_date_precision, e.is_current, e.tags, e.status, e.revision,
+               e.end_date_precision, e.is_current, e.tags, e.attributes, e.status, e.revision,
                (SELECT count(*)::int FROM evidence_facts f
                 WHERE f.career_entry_id=e.id AND f.workspace_id=e.workspace_id
                   AND f.status='approved') AS approved_fact_count,
@@ -229,8 +231,8 @@ export class CareerRepository {
       const result = await client.query<{ id: string }>(
         `INSERT INTO career_entries
            (workspace_id, career_profile_id, type, title, organization, location, description,
-            start_date, start_date_precision, end_date, end_date_precision, is_current, tags)
-         SELECT $1, id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+            start_date, start_date_precision, end_date, end_date_precision, is_current, tags, attributes)
+         SELECT $1, id, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb
          FROM career_profiles WHERE workspace_id = $1
          RETURNING id`,
         [
@@ -246,6 +248,7 @@ export class CareerRepository {
           end?.precision ?? null,
           input.isCurrent,
           input.tags,
+          JSON.stringify(input.attributes),
         ],
       );
       const id = result.rows[0]?.id;
@@ -273,7 +276,7 @@ export class CareerRepository {
     const entry = await this.pool.query<CareerEntryRecord>(
       `SELECT e.id, e.type, e.title, e.organization, e.location, e.description,
               e.start_date::text, e.start_date_precision, e.end_date::text,
-              e.end_date_precision, e.is_current, e.tags, e.status, e.revision,
+              e.end_date_precision, e.is_current, e.tags, e.attributes, e.status, e.revision,
               (SELECT count(*)::int FROM evidence_facts f WHERE f.career_entry_id=e.id AND f.workspace_id=e.workspace_id AND f.status='approved') approved_fact_count,
               (SELECT count(*)::int FROM fact_proposals p WHERE p.career_entry_id=e.id AND p.workspace_id=e.workspace_id AND p.status='pending') pending_proposal_count,
               EXISTS (SELECT 1 FROM career_entries duplicate WHERE duplicate.workspace_id=e.workspace_id AND duplicate.id<>e.id AND lower(duplicate.title)=lower(e.title) AND coalesce(lower(duplicate.organization),'')=coalesce(lower(e.organization),'')) possible_duplicate
@@ -316,9 +319,9 @@ export class CareerRepository {
     const end = normalizePartialDate(input.endDate);
     const result = await this.pool.query<{ revision: number }>(
       `UPDATE career_entries SET type=$3,title=$4,organization=$5,location=$6,description=$7,
-         start_date=$8,start_date_precision=$9,end_date=$10,end_date_precision=$11,is_current=$12,tags=$13,
+         start_date=$8,start_date_precision=$9,end_date=$10,end_date_precision=$11,is_current=$12,tags=$13,attributes=$14::jsonb,
          revision=revision+1,updated_at=now()
-       WHERE id=$1 AND workspace_id=$2 AND revision=$14 RETURNING revision`,
+       WHERE id=$1 AND workspace_id=$2 AND revision=$15 RETURNING revision`,
       [
         id,
         principal.workspaceId,
@@ -333,6 +336,7 @@ export class CareerRepository {
         end?.precision ?? null,
         input.isCurrent,
         input.tags,
+        JSON.stringify(input.attributes),
         expectedRevision,
       ],
     );

@@ -33,13 +33,15 @@ test("release-critical user journey preserves grounding through export and delet
     .click();
   await page.getByRole("link", { name: "Add career entry" }).click();
   await page.getByLabel("Entry type").selectOption("education");
-  await page.getByLabel("Title").fill("Synthetic release education");
   await page
-    .getByLabel("Description")
+    .getByLabel("Degree or program")
+    .fill("Synthetic release education");
+  await page
+    .getByLabel("Item notes")
     .fill("Fictional release-validation record only.");
   await page.getByRole("button", { name: "Create entry" }).click();
   await page
-    .getByLabel("Claim or value")
+    .getByLabel("Bullet, claim, or value")
     .first()
     .fill("Completed synthetic release coursework");
   await page.getByRole("button", { name: "Add proposal" }).click();
@@ -60,7 +62,8 @@ test("release-critical user journey preserves grounding through export and delet
     });
   await page.getByRole("button", { name: "Upload and parse" }).click();
   await waitForSourceReady(page);
-  await page.getByRole("button", { name: "Review extracted facts" }).click();
+  await page.getByText("Use deterministic fallback").click();
+  await page.getByRole("button", { name: "Extract without AI" }).click();
   const proposalFor = (claim: string) =>
     page
       .getByRole("listitem")

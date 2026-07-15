@@ -18,13 +18,13 @@ test("invalid career entry submission preserves every field", async ({
     .click();
   await page.getByRole("link", { name: "Add career entry" }).click();
 
-  await page.getByLabel("Title").fill("Preserved validation title");
+  await page.getByLabel("Role or item name").fill("Preserved validation title");
   await page
     .getByLabel("Organization")
     .fill("Preserved validation organization");
   await page.getByLabel("Start date").fill("2026-02-30");
   await page.getByLabel("End date").fill("2025-12-01");
-  await page.getByLabel("Description").fill("Preserved validation description");
+  await page.getByLabel("Item notes").fill("Preserved validation description");
   await page.getByRole("button", { name: "Create entry" }).click();
 
   const alert = page
@@ -32,7 +32,7 @@ test("invalid career entry submission preserves every field", async ({
     .filter({ hasText: "Correct the highlighted fields and try again." });
   await expect(alert).toBeFocused();
   await expect(alert).toContainText("Enter a valid calendar date");
-  await expect(page.getByLabel("Title")).toHaveValue(
+  await expect(page.getByLabel("Role or item name")).toHaveValue(
     "Preserved validation title",
   );
   await expect(page.getByLabel("Organization")).toHaveValue(
@@ -40,7 +40,7 @@ test("invalid career entry submission preserves every field", async ({
   );
   await expect(page.getByLabel("Start date")).toHaveValue("2026-02-30");
   await expect(page.getByLabel("End date")).toHaveValue("2025-12-01");
-  await expect(page.getByLabel("Description")).toHaveValue(
+  await expect(page.getByLabel("Item notes")).toHaveValue(
     "Preserved validation description",
   );
   await expect(page.getByLabel("Start date")).toHaveAttribute(
@@ -60,8 +60,8 @@ test("user creates an entry and explicitly approves grounded evidence", async ({
 
   await page.getByRole("link", { name: "Add career entry" }).click();
   await page.getByLabel("Entry type").selectOption("project");
-  await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Description").fill("Synthetic browser workflow only");
+  await page.getByLabel("Project name").fill(title);
+  await page.getByLabel("Item notes").fill("Synthetic browser workflow only");
   await page.getByLabel("Tags").fill("e2e, privacy");
   await page.getByRole("button", { name: "Create entry" }).click();
   await expect(
@@ -69,7 +69,7 @@ test("user creates an entry and explicitly approves grounded evidence", async ({
   ).toBeVisible();
 
   await page
-    .getByLabel("Claim or value")
+    .getByLabel("Bullet, claim, or value")
     .first()
     .fill("Built a synthetic privacy control");
   await page.getByRole("button", { name: "Add proposal" }).click();

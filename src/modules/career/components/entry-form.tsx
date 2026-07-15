@@ -35,6 +35,11 @@ function initialFields(entry?: CareerEntryRecord): CareerEntryFormFields {
     endDate: inputDate(entry, "end"),
     isCurrent: entry?.is_current ?? false,
     tags: entry?.tags.join(", ") ?? "",
+    major: entry?.attributes?.major ?? "",
+    minor: entry?.attributes?.minor ?? "",
+    relevantCourses: entry?.attributes?.relevantCourses?.join("\n") ?? "",
+    awards: entry?.attributes?.awards?.join("\n") ?? "",
+    technologies: entry?.attributes?.technologies?.join(", ") ?? "",
   };
 }
 
@@ -48,7 +53,24 @@ const fieldLabels: Record<keyof CareerEntryFormFields, string> = {
   endDate: "End date",
   isCurrent: "Current entry",
   tags: "Tags",
+  major: "Major",
+  minor: "Minor",
+  relevantCourses: "Relevant courses",
+  awards: "Awards",
+  technologies: "Technologies",
 };
+
+function itemLabels(type: string): { title: string; organization: string } {
+  if (type === "education" || type === "coursework")
+    return { title: "Degree or program", organization: "School" };
+  if (type === "project")
+    return { title: "Project name", organization: "Organization (optional)" };
+  if (type === "certification")
+    return { title: "Certification", organization: "Issuer" };
+  if (type === "publication")
+    return { title: "Publication title", organization: "Publisher" };
+  return { title: "Role or item name", organization: "Organization" };
+}
 
 export function EntryForm({
   entry,
@@ -97,6 +119,15 @@ export function EntryForm({
   const invalidFields = Object.keys(state.errors) as Array<
     keyof CareerEntryFormFields
   >;
+  const labels = itemLabels(fields.type);
+  const showEducationFields =
+    fields.type === "education" || fields.type === "coursework";
+  const showTechnologies = [
+    "project",
+    "research",
+    "coursework",
+    "publication",
+  ].includes(fields.type);
 
   return (
     <form action={formAction} className="grid gap-5" noValidate>
@@ -155,7 +186,7 @@ export function EntryForm({
           ) : null}
         </label>
         <label className="grid gap-1 font-medium" htmlFor="career-title">
-          Title
+          {labels.title}
           <input
             id="career-title"
             name="title"
@@ -177,7 +208,7 @@ export function EntryForm({
           ) : null}
         </label>
         <label className="grid gap-1 font-medium" htmlFor="career-organization">
-          Organization
+          {labels.organization}
           <input
             id="career-organization"
             name="organization"
@@ -298,8 +329,104 @@ export function EntryForm({
         />{" "}
         This is current
       </label>
+      {showEducationFields ? (
+        <fieldset className="grid gap-4 rounded-lg border border-[var(--border)] p-4 sm:grid-cols-2">
+          <legend className="px-1 font-semibold">Education details</legend>
+          <label className="grid gap-1 font-medium" htmlFor="career-major">
+            Major
+            <input
+              id="career-major"
+              name="major"
+              value={fields.major}
+              onChange={(event) => setField("major", event.currentTarget.value)}
+              maxLength={500}
+              className="field"
+            />
+          </label>
+          <label className="grid gap-1 font-medium" htmlFor="career-minor">
+            Minor
+            <input
+              id="career-minor"
+              name="minor"
+              value={fields.minor}
+              onChange={(event) => setField("minor", event.currentTarget.value)}
+              maxLength={500}
+              className="field"
+            />
+          </label>
+          <label
+            className="grid gap-1 font-medium"
+            htmlFor="career-relevantCourses"
+          >
+            Relevant courses
+            <span className="text-sm font-normal text-[var(--muted)]">
+              One per line
+            </span>
+            <textarea
+              id="career-relevantCourses"
+              name="relevantCourses"
+              value={fields.relevantCourses}
+              onChange={(event) =>
+                setField("relevantCourses", event.currentTarget.value)
+              }
+              rows={4}
+              className="field"
+            />
+          </label>
+          <label className="grid gap-1 font-medium" htmlFor="career-awards">
+            Awards and honors
+            <span className="text-sm font-normal text-[var(--muted)]">
+              One per line
+            </span>
+            <textarea
+              id="career-awards"
+              name="awards"
+              value={fields.awards}
+              onChange={(event) =>
+                setField("awards", event.currentTarget.value)
+              }
+              rows={4}
+              className="field"
+            />
+          </label>
+        </fieldset>
+      ) : (
+        <>
+          <input type="hidden" name="major" value={fields.major} />
+          <input type="hidden" name="minor" value={fields.minor} />
+          <input
+            type="hidden"
+            name="relevantCourses"
+            value={fields.relevantCourses}
+          />
+          <input type="hidden" name="awards" value={fields.awards} />
+        </>
+      )}
+      {showTechnologies ? (
+        <label className="grid gap-1 font-medium" htmlFor="career-technologies">
+          Technologies
+          <span className="text-sm font-normal text-[var(--muted)]">
+            Comma-separated
+          </span>
+          <input
+            id="career-technologies"
+            name="technologies"
+            value={fields.technologies}
+            onChange={(event) =>
+              setField("technologies", event.currentTarget.value)
+            }
+            className="field"
+          />
+        </label>
+      ) : (
+        <input type="hidden" name="technologies" value={fields.technologies} />
+      )}
       <label className="grid gap-1 font-medium" htmlFor="career-description">
-        Description
+        Item notes
+        <span className="text-sm font-normal text-[var(--muted)]">
+          Organizing notes are not generation evidence. Add factual bullets or
+          detailed context below and approve them before AI can use them.
+        </span>
         <textarea
           ref={descriptionInput}
           id="career-description"

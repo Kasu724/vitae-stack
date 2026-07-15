@@ -104,13 +104,13 @@ export function FactForm({
             error("factType") ? `${prefix}-factType-error` : undefined
           }
         >
-          <option value="statement">Statement</option>
-          <option value="accomplishment">Accomplishment</option>
-          <option value="education">Education</option>
+          <option value="statement">Resume bullet or supporting detail</option>
+          <option value="accomplishment">Accomplishment or award</option>
+          <option value="education">Education detail</option>
           <option value="metric">Metric</option>
           <option value="date">Date</option>
           <option value="skill">Skill</option>
-          <option value="custom">Custom</option>
+          <option value="custom">Detailed AI context</option>
         </select>
         {error("factType") ? (
           <span
@@ -125,7 +125,11 @@ export function FactForm({
         className="grid gap-1 font-medium"
         htmlFor={`${prefix}-displayText`}
       >
-        {fields.factType === "date" ? "Date value" : "Claim or value"}
+        {fields.factType === "date"
+          ? "Date value"
+          : fields.factType === "custom"
+            ? "Detailed factual context"
+            : "Bullet, claim, or value"}
         {fields.factType === "date" ? (
           <span className="text-sm font-normal text-[var(--muted)]">
             Use YYYY, YYYY-MM, or YYYY-MM-DD.
@@ -136,9 +140,9 @@ export function FactForm({
           id={`${prefix}-displayText`}
           name="displayText"
           className="field"
-          rows={3}
+          rows={fields.factType === "custom" ? 8 : 3}
           required
-          maxLength={5000}
+          maxLength={20000}
           value={fields.displayText}
           onChange={(event) => {
             event.currentTarget.defaultValue = event.currentTarget.value;

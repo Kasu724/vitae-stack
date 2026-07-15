@@ -71,4 +71,22 @@ describe("career form validation", () => {
       },
     });
   });
+
+  it("parses section-specific item fields without flattening them into notes", () => {
+    const form = entryForm({
+      type: "education",
+      major: "Computer Science",
+      minor: "Mathematics",
+      relevantCourses: "Compilers\nSecurity",
+      awards: "Synthetic scholarship",
+      technologies: "",
+    });
+    expect(parseCareerEntryForm(form).value?.attributes).toEqual({
+      major: "Computer Science",
+      minor: "Mathematics",
+      relevantCourses: ["Compilers", "Security"],
+      awards: ["Synthetic scholarship"],
+      technologies: [],
+    });
+  });
 });

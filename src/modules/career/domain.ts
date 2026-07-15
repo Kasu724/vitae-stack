@@ -22,6 +22,84 @@ export const careerEntryTypes = [
 export const careerEntryTypeSchema = z.enum(careerEntryTypes);
 export type CareerEntryType = z.infer<typeof careerEntryTypeSchema>;
 
+export const careerSections = [
+  "experience",
+  "projects",
+  "education",
+  "skills",
+  "research",
+  "leadership",
+  "certifications",
+  "awards",
+  "additional",
+] as const;
+
+export type CareerSection = (typeof careerSections)[number];
+
+export const careerSectionLabels: Record<CareerSection, string> = {
+  experience: "Experience",
+  projects: "Projects",
+  education: "Education",
+  skills: "Skills",
+  research: "Research and publications",
+  leadership: "Leadership and service",
+  certifications: "Certifications",
+  awards: "Awards and accomplishments",
+  additional: "Additional information",
+};
+
+const entryTypeSections: Record<CareerEntryType, CareerSection> = {
+  work: "experience",
+  internship: "experience",
+  project: "projects",
+  education: "education",
+  coursework: "education",
+  skill: "skills",
+  research: "research",
+  publication: "research",
+  leadership: "leadership",
+  extracurricular: "leadership",
+  volunteering: "leadership",
+  certification: "certifications",
+  award: "awards",
+  accomplishment: "awards",
+  metric: "additional",
+  custom: "additional",
+};
+
+export function careerSectionForEntryType(
+  type: CareerEntryType | string,
+): CareerSection {
+  const parsed = careerEntryTypeSchema.safeParse(type);
+  return parsed.success ? entryTypeSections[parsed.data] : "additional";
+}
+
+const attributeText = z
+  .string()
+  .trim()
+  .max(500)
+  .nullable()
+  .optional()
+  .transform((value) => value || null);
+
+const attributeList = z
+  .array(z.string().trim().min(1).max(500))
+  .max(50)
+  .default([])
+  .transform((values) => [...new Set(values)]);
+
+export const careerEntryAttributesSchema = z
+  .object({
+    major: attributeText,
+    minor: attributeText,
+    relevantCourses: attributeList,
+    awards: attributeList,
+    technologies: attributeList,
+  })
+  .strict();
+
+export type CareerEntryAttributes = z.infer<typeof careerEntryAttributesSchema>;
+
 export const partialDateSchema = z
   .string()
   .trim()
@@ -81,6 +159,13 @@ export const careerEntryInputSchema = z
       .max(30)
       .default([])
       .transform((tags) => [...new Set(tags.map((tag) => tag.toLowerCase()))]),
+    attributes: careerEntryAttributesSchema.default({
+      major: null,
+      minor: null,
+      relevantCourses: [],
+      awards: [],
+      technologies: [],
+    }),
   })
   .superRefine((value, context) => {
     if (value.isCurrent && value.endDate) {
@@ -105,7 +190,7 @@ export const careerEntryInputSchema = z
     }
   });
 
-export type CareerEntryInput = z.infer<typeof careerEntryInputSchema>;
+export type CareerEntryInput = z.input<typeof careerEntryInputSchema>;
 
 const sourceLocatorSchema = z
   .object({
@@ -134,7 +219,7 @@ const sourceLocatorSchema = z
 export const evidenceValueSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("text"),
-    text: z.string().trim().min(1).max(5_000),
+    text: z.string().trim().min(1).max(20_000),
   }),
   z.object({
     kind: z.literal("metric"),
@@ -164,7 +249,7 @@ export const factProposalInputSchema = z.object({
     "custom",
   ]),
   value: evidenceValueSchema,
-  displayText: z.string().trim().min(1).max(5_000),
+  displayText: z.string().trim().min(1).max(20_000),
   sourceLocator: sourceLocatorSchema,
 });
 

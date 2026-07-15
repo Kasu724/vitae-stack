@@ -65,6 +65,31 @@ afterAll(async () => {
 });
 
 describe("Career Information Bank lifecycle", () => {
+  it("round-trips typed item attributes inside one career item", async () => {
+    const principal = await createPrincipal("career-attributes");
+    const id = await repository.createEntry(principal, {
+      type: "education",
+      title: "Synthetic degree",
+      organization: "Local University",
+      attributes: {
+        major: "Computer Science",
+        minor: "Mathematics",
+        relevantCourses: ["Compilers", "Security"],
+        awards: ["Synthetic scholarship"],
+        technologies: [],
+      },
+    });
+    expect((await repository.getEntry(principal, id)).entry.attributes).toEqual(
+      {
+        major: "Computer Science",
+        minor: "Mathematics",
+        relevantCourses: ["Compilers", "Security"],
+        awards: ["Synthetic scholarship"],
+        technologies: [],
+      },
+    );
+  });
+
   it("creates, searches, filters, archives, and isolates workspace entries", async () => {
     const id = await repository.createEntry(first, {
       type: "work",

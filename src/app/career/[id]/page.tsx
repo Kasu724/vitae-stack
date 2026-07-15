@@ -176,11 +176,12 @@ export default async function CareerEntryPage({
         aria-labelledby="propose-heading"
       >
         <h2 id="propose-heading" className="text-xl font-semibold">
-          Propose a fact
+          Add bullets and detailed context
         </h2>
         <p className="mt-2 text-[var(--muted)]">
-          Manual claims still require an explicit approval step. Dates use YYYY,
-          YYYY-MM, or YYYY-MM-DD.
+          Add as many factual bullets as you need, or a longer factual narrative
+          for the model to draw from. Every addition remains in review until you
+          approve it; organizing notes above are never sent as evidence.
         </p>
         <div className="mt-5">
           <FactForm
@@ -193,7 +194,7 @@ export default async function CareerEntryPage({
 
       <section className="mt-8" aria-labelledby="review-heading">
         <h2 id="review-heading" className="text-2xl font-semibold">
-          Proposal review
+          Item evidence review
         </h2>
         <p className="mt-2 text-[var(--muted)]">
           Pending proposals cannot be used as evidence.
@@ -251,7 +252,7 @@ export default async function CareerEntryPage({
 
       <section className="mt-8" aria-labelledby="facts-heading">
         <h2 id="facts-heading" className="text-2xl font-semibold">
-          Evidence facts
+          Approved item evidence
         </h2>
         <p className="mt-2 text-[var(--muted)]">
           Approved content is immutable. Corrections create a new evidence ID

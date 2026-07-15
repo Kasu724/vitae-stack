@@ -12,6 +12,11 @@ import {
   updateCareerSettingsAction,
   updateCareerEntriesStatusAction,
 } from "@/modules/career/actions";
+import {
+  careerSectionForEntryType,
+  careerSectionLabels,
+  careerSections,
+} from "@/modules/career/domain";
 import { CareerRepository } from "@/modules/career/repository";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +81,14 @@ export default async function CareerBankPage({
       ),
     ),
   );
+  const groupedEntries = careerSections
+    .map((section) => ({
+      section,
+      entries: entries.filter(
+        (entry) => careerSectionForEntryType(entry.type) === section,
+      ),
+    }))
+    .filter((group) => group.entries.length > 0);
   return (
     <main id="main-content" className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <nav aria-label="Breadcrumb">
@@ -163,45 +176,49 @@ export default async function CareerBankPage({
         </section>
       ) : (
         <ResourceCardList
-          items={entries.map((entry) => {
-            const preview = dependencyPreviews.get(entry.id)!;
-            const dependentCount =
-              preview.facts +
-              preview.extractionBatches +
-              preview.matchingRuns +
-              preview.proposals +
-              preview.skillLinks +
-              preview.tailoringRuns;
-            return {
-              id: entry.id,
-              title: entry.title,
-              href: `/career/${entry.id}`,
-              status: entry.status,
-              category: entry.type,
-              subtitle: entry.organization || "No organization",
-              warning: entry.possible_duplicate
-                ? "Possible duplicate: another entry has the same title and organization."
-                : undefined,
-              metadata: [
-                `${entry.approved_fact_count} approved facts · ${entry.pending_proposal_count} pending proposals`,
-              ],
-              tags: entry.tags,
-              deleteImpact: [
-                preview.documentClaims > 0
-                  ? `${preview.documentClaims} saved document ${preview.documentClaims === 1 ? "claim blocks" : "claims block"} permanent deletion.`
-                  : "No saved document claims block permanent deletion.",
-                dependentCount > 0
-                  ? `${dependentCount} dependent fact, proposal, skill, extraction, matching, or tailoring records will also be deleted.`
-                  : "No dependent records will also be deleted.",
-              ],
-            };
-          })}
-          resourceName="entry"
-          resourceNamePlural="entries"
+          items={groupedEntries.flatMap((group) =>
+            group.entries.map((entry) => {
+              const preview = dependencyPreviews.get(entry.id)!;
+              const dependentCount =
+                preview.facts +
+                preview.extractionBatches +
+                preview.matchingRuns +
+                preview.proposals +
+                preview.skillLinks +
+                preview.tailoringRuns;
+              return {
+                id: entry.id,
+                title: entry.title,
+                href: `/career/${entry.id}`,
+                status: entry.status,
+                category: entry.type,
+                group: careerSectionLabels[group.section],
+                subtitle: entry.organization || "No organization",
+                warning: entry.possible_duplicate
+                  ? "Possible duplicate: another item has the same title and organization."
+                  : undefined,
+                metadata: [
+                  `${entry.approved_fact_count} approved facts · ${entry.pending_proposal_count} pending proposals`,
+                ],
+                tags: entry.tags,
+                deleteImpact: [
+                  preview.documentClaims > 0
+                    ? `${preview.documentClaims} saved document ${preview.documentClaims === 1 ? "claim blocks" : "claims block"} permanent deletion.`
+                    : "No saved document claims block permanent deletion.",
+                  dependentCount > 0
+                    ? `${dependentCount} dependent fact, proposal, skill, extraction, matching, or tailoring records will also be deleted.`
+                    : "No dependent records will also be deleted.",
+                ],
+              };
+            }),
+          )}
+          resourceName="item"
+          resourceNamePlural="items"
+          headingLevel={3}
           status={status}
           archiveAction={updateCareerEntriesStatusAction}
           deleteAction={deleteCareerEntriesAction}
-          deleteWarning="Permanent deletion cannot be undone. If any selected entry supports saved document history, the whole selection is blocked and nothing is deleted."
+          deleteWarning="Permanent deletion cannot be undone. If any selected item supports saved document history, the whole selection is blocked and nothing is deleted."
           returnPath={pageHref(page)}
         />
       )}

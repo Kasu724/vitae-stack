@@ -207,22 +207,16 @@ export default async function SourcePage({
             ) : (
               <div className="mt-5 border-t border-[var(--border)] pt-5">
                 <h3 className="text-lg font-semibold">
-                  Prepare fact proposals
+                  Extract structured career items
                 </h3>
                 <p className="mt-2 text-sm text-[var(--muted)]">
-                  The deterministic fallback creates one unverified proposal per
-                  non-empty line. You will review every proposal before
-                  approval.
+                  AI extraction is recommended because it separates the source
+                  into sections and distinct items, then keeps every field and
+                  bullet tied to its item. Nothing is approved automatically.
                 </p>
-                <form action={startExtractionAction} className="mt-4">
-                  <input type="hidden" name="sourceId" value={source.id} />
-                  <button className="button" type="submit">
-                    Review extracted facts
-                  </button>
-                </form>
                 <div className="mt-6 border-t border-[var(--border)] pt-5">
                   <h4 className="font-semibold">
-                    Optional structured AI extraction
+                    Recommended: structured AI extraction
                   </h4>
                   <p className="mt-2 text-sm text-[var(--muted)]">
                     AI can classify exact source spans into career entries and
@@ -261,14 +255,14 @@ export default async function SourcePage({
                         documents are not included. A remote provider may retain
                         or process the text under its own policy.
                       </p>
-                      <button className="secondary-button w-fit" type="submit">
+                      <button className="button w-fit" type="submit">
                         Extract structured proposals with AI
                       </button>
                     </form>
                   ) : (
                     <p className="mt-3 text-sm text-[var(--muted)]">
                       No tested provider has an AI-01 model assignment. The
-                      deterministic path above remains fully available.{" "}
+                      deterministic fallback below remains available.{" "}
                       <Link href="/settings/providers">
                         Configure model providers
                       </Link>
@@ -276,6 +270,22 @@ export default async function SourcePage({
                     </p>
                   )}
                 </div>
+                <details className="mt-6 rounded-lg border border-[var(--border)] p-4">
+                  <summary className="cursor-pointer font-semibold">
+                    Use deterministic fallback
+                  </summary>
+                  <p className="mt-3 text-sm text-[var(--muted)]">
+                    The local fallback recognizes common resume section headings
+                    and blank-line item boundaries. Its grouping is heuristic,
+                    so review every proposed item and fact carefully.
+                  </p>
+                  <form action={startExtractionAction} className="mt-4">
+                    <input type="hidden" name="sourceId" value={source.id} />
+                    <button className="secondary-button" type="submit">
+                      Extract without AI
+                    </button>
+                  </form>
+                </details>
               </div>
             )}
           </>

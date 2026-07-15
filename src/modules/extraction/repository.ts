@@ -11,7 +11,7 @@ import {
   aiExtractionMetadataSchema,
   aiProposalEvidenceValue,
   extractionProposalEditSchema,
-  deterministicLineCandidates,
+  deterministicStructuredCandidates,
   hashExtractionValue,
   sourceEntryTitle,
   validateExtractionSourceSpans,
@@ -150,22 +150,25 @@ export class ExtractionRepository {
       );
       const row = source.rows[0];
       if (!row) throw new ExtractionNotFoundError();
-      const candidates = deterministicLineCandidates(row.extracted_text);
+      const candidates = deterministicStructuredCandidates(
+        row.extracted_text,
+        sourceEntryTitle(row.original_name),
+      );
       if (!candidates.length)
         throw new ExtractionConflictError(
           "No extractable candidate lines were found.",
         );
       const metadata: ExtractionAnalysisMetadata = {
         schemaVersion: 1,
-        taskVersion: "deterministic-lines@1",
+        taskVersion: "deterministic-sections@2",
         warnings: candidates.length
-          ? ["Line-based proposals require review and classification."]
+          ? ["Section and item grouping is heuristic and requires review."]
           : [],
         inputHash: hashExtractionValue(row.extracted_text),
         outputHash: hashExtractionValue(candidates),
       };
       const batch = await client.query<{ id: string }>(
-        `INSERT INTO extraction_batches (workspace_id,source_document_id,method,task_version,metadata,created_by_user_id) VALUES ($1,$2,'deterministic','deterministic-lines@1',$3::jsonb,$4) RETURNING id`,
+        `INSERT INTO extraction_batches (workspace_id,source_document_id,method,task_version,metadata,created_by_user_id) VALUES ($1,$2,'deterministic','deterministic-sections@2',$3::jsonb,$4) RETURNING id`,
         [
           principal.workspaceId,
           sourceId,
@@ -174,7 +177,6 @@ export class ExtractionRepository {
         ],
       );
       const batchId = batch.rows[0]!.id;
-      const entryTitle = sourceEntryTitle(row.original_name);
       for (const candidate of candidates) {
         const duplicate = await client.query<{ id: string }>(
           `SELECT id FROM evidence_facts WHERE workspace_id=$1 AND status='approved' AND lower(display_text)=lower($2) ORDER BY approved_at LIMIT 1`,
@@ -183,17 +185,19 @@ export class ExtractionRepository {
         const locator: SourceLocatorValue = {
           kind: "document",
           label: `Line ${candidate.line}`,
-          section: `Line ${candidate.line}`,
+          section: `Line ${candidate.line} · ${candidate.sectionLabel}`,
           sourceDocumentId: sourceId,
         };
         const value: EvidenceValue = { kind: "text", text: candidate.text };
         await client.query(
-          `INSERT INTO extraction_proposals (workspace_id,batch_id,source_document_id,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,duplicate_of_fact_id) VALUES ($1,$2,$3,'custom',$4,'statement',$5::jsonb,$6,$7::jsonb,$8)`,
+          `INSERT INTO extraction_proposals (workspace_id,batch_id,source_document_id,proposed_entry_key,proposed_entry_type,proposed_entry_title,fact_type,proposed_value,display_text,source_locator,duplicate_of_fact_id) VALUES ($1,$2,$3,$4,$5,$6,'statement',$7::jsonb,$8,$9::jsonb,$10)`,
           [
             principal.workspaceId,
             batchId,
             sourceId,
-            entryTitle,
+            candidate.entryKey,
+            candidate.entryType,
+            candidate.entryTitle,
             JSON.stringify(value),
             candidate.text,
             JSON.stringify(locator),
@@ -328,7 +332,7 @@ export class ExtractionRepository {
          WHERE batch_id=$1 AND workspace_id=$2
          ORDER BY COALESCE(
            CASE
-             WHEN source_locator->>'section' ~ '^Line [0-9]+$'
+             WHEN source_locator->>'section' ~ '^Line [0-9]+'
              THEN CAST(split_part(source_locator->>'section',' ',2) AS INTEGER)
            END,
            CAST(source_locator->>'startOffset' AS INTEGER)
@@ -405,7 +409,7 @@ export class ExtractionRepository {
     let entryId = row.target_career_entry_id ?? null;
     if (!entryId && batchRow?.method === "deterministic")
       entryId = batchRow.target_career_entry_id;
-    if (!entryId && batchRow?.method === "ai" && row.proposed_entry_key) {
+    if (!entryId && row.proposed_entry_key) {
       const grouped = await client.query<{ target_career_entry_id: string }>(
         `SELECT target_career_entry_id FROM extraction_proposals WHERE batch_id=$1 AND workspace_id=$2 AND proposed_entry_key=$3 AND target_career_entry_id IS NOT NULL ORDER BY resolved_at,created_at,id LIMIT 1`,
         [row.batch_id, principal.workspaceId, row.proposed_entry_key],
@@ -423,7 +427,7 @@ export class ExtractionRepository {
       );
       entryId = created.rows[0]?.id ?? null;
       if (!entryId) throw new ExtractionNotFoundError();
-      if (batchRow?.method === "deterministic")
+      if (batchRow?.method === "deterministic" && !row.proposed_entry_key)
         await client.query(
           `UPDATE extraction_batches SET target_career_entry_id=$3,updated_at=now() WHERE id=$1 AND workspace_id=$2`,
           [row.batch_id, principal.workspaceId, entryId],

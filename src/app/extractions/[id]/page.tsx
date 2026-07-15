@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import { Fragment } from "react";
 
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
-import { careerEntryTypes } from "@/modules/career/domain";
+import {
+  careerEntryTypes,
+  careerSectionForEntryType,
+  careerSectionLabels,
+  careerSections,
+} from "@/modules/career/domain";
 import {
   approveExtractionProposalAction,
   bulkApproveExtractionAction,
@@ -129,20 +135,38 @@ export default async function ExtractionReviewPage({
     if (error instanceof ExtractionNotFoundError) notFound();
     throw error;
   }
-  const pending = review.proposals.filter(
+  const orderedProposals = [...review.proposals].sort((left, right) => {
+    const leftSection = careerSections.indexOf(
+      careerSectionForEntryType(left.proposed_entry_type),
+    );
+    const rightSection = careerSections.indexOf(
+      careerSectionForEntryType(right.proposed_entry_type),
+    );
+    if (leftSection !== rightSection) return leftSection - rightSection;
+    const leftItem =
+      left.proposed_entry_key ??
+      left.target_career_entry_id ??
+      `${left.proposed_entry_type}:${left.proposed_entry_title}`;
+    const rightItem =
+      right.proposed_entry_key ??
+      right.target_career_entry_id ??
+      `${right.proposed_entry_type}:${right.proposed_entry_title}`;
+    return leftItem.localeCompare(rightItem);
+  });
+  const pending = orderedProposals.filter(
     (proposal) => proposal.status === "pending",
   );
   const requestedPage =
     typeof query.page === "string" ? Number.parseInt(query.page, 10) : 1;
   const pageCount = Math.max(
     1,
-    Math.ceil(review.proposals.length / PROPOSALS_PER_PAGE),
+    Math.ceil(orderedProposals.length / PROPOSALS_PER_PAGE),
   );
   const page = Number.isFinite(requestedPage)
     ? Math.min(pageCount, Math.max(1, requestedPage))
     : 1;
   const pageStart = (page - 1) * PROPOSALS_PER_PAGE;
-  const visibleProposals = review.proposals.slice(
+  const visibleProposals = orderedProposals.slice(
     pageStart,
     pageStart + PROPOSALS_PER_PAGE,
   );
@@ -311,166 +335,185 @@ export default async function ExtractionReviewPage({
           </p>
           <ul className="mt-4 grid gap-4">
             {visibleProposals.map((proposal, index) => {
+              const section = careerSectionForEntryType(
+                proposal.proposed_entry_type,
+              );
+              const previous = visibleProposals[index - 1];
+              const previousSection = previous
+                ? careerSectionForEntryType(previous.proposed_entry_type)
+                : null;
+              const itemIdentity =
+                proposal.proposed_entry_key ??
+                proposal.target_career_entry_id ??
+                `${proposal.proposed_entry_type}:${proposal.proposed_entry_title}`;
+              const previousItemIdentity = previous
+                ? (previous.proposed_entry_key ??
+                  previous.target_career_entry_id ??
+                  `${previous.proposed_entry_type}:${previous.proposed_entry_title}`)
+                : null;
               return (
-                <li
-                  key={proposal.id}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
-                >
-                  <div className="flex flex-wrap justify-between gap-2">
-                    <h3 className="text-lg font-semibold">
-                      Proposal {pageStart + index + 1}
-                    </h3>
-                    <span className="status-label">{proposal.status}</span>
-                  </div>
-                  <p className="mt-3 whitespace-pre-wrap break-words font-semibold">
-                    {proposal.display_text}
-                  </p>
-                  <dl className="mt-3 grid gap-1 text-sm">
-                    <div>
-                      <dt className="inline font-semibold">Source: </dt>
-                      <dd className="inline">
-                        {proposal.source_locator.label}
-                      </dd>
+                <Fragment key={proposal.id}>
+                  {section !== previousSection ? (
+                    <li className="mt-4 list-none first:mt-0">
+                      <h3 className="text-xl font-semibold">
+                        {careerSectionLabels[section]}
+                      </h3>
+                    </li>
+                  ) : null}
+                  {itemIdentity !== previousItemIdentity ? (
+                    <li className="list-none rounded-lg border border-dashed border-[var(--border)] px-4 py-3">
+                      <p className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
+                        Item
+                      </p>
+                      <h4 className="mt-1 text-lg font-semibold">
+                        {proposal.proposed_entry_title}
+                      </h4>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        {proposal.proposed_entry_type}
+                      </p>
+                    </li>
+                  ) : null}
+                  <li className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <h5 className="text-lg font-semibold">
+                        Proposal {pageStart + index + 1}
+                      </h5>
+                      <span className="status-label">{proposal.status}</span>
                     </div>
-                    <div>
-                      <dt className="inline font-semibold">Fact type: </dt>
-                      <dd className="inline">{proposal.fact_type}</dd>
-                    </div>
-                    {proposal.approved_fact_id ? (
+                    <p className="mt-3 whitespace-pre-wrap break-words font-semibold">
+                      {proposal.display_text}
+                    </p>
+                    <dl className="mt-3 grid gap-1 text-sm">
                       <div>
-                        <dt className="inline font-semibold">Evidence ID: </dt>
-                        <dd className="inline break-all">
-                          {proposal.approved_fact_id}
+                        <dt className="inline font-semibold">Source: </dt>
+                        <dd className="inline">
+                          {proposal.source_locator.label}
                         </dd>
                       </div>
+                      <div>
+                        <dt className="inline font-semibold">Fact type: </dt>
+                        <dd className="inline">{proposal.fact_type}</dd>
+                      </div>
+                      {proposal.approved_fact_id ? (
+                        <div>
+                          <dt className="inline font-semibold">
+                            Evidence ID:{" "}
+                          </dt>
+                          <dd className="inline break-all">
+                            {proposal.approved_fact_id}
+                          </dd>
+                        </div>
+                      ) : null}
+                    </dl>
+                    {proposal.duplicate_of_fact_id &&
+                    proposal.status === "pending" ? (
+                      <p className="mt-3 font-semibold">
+                        Possible exact duplicate of existing approved evidence.
+                      </p>
                     ) : null}
-                  </dl>
-                  {proposal.duplicate_of_fact_id &&
-                  proposal.status === "pending" ? (
-                    <p className="mt-3 font-semibold">
-                      Possible exact duplicate of existing approved evidence.
-                    </p>
-                  ) : null}
-                  {proposal.status === "pending" ? (
-                    <div className="mt-5 grid gap-4 border-t border-[var(--border)] pt-5">
-                      <details>
-                        <summary className="cursor-pointer font-semibold">
-                          Edit before deciding
-                        </summary>
-                        <form
-                          action={updateExtractionProposalAction}
-                          className="mt-4 grid gap-4"
-                        >
-                          <input
-                            type="hidden"
-                            name="batchId"
-                            value={review.batch.id}
-                          />
-                          <input type="hidden" name="page" value={page} />
-                          <input
-                            type="hidden"
-                            name="proposalId"
-                            value={proposal.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="revision"
-                            value={proposal.revision}
-                          />
-                          <input
-                            type="hidden"
-                            name="factType"
-                            value={proposal.fact_type}
-                          />
-                          <label className="grid gap-1 font-medium">
-                            Save under career entry
-                            <select
-                              className="field"
-                              name="targetCareerEntryId"
-                              defaultValue={
-                                proposal.target_career_entry_id ?? ""
-                              }
-                            >
-                              <option value="">
-                                Create an entry when approved
-                              </option>
-                              {review.entries.map((entry) => (
-                                <option key={entry.id} value={entry.id}>
-                                  {entry.title} ({entry.type})
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                    {proposal.status === "pending" ? (
+                      <div className="mt-5 grid gap-4 border-t border-[var(--border)] pt-5">
+                        <details>
+                          <summary className="cursor-pointer font-semibold">
+                            Edit before deciding
+                          </summary>
+                          <form
+                            action={updateExtractionProposalAction}
+                            className="mt-4 grid gap-4"
+                          >
+                            <input
+                              type="hidden"
+                              name="batchId"
+                              value={review.batch.id}
+                            />
+                            <input type="hidden" name="page" value={page} />
+                            <input
+                              type="hidden"
+                              name="proposalId"
+                              value={proposal.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="revision"
+                              value={proposal.revision}
+                            />
+                            <input
+                              type="hidden"
+                              name="factType"
+                              value={proposal.fact_type}
+                            />
                             <label className="grid gap-1 font-medium">
-                              New entry type
+                              Save under career entry
                               <select
                                 className="field"
-                                name="entryType"
-                                defaultValue={proposal.proposed_entry_type}
+                                name="targetCareerEntryId"
+                                defaultValue={
+                                  proposal.target_career_entry_id ?? ""
+                                }
                               >
-                                {careerEntryTypes.map((type) => (
-                                  <option key={type} value={type}>
-                                    {type}
+                                <option value="">
+                                  Create an entry when approved
+                                </option>
+                                {review.entries.map((entry) => (
+                                  <option key={entry.id} value={entry.id}>
+                                    {entry.title} ({entry.type})
                                   </option>
                                 ))}
                               </select>
                             </label>
-                            <label className="grid gap-1 font-medium">
-                              New entry title
-                              <input
-                                className="field"
-                                name="entryTitle"
-                                defaultValue={proposal.proposed_entry_title}
-                                required
-                                maxLength={200}
-                              />
-                            </label>
-                          </div>
-                          <ValueFields proposal={proposal} />
-                          <button
-                            className="secondary-button w-fit"
-                            type="submit"
-                          >
-                            Save proposal edits
-                          </button>
-                        </form>
-                      </details>
-                      <div className="flex flex-wrap gap-3">
-                        <form action={approveExtractionProposalAction}>
-                          <input
-                            type="hidden"
-                            name="batchId"
-                            value={review.batch.id}
-                          />
-                          <input type="hidden" name="page" value={page} />
-                          <input
-                            type="hidden"
-                            name="proposalId"
-                            value={proposal.id}
-                          />
-                          <button className="button" type="submit">
-                            Approve as evidence
-                          </button>
-                        </form>
-                        <form action={rejectExtractionProposalAction}>
-                          <input
-                            type="hidden"
-                            name="batchId"
-                            value={review.batch.id}
-                          />
-                          <input type="hidden" name="page" value={page} />
-                          <input
-                            type="hidden"
-                            name="proposalId"
-                            value={proposal.id}
-                          />
-                          <button className="secondary-button" type="submit">
-                            Reject
-                          </button>
-                        </form>
-                        {proposal.duplicate_of_fact_id ? (
-                          <form action={mergeExtractionProposalAction}>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <label className="grid gap-1 font-medium">
+                                New entry type
+                                <select
+                                  className="field"
+                                  name="entryType"
+                                  defaultValue={proposal.proposed_entry_type}
+                                >
+                                  {careerEntryTypes.map((type) => (
+                                    <option key={type} value={type}>
+                                      {type}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label className="grid gap-1 font-medium">
+                                New entry title
+                                <input
+                                  className="field"
+                                  name="entryTitle"
+                                  defaultValue={proposal.proposed_entry_title}
+                                  required
+                                  maxLength={200}
+                                />
+                              </label>
+                            </div>
+                            <ValueFields proposal={proposal} />
+                            <button
+                              className="secondary-button w-fit"
+                              type="submit"
+                            >
+                              Save proposal edits
+                            </button>
+                          </form>
+                        </details>
+                        <div className="flex flex-wrap gap-3">
+                          <form action={approveExtractionProposalAction}>
+                            <input
+                              type="hidden"
+                              name="batchId"
+                              value={review.batch.id}
+                            />
+                            <input type="hidden" name="page" value={page} />
+                            <input
+                              type="hidden"
+                              name="proposalId"
+                              value={proposal.id}
+                            />
+                            <button className="button" type="submit">
+                              Approve as evidence
+                            </button>
+                          </form>
+                          <form action={rejectExtractionProposalAction}>
                             <input
                               type="hidden"
                               name="batchId"
@@ -483,14 +526,35 @@ export default async function ExtractionReviewPage({
                               value={proposal.id}
                             />
                             <button className="secondary-button" type="submit">
-                              Merge with existing evidence
+                              Reject
                             </button>
                           </form>
-                        ) : null}
+                          {proposal.duplicate_of_fact_id ? (
+                            <form action={mergeExtractionProposalAction}>
+                              <input
+                                type="hidden"
+                                name="batchId"
+                                value={review.batch.id}
+                              />
+                              <input type="hidden" name="page" value={page} />
+                              <input
+                                type="hidden"
+                                name="proposalId"
+                                value={proposal.id}
+                              />
+                              <button
+                                className="secondary-button"
+                                type="submit"
+                              >
+                                Merge with existing evidence
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  ) : null}
-                </li>
+                    ) : null}
+                  </li>
+                </Fragment>
               );
             })}
           </ul>

@@ -70,10 +70,11 @@ test("user edits, approves, rejects, and bulk-confirms imported fact proposals",
   await expect(page.getByText(/Transmission preview:/u)).toContainText(
     "full extracted source text",
   );
+  await page.getByText("Use deterministic fallback").click();
   await expect(
-    page.getByRole("button", { name: "Review extracted facts" }),
+    page.getByRole("button", { name: "Extract without AI" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Review extracted facts" }).click();
+  await page.getByRole("button", { name: "Extract without AI" }).click();
   await expect(
     page.getByRole("heading", { level: 1, name: "Review extracted facts" }),
   ).toBeVisible();

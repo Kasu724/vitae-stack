@@ -6,6 +6,7 @@ import {
   careerEntryTypeSchema,
   careerEntryTypes,
   factProposalInputSchema,
+  type CareerEntryType,
 } from "@/modules/career/domain";
 
 import type { EvidenceValue } from "@/infrastructure/database/value-types";
@@ -205,6 +206,101 @@ export function deterministicLineCandidates(
         candidate.text.length >= 3 && candidate.text.length <= 5000,
     )
     .slice(0, maximum);
+}
+
+export interface DeterministicExtractionCandidate {
+  line: number;
+  text: string;
+  entryKey: string;
+  entryType: CareerEntryType;
+  entryTitle: string;
+  sectionLabel: string;
+}
+
+const deterministicSectionTypes: Record<string, CareerEntryType> = {
+  experience: "work",
+  experiences: "work",
+  employment: "work",
+  "work experience": "work",
+  projects: "project",
+  project: "project",
+  education: "education",
+  skills: "skill",
+  research: "research",
+  publications: "publication",
+  certifications: "certification",
+  certification: "certification",
+  awards: "award",
+  honors: "award",
+  leadership: "leadership",
+  volunteering: "volunteering",
+  "volunteer experience": "volunteering",
+  coursework: "coursework",
+};
+
+function normalizedHeading(value: string): string {
+  return value.trim().replace(/:$/u, "").replace(/\s+/gu, " ").toLowerCase();
+}
+
+export function deterministicStructuredCandidates(
+  text: string,
+  fallbackTitle: string,
+  maximum = 100,
+): DeterministicExtractionCandidate[] {
+  const results: DeterministicExtractionCandidate[] = [];
+  let entryType: CareerEntryType = "custom";
+  let sectionLabel = "Additional information";
+  let itemIndex = 0;
+  let entryKey = "additional_1";
+  let entryTitle = fallbackTitle;
+  let startNewItem = true;
+
+  const lines = text.split(/\n/gu);
+  for (
+    let index = 0;
+    index < lines.length && results.length < maximum;
+    index += 1
+  ) {
+    const raw = lines[index]!.replace(/\r$/u, "");
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      startNewItem = true;
+      continue;
+    }
+    const headingType = deterministicSectionTypes[normalizedHeading(trimmed)];
+    if (headingType) {
+      entryType = headingType;
+      sectionLabel = trimmed.replace(/:$/u, "");
+      itemIndex = 0;
+      startNewItem = true;
+      continue;
+    }
+    const isBullet = /^\s*(?:[-*â€¢]|\d+[.)])\s+/u.test(raw);
+    const candidateText = raw.replace(/^\s*(?:[-*â€¢]|\d+[.)])\s*/u, "").trim();
+    if (candidateText.length < 3 || candidateText.length > 5_000) continue;
+    if (startNewItem && !isBullet) {
+      itemIndex += 1;
+      entryKey = `${entryType}_${itemIndex}`;
+      entryTitle = candidateText.slice(0, 200);
+      startNewItem = false;
+    } else if (itemIndex === 0) {
+      itemIndex = 1;
+      entryKey = `${entryType}_${itemIndex}`;
+      entryTitle = isBullet
+        ? `${sectionLabel} item 1`
+        : candidateText.slice(0, 200);
+      startNewItem = false;
+    }
+    results.push({
+      line: index + 1,
+      text: candidateText,
+      entryKey,
+      entryType,
+      entryTitle,
+      sectionLabel,
+    });
+  }
+  return results;
 }
 
 export function sourceEntryTitle(filename: string): string {

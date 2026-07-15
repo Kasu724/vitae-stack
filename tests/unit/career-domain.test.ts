@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   careerEntryInputSchema,
   careerEntryTypes,
+  careerSectionForEntryType,
   factProposalInputSchema,
   normalizePartialDate,
   parseTags,
@@ -81,6 +82,32 @@ describe("career domain validation", () => {
     expect(parseTags("TypeScript, Security, typescript,  ")).toEqual([
       "typescript",
       "security",
+    ]);
+  });
+
+  it("groups entry types into stable career-bank sections", () => {
+    expect(careerSectionForEntryType("work")).toBe("experience");
+    expect(careerSectionForEntryType("internship")).toBe("experience");
+    expect(careerSectionForEntryType("project")).toBe("projects");
+    expect(careerSectionForEntryType("education")).toBe("education");
+    expect(careerSectionForEntryType("skill")).toBe("skills");
+  });
+
+  it("validates item-specific education and project attributes", () => {
+    const education = careerEntryInputSchema.parse({
+      type: "education",
+      title: "Synthetic degree",
+      attributes: {
+        major: "Computer Science",
+        minor: "Mathematics",
+        relevantCourses: ["Compilers", "Security", "Compilers"],
+        awards: ["Synthetic scholarship"],
+        technologies: [],
+      },
+    });
+    expect(education.attributes.relevantCourses).toEqual([
+      "Compilers",
+      "Security",
     ]);
   });
 });
