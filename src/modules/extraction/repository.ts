@@ -35,6 +35,19 @@ export class ExtractionConflictError extends Error {
   }
 }
 
+function validatedBulkProposalIds(proposalIds: string[]): string[] {
+  const uniqueIds = [...new Set(proposalIds)];
+  if (
+    uniqueIds.length === 0 ||
+    uniqueIds.length > 20 ||
+    uniqueIds.length !== proposalIds.length
+  )
+    throw new ExtractionConflictError(
+      "Select between 1 and 20 unique pending proposals.",
+    );
+  return uniqueIds;
+}
+
 export interface ExtractionBatchRecord {
   id: string;
   source_document_id: string;
@@ -541,13 +554,8 @@ export class ExtractionRepository {
   public async bulkApprove(
     principal: WorkspacePrincipal,
     proposalIds: string[],
-    confirmedCount: number,
   ): Promise<string[]> {
-    const uniqueIds = [...new Set(proposalIds)].slice(0, 20);
-    if (!uniqueIds.length || uniqueIds.length !== confirmedCount)
-      throw new ExtractionConflictError(
-        "The bulk confirmation count does not match the selected proposals.",
-      );
+    const uniqueIds = validatedBulkProposalIds(proposalIds);
     return transaction(this.pool, async (client) => {
       const facts: string[] = [];
       let batchId: string | null = null;
@@ -565,6 +573,33 @@ export class ExtractionRepository {
         approvedCount: facts.length,
       });
       return facts;
+    });
+  }
+
+  public async bulkReject(
+    principal: WorkspacePrincipal,
+    proposalIds: string[],
+  ): Promise<void> {
+    const uniqueIds = validatedBulkProposalIds(proposalIds);
+    await transaction(this.pool, async (client) => {
+      let batchId: string | null = null;
+      for (const proposalId of uniqueIds) {
+        const result = await client.query<{ batch_id: string }>(
+          `UPDATE extraction_proposals SET status='rejected',resolved_by_user_id=$3,resolved_at=now(),updated_at=now() WHERE id=$1 AND workspace_id=$2 AND status='pending' RETURNING batch_id`,
+          [proposalId, principal.workspaceId, principal.userId],
+        );
+        const proposalBatchId = result.rows[0]?.batch_id;
+        if (!proposalBatchId) throw new ExtractionConflictError();
+        if (batchId && batchId !== proposalBatchId)
+          throw new ExtractionConflictError(
+            "Bulk rejection must use one extraction batch.",
+          );
+        batchId = proposalBatchId;
+      }
+      await completeIfResolved(client, principal.workspaceId, batchId!);
+      await audit(client, principal, "extraction.bulk-reject", batchId!, {
+        rejectedCount: uniqueIds.length,
+      });
     });
   }
 }

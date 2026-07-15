@@ -23,7 +23,8 @@ test.beforeAll(async () => {
     const principal = context.rows[0]!;
     await connection.pool.query(
       `INSERT INTO model_provider_configurations (workspace_id,created_by_user_id,kind,label,base_url,auth_type,capabilities,task_assignments,status,last_tested_at)
-       VALUES ($1,$2,'openai_compatible','Synthetic AI-01 review provider','https://models.example/v1/','none',$3::jsonb,$4::jsonb,'available',now())`,
+       VALUES ($1,$2,'openai_compatible','Synthetic AI-01 review provider','https://models.example/v1/','none',$3::jsonb,$4::jsonb,'available',now())
+       ON CONFLICT (workspace_id,label) DO UPDATE SET capabilities=excluded.capabilities,task_assignments=excluded.task_assignments,status='available',last_tested_at=now()`,
       [
         principal.workspace_id,
         principal.user_id,
@@ -43,7 +44,7 @@ test.beforeAll(async () => {
   }
 });
 
-test("user edits, approves, rejects, and bulk-confirms imported fact proposals", async ({
+test("user edits and confirms selected proposal approvals and rejections", async ({
   page,
 }) => {
   const marker = Date.now();
@@ -83,7 +84,7 @@ test("user edits, approves, rejects, and bulk-confirms imported fact proposals",
       .getByRole("listitem")
       .filter({ hasText: claim })
       .filter({
-        has: page.getByRole("button", { name: "Approve as evidence" }),
+        has: page.getByRole("checkbox", { name: /Select proposal/u }),
       });
   await expect(proposalFor(rejectedClaim)).toBeVisible();
 
@@ -97,24 +98,26 @@ test("user edits, approves, rejects, and bulk-confirms imported fact proposals",
   await expect(
     firstProposal.getByText(editedClaim, { exact: true }).first(),
   ).toBeVisible();
-  await firstProposal
-    .getByRole("button", { name: "Approve as evidence" })
-    .click();
-  await expect(page.getByText("Evidence ID:")).toBeVisible();
+  await firstProposal.getByRole("checkbox").check();
+  await proposalFor(bulkClaim).getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Approve selected" }).click();
+  const approveDialog = page.getByRole("dialog");
+  await expect(approveDialog).toContainText(
+    "Are you sure you want to approve the following proposals?",
+  );
+  await expect(approveDialog).toContainText(editedClaim);
+  await expect(approveDialog).toContainText(bulkClaim);
+  await approveDialog.getByRole("button", { name: "Approve 2" }).click();
+  await expect(page.getByText("Evidence ID:").first()).toBeVisible();
 
-  await proposalFor(rejectedClaim)
-    .getByRole("button", { name: "Reject" })
-    .click();
-  await expect(
-    page
-      .getByRole("listitem")
-      .filter({ hasText: rejectedClaim })
-      .getByText("rejected", { exact: true }),
-  ).toBeVisible();
-
-  await page.getByLabel(bulkClaim, { exact: true }).check();
-  await page.getByLabel("Selected count").fill("1");
-  await page.getByRole("button", { name: "Confirm bulk approval" }).click();
+  await proposalFor(rejectedClaim).getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Reject selected" }).click();
+  const rejectDialog = page.getByRole("dialog");
+  await expect(rejectDialog).toContainText(
+    "Are you sure you want to reject the following proposal?",
+  );
+  await expect(rejectDialog).toContainText(rejectedClaim);
+  await rejectDialog.getByRole("button", { name: "Reject 1" }).click();
   await expect(page.getByText("0 pending of 3 proposals.")).toBeVisible();
   await expect(page.getByText("completed", { exact: true })).toBeVisible();
 });

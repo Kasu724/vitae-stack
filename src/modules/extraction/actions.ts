@@ -141,32 +141,6 @@ export async function updateExtractionProposalAction(
   redirect(reviewLocation(batchId, form, "notice", "proposal-updated"));
 }
 
-export async function approveExtractionProposalAction(
-  form: FormData,
-): Promise<void> {
-  const { principal, repository } = await context();
-  const batchId = text(form, "batchId");
-  try {
-    await repository.approve(principal, text(form, "proposalId"));
-  } catch {
-    redirect(reviewLocation(batchId, form, "error", "proposal-resolution"));
-  }
-  redirect(reviewLocation(batchId, form, "notice", "proposal-approved"));
-}
-
-export async function rejectExtractionProposalAction(
-  form: FormData,
-): Promise<void> {
-  const { principal, repository } = await context();
-  const batchId = text(form, "batchId");
-  try {
-    await repository.reject(principal, text(form, "proposalId"));
-  } catch {
-    redirect(reviewLocation(batchId, form, "error", "proposal-resolution"));
-  }
-  redirect(reviewLocation(batchId, form, "notice", "proposal-rejected"));
-}
-
 export async function mergeExtractionProposalAction(
   form: FormData,
 ): Promise<void> {
@@ -189,13 +163,25 @@ export async function bulkApproveExtractionAction(
     const selected = form
       .getAll("proposalId")
       .filter((value): value is string => typeof value === "string");
-    await repository.bulkApprove(
-      principal,
-      selected,
-      Number(text(form, "confirmedCount")),
-    );
+    await repository.bulkApprove(principal, selected);
   } catch {
     redirect(reviewLocation(batchId, form, "error", "bulk-confirmation"));
   }
   redirect(reviewLocation(batchId, form, "notice", "bulk-approved"));
+}
+
+export async function bulkRejectExtractionAction(
+  form: FormData,
+): Promise<void> {
+  const { principal, repository } = await context();
+  const batchId = text(form, "batchId");
+  try {
+    const selected = form
+      .getAll("proposalId")
+      .filter((value): value is string => typeof value === "string");
+    await repository.bulkReject(principal, selected);
+  } catch {
+    redirect(reviewLocation(batchId, form, "error", "bulk-confirmation"));
+  }
+  redirect(reviewLocation(batchId, form, "notice", "bulk-rejected"));
 }

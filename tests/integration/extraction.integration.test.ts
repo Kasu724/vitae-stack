@@ -299,7 +299,6 @@ describe("extraction review and approval", () => {
     await repository.bulkApprove(
       principal,
       review.proposals.map((proposal) => proposal.id),
-      review.proposals.length,
     );
     const entries = await career.listEntries(principal);
     expect(
@@ -364,7 +363,7 @@ describe("extraction review and approval", () => {
     expect(JSON.stringify(audit.rows)).not.toContain("Initial synthetic claim");
   });
 
-  it("rejects candidates and requires an exact bulk confirmation count", async () => {
+  it("approves or rejects checkbox selections as transactional batches", async () => {
     const sourceId = await readySource(
       first,
       "bulk",
@@ -372,16 +371,9 @@ describe("extraction review and approval", () => {
     );
     const batchId = await repository.createDeterministicBatch(first, sourceId);
     const proposals = (await repository.getBatch(first, batchId)).proposals;
-    await repository.reject(first, proposals[0]!.id);
-    await expect(
-      repository.bulkApprove(first, [proposals[1]!.id, proposals[2]!.id], 1),
-    ).rejects.toBeInstanceOf(ExtractionConflictError);
+    await repository.bulkReject(first, [proposals[0]!.id]);
     expect(
-      await repository.bulkApprove(
-        first,
-        [proposals[1]!.id, proposals[2]!.id],
-        2,
-      ),
+      await repository.bulkApprove(first, [proposals[1]!.id, proposals[2]!.id]),
     ).toHaveLength(2);
     expect((await repository.getBatch(first, batchId)).batch.status).toBe(
       "completed",
