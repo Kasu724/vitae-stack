@@ -105,13 +105,11 @@ test("card icons and multi-select actions confirm named career entries", async (
   await page.getByRole("button", { name: "Archive selected" }).click();
   const archiveDialog = page.getByRole("dialog");
   await expect(archiveDialog).toContainText(
-    "Are you sure you want to archive the following entries:",
+    "Are you sure you want to archive the following items:",
   );
   await expect(archiveDialog).toContainText(titles[0]!);
   await expect(archiveDialog).toContainText(titles[1]!);
-  await archiveDialog
-    .getByRole("button", { name: "Archive 2 entries" })
-    .click();
+  await archiveDialog.getByRole("button", { name: "Archive 2 items" }).click();
   await expect(page.getByText("Selected entries were archived.")).toBeVisible();
 
   await page.getByLabel(`Select ${titles[2]}`).check();
@@ -119,11 +117,11 @@ test("card icons and multi-select actions confirm named career entries", async (
   await page.getByRole("button", { name: "Delete selected" }).click();
   const deleteDialog = page.getByRole("dialog");
   await expect(deleteDialog).toContainText(
-    "Are you sure you want to delete the following entries:",
+    "Are you sure you want to delete the following items:",
   );
   await expect(deleteDialog).toContainText(titles[2]!);
   await expect(deleteDialog).toContainText(titles[3]!);
-  await deleteDialog.getByRole("button", { name: "Delete 2 entries" }).click();
+  await deleteDialog.getByRole("button", { name: "Delete 2 items" }).click();
   await expect(
     page.getByText(
       "The selected entries and the dependencies shown in their previews were deleted.",
@@ -134,9 +132,9 @@ test("card icons and multi-select actions confirm named career entries", async (
   await page.getByRole("button", { name: `Restore ${titles[0]}` }).click();
   const restoreDialog = page.getByRole("dialog");
   await expect(restoreDialog).toContainText(
-    "Are you sure you want to restore the following entry:",
+    "Are you sure you want to restore the following item:",
   );
-  await restoreDialog.getByRole("button", { name: "Restore 1 entry" }).click();
+  await restoreDialog.getByRole("button", { name: "Restore 1 item" }).click();
   await expect(page.getByText("Selected entries were restored.")).toBeVisible();
 });
 

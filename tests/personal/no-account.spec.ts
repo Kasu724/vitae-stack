@@ -29,9 +29,9 @@ test("personal mode opens without sign-in and retains its local workspace", asyn
   if ((await existing.count()) === 0) {
     await page.getByRole("link", { name: "Add career entry" }).click();
     await page.getByLabel("Entry type").selectOption("project");
-    await page.getByLabel("Title").fill(persistenceMarker);
+    await page.getByLabel("Project name").fill(persistenceMarker);
     await page
-      .getByLabel("Description")
+      .getByLabel("Item notes")
       .fill("Fictional marker used only to verify local restart persistence.");
     await page.getByLabel("Tags").fill("synthetic, personal-release");
     await page.getByRole("button", { name: "Create entry" }).click();
