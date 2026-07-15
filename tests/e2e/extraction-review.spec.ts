@@ -79,6 +79,23 @@ test("user edits and confirms selected proposal approvals and rejections", async
   await expect(
     page.getByRole("heading", { level: 1, name: "Review extracted facts" }),
   ).toBeVisible();
+  const sectionHeadings = await page.locator("h2").allTextContents();
+  expect(sectionHeadings.indexOf("Proposals")).toBeLessThan(
+    sectionHeadings.indexOf("Untrusted source text"),
+  );
+  await expect
+    .poll(async () =>
+      page
+        .getByRole("list", { name: "Proposal grid" })
+        .evaluate(
+          (element) =>
+            getComputedStyle(element).gridTemplateColumns.split(" ").length,
+        ),
+    )
+    .toBe(2);
+  await expect(
+    page.getByRole("button", { name: "Select all on page" }),
+  ).toBeVisible();
   const proposalFor = (claim: string) =>
     page
       .getByRole("listitem")
@@ -120,4 +137,43 @@ test("user edits and confirms selected proposal approvals and rejections", async
   await rejectDialog.getByRole("button", { name: "Reject 1" }).click();
   await expect(page.getByText("0 pending of 3 proposals.")).toBeVisible();
   await expect(page.getByText("completed", { exact: true })).toBeVisible();
+});
+
+test("user can expand page selection to every pending proposal", async ({
+  page,
+}) => {
+  const marker = Date.now();
+  const claims = Array.from(
+    { length: 26 },
+    (_, index) => `Synthetic all-pages proposal ${marker}-${index + 1}`,
+  );
+
+  await signInSyntheticUser(page);
+  await page.goto("/sources");
+  await page
+    .getByRole("region", { name: "Import a document" })
+    .getByLabel("Document")
+    .setInputFiles({
+      name: "synthetic-all-pages-extraction.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from(claims.join("\n")),
+    });
+  await page.getByRole("button", { name: "Upload and parse" }).click();
+  await waitForSourceReady(page);
+  await page.getByText("Use deterministic fallback").click();
+  await page.getByRole("button", { name: "Extract without AI" }).click();
+  await expect(page.getByText("26 pending of 26 proposals.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Select all on page" }).click();
+  await expect(page.getByText("25 selected", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
+  await expect(page.getByText("26 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("All pending proposals selected")).toBeVisible();
+
+  await page.getByRole("button", { name: "Reject selected" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(claims[0]!);
+  await expect(dialog).toContainText(claims[25]!);
+  await expect(dialog.getByRole("button", { name: "Reject 26" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
 });

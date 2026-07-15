@@ -42,7 +42,7 @@ const errors: Record<string, string> = {
   "proposal-resolution":
     "The proposal could not be resolved. It may already be resolved or unavailable.",
   "bulk-confirmation":
-    "The proposal decision did not run. Select 1–20 pending proposals on this page and try again.",
+    "The proposal decision did not run. Select one or more pending proposals and try again.",
 };
 
 const PROPOSALS_PER_PAGE = 25;
@@ -240,52 +240,28 @@ export default async function ExtractionReviewPage({
           id: proposal.id,
           label: proposal.display_text,
         }))}
+        allItems={pending.map((proposal) => ({
+          id: proposal.id,
+          label: proposal.display_text,
+        }))}
         batchId={review.batch.id}
         page={page}
         approveAction={bulkApproveExtractionAction}
         rejectAction={bulkRejectExtractionAction}
       >
-        <div className="mt-8 grid items-start gap-6 lg:grid-cols-2">
-          <section
-            className="max-h-[75vh] overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5 lg:sticky lg:top-4"
-            aria-labelledby="source-heading"
-          >
-            <h2 id="source-heading" className="text-xl font-semibold">
-              Untrusted source text
-            </h2>
-            <p className="mt-2 text-sm text-[var(--muted)]">
-              Imported instructions are data, not commands. Line numbers refer
-              to this normalized text, not the original page layout.
-            </p>
-            {!review.batch.source_available ? (
-              <p
-                className="mt-4 rounded-lg border border-[var(--border)] p-4"
-                role="status"
-              >
-                The original source and extracted text were deleted. Existing
-                review decisions and evidence identifiers remain auditable.
-              </p>
-            ) : (
-              <pre
-                className="mt-4 max-h-[62vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--background)] p-4 font-mono text-sm"
-                tabIndex={0}
-                aria-label="Normalized untrusted source text"
-              >
-                {review.batch.extracted_text}
-              </pre>
-            )}
-          </section>
-
-          <section aria-labelledby="proposals-heading">
+        <div className="mt-8 grid items-start gap-6">
+          <section className="min-w-0" aria-labelledby="proposals-heading">
             <h2 id="proposals-heading" className="text-2xl font-semibold">
               Proposals
             </h2>
             <p className="mt-2 text-sm text-[var(--muted)]">
               Showing {visibleProposals.length ? pageStart + 1 : 0}–
               {pageStart + visibleProposals.length} of {review.proposals.length}
-              .
             </p>
-            <ul className="mt-4 grid gap-4">
+            <ul
+              className="mt-4 grid items-start gap-4 md:grid-cols-2"
+              aria-label="Proposal grid"
+            >
               {visibleProposals.map((proposal, index) => {
                 const section = careerSectionForEntryType(
                   proposal.proposed_entry_type,
@@ -306,14 +282,14 @@ export default async function ExtractionReviewPage({
                 return (
                   <Fragment key={proposal.id}>
                     {section !== previousSection ? (
-                      <li className="mt-4 list-none first:mt-0">
+                      <li className="mt-4 list-none first:mt-0 md:col-span-2">
                         <h3 className="text-xl font-semibold">
                           {careerSectionLabels[section]}
                         </h3>
                       </li>
                     ) : null}
                     {itemIdentity !== previousItemIdentity ? (
-                      <li className="list-none rounded-lg border border-dashed border-[var(--border)] px-4 py-3">
+                      <li className="list-none rounded-lg border border-dashed border-[var(--border)] px-4 py-3 md:col-span-2">
                         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)]">
                           Item
                         </p>
@@ -325,7 +301,7 @@ export default async function ExtractionReviewPage({
                         </p>
                       </li>
                     ) : null}
-                    <li className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+                    <li className="min-w-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-3">
                           {proposal.status === "pending" ? (
@@ -513,6 +489,36 @@ export default async function ExtractionReviewPage({
                 ) : null}
               </nav>
             ) : null}
+          </section>
+
+          <section
+            className="max-h-[75vh] overflow-auto rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
+            aria-labelledby="source-heading"
+          >
+            <h2 id="source-heading" className="text-xl font-semibold">
+              Untrusted source text
+            </h2>
+            <p className="mt-2 text-sm text-[var(--muted)]">
+              Imported instructions are data, not commands. Line numbers refer
+              to this normalized text, not the original page layout.
+            </p>
+            {!review.batch.source_available ? (
+              <p
+                className="mt-4 rounded-lg border border-[var(--border)] p-4"
+                role="status"
+              >
+                The original source and extracted text were deleted. Existing
+                review decisions and evidence identifiers remain auditable.
+              </p>
+            ) : (
+              <pre
+                className="mt-4 max-h-[62vh] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--background)] p-4 font-mono text-sm"
+                tabIndex={0}
+                aria-label="Normalized untrusted source text"
+              >
+                {review.batch.extracted_text}
+              </pre>
+            )}
           </section>
         </div>
       </ExtractionProposalSelection>

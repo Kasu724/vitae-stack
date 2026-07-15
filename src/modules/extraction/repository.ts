@@ -13,6 +13,7 @@ import {
   extractionProposalEditSchema,
   deterministicStructuredCandidates,
   hashExtractionValue,
+  MAX_EXTRACTION_PROPOSALS,
   sourceEntryTitle,
   validateExtractionSourceSpans,
   type AiExtractionProposal,
@@ -39,11 +40,11 @@ function validatedBulkProposalIds(proposalIds: string[]): string[] {
   const uniqueIds = [...new Set(proposalIds)];
   if (
     uniqueIds.length === 0 ||
-    uniqueIds.length > 20 ||
+    uniqueIds.length > MAX_EXTRACTION_PROPOSALS ||
     uniqueIds.length !== proposalIds.length
   )
     throw new ExtractionConflictError(
-      "Select between 1 and 20 unique pending proposals.",
+      `Select between 1 and ${MAX_EXTRACTION_PROPOSALS} unique pending proposals.`,
     );
   return uniqueIds;
 }

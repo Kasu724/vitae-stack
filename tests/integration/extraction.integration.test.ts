@@ -364,17 +364,21 @@ describe("extraction review and approval", () => {
   });
 
   it("approves or rejects checkbox selections as transactional batches", async () => {
-    const sourceId = await readySource(
-      first,
-      "bulk",
-      "Synthetic one\nSynthetic two\nSynthetic three",
+    const claims = Array.from(
+      { length: 25 },
+      (_, index) => `Synthetic bulk claim ${index + 1}`,
     );
+    const sourceId = await readySource(first, "bulk", claims.join("\n"));
     const batchId = await repository.createDeterministicBatch(first, sourceId);
     const proposals = (await repository.getBatch(first, batchId)).proposals;
+    expect(proposals).toHaveLength(25);
     await repository.bulkReject(first, [proposals[0]!.id]);
     expect(
-      await repository.bulkApprove(first, [proposals[1]!.id, proposals[2]!.id]),
-    ).toHaveLength(2);
+      await repository.bulkApprove(
+        first,
+        proposals.slice(1).map((proposal) => proposal.id),
+      ),
+    ).toHaveLength(24);
     expect((await repository.getBatch(first, batchId)).batch.status).toBe(
       "completed",
     );

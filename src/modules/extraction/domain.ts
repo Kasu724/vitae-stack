@@ -12,6 +12,7 @@ import {
 import type { EvidenceValue } from "@/infrastructure/database/value-types";
 
 export const MAX_AI_EXTRACTION_SOURCE_CHARACTERS = 60_000;
+export const MAX_EXTRACTION_PROPOSALS = 100;
 export const AI_EXTRACTION_REVIEW_WARNING =
   "AI-generated classifications require review.";
 
@@ -42,7 +43,9 @@ export type AiExtractionProposal = z.infer<typeof aiExtractionProposalSchema>;
 export const aiExtractionOutputSchema = z
   .object({
     schemaVersion: z.literal("ai-01.v1"),
-    proposals: z.array(aiExtractionProposalSchema).max(100),
+    proposals: z
+      .array(aiExtractionProposalSchema)
+      .max(MAX_EXTRACTION_PROPOSALS),
     warnings: z.array(z.string().min(1).max(300)).max(20),
   })
   .strict();
@@ -70,7 +73,7 @@ export const aiExtractionJsonSchema = {
     schemaVersion: { type: "string", enum: ["ai-01.v1"] },
     proposals: {
       type: "array",
-      maxItems: 100,
+      maxItems: MAX_EXTRACTION_PROPOSALS,
       items: {
         type: "object",
         properties: {
@@ -193,7 +196,7 @@ export type ExtractionProposalEdit = z.infer<
 
 export function deterministicLineCandidates(
   text: string,
-  maximum = 100,
+  maximum = MAX_EXTRACTION_PROPOSALS,
 ): Array<{ line: number; text: string }> {
   return text
     .split(/\n/gu)
@@ -245,7 +248,7 @@ function normalizedHeading(value: string): string {
 export function deterministicStructuredCandidates(
   text: string,
   fallbackTitle: string,
-  maximum = 100,
+  maximum = MAX_EXTRACTION_PROPOSALS,
 ): DeterministicExtractionCandidate[] {
   const results: DeterministicExtractionCandidate[] = [];
   let entryType: CareerEntryType = "custom";

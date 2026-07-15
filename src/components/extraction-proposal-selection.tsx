@@ -125,6 +125,7 @@ function ConfirmationDialog({
 
 export function ExtractionProposalSelection({
   items,
+  allItems,
   batchId,
   page,
   approveAction,
@@ -132,6 +133,7 @@ export function ExtractionProposalSelection({
   children,
 }: {
   items: ProposalSelectionItem[];
+  allItems: ProposalSelectionItem[];
   batchId: string;
   page: number;
   approveAction: ProposalAction;
@@ -143,13 +145,16 @@ export function ExtractionProposalSelection({
     decision: Decision;
     ids: string[];
   } | null>(null);
-  const selectedItems = items.filter((item) => selected.has(item.id));
+  const selectedItems = allItems.filter((item) => selected.has(item.id));
+  const allPageSelected =
+    items.length > 0 && items.every((item) => selected.has(item.id));
+  const allSelected =
+    allItems.length > 0 && allItems.every((item) => selected.has(item.id));
 
   const toggle = (proposalId: string, checked: boolean) => {
     setSelected((current) => {
       const next = new Set(current);
       if (checked) {
-        if (next.size >= 20) return current;
         next.add(proposalId);
       } else {
         next.delete(proposalId);
@@ -157,6 +162,15 @@ export function ExtractionProposalSelection({
       return next;
     });
   };
+
+  const selectPage = () =>
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const item of items) next.add(item.id);
+      return next;
+    });
+
+  const selectAll = () => setSelected(new Set(allItems.map((item) => item.id)));
 
   const openConfirmation = (decision: Decision) =>
     setConfirmation({
@@ -166,7 +180,7 @@ export function ExtractionProposalSelection({
 
   return (
     <ProposalSelectionContext.Provider value={{ selected, toggle }}>
-      {items.length ? (
+      {allItems.length ? (
         <section
           className="selection-toolbar sticky top-2 z-40 mt-8 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-[var(--shadow-raised)]"
           aria-labelledby="proposal-actions-heading"
@@ -176,11 +190,35 @@ export function ExtractionProposalSelection({
               Proposal decisions
             </h2>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Select up to 20 pending proposals on this page, then approve or
-              reject them together.
+              Select pending proposals on this page or across the full review,
+              then approve or reject them together.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={!items.length || allPageSelected}
+              onClick={selectPage}
+            >
+              Select all on page
+            </button>
+            {allPageSelected &&
+            allItems.length > items.length &&
+            !allSelected ? (
+              <button
+                className="min-h-10 bg-transparent px-2 font-semibold text-[var(--action)] underline underline-offset-4"
+                type="button"
+                onClick={selectAll}
+              >
+                Select all
+              </button>
+            ) : null}
+            {allSelected && allItems.length > items.length ? (
+              <span className="px-2 text-sm font-medium">
+                All pending proposals selected
+              </span>
+            ) : null}
             <span className="mr-1 text-sm text-[var(--muted)]" role="status">
               {selected.size} selected
             </span>
@@ -207,7 +245,7 @@ export function ExtractionProposalSelection({
       {confirmation ? (
         <ConfirmationDialog
           decision={confirmation.decision}
-          items={items.filter((item) => confirmation.ids.includes(item.id))}
+          items={allItems.filter((item) => confirmation.ids.includes(item.id))}
           batchId={batchId}
           page={page}
           action={
@@ -233,7 +271,6 @@ export function ExtractionProposalCheckbox({
       "ExtractionProposalCheckbox must be inside ExtractionProposalSelection.",
     );
   const checked = context.selected.has(proposalId);
-  const limitReached = !checked && context.selected.size >= 20;
 
   return (
     <label className="flex min-h-10 items-center gap-3 font-medium">
@@ -241,7 +278,6 @@ export function ExtractionProposalCheckbox({
         type="checkbox"
         className="size-5 shrink-0 accent-[var(--action)]"
         checked={checked}
-        disabled={limitReached}
         onChange={(event) => context.toggle(proposalId, event.target.checked)}
       />
       <span className="sr-only">{label}</span>
