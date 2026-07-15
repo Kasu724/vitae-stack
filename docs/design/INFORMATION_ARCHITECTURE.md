@@ -9,7 +9,8 @@ flowchart TD
   Shell --> Docs[Document library]
   Shell --> Jobs[Jobs]
   Shell --> Settings[Settings]
-  Bank --> Entry[Career-entry editor]
+  Bank --> Sections[Career sections]
+  Sections --> Entry[Career-item editor and evidence]
   Bank --> Sources[Sources and extraction reviews]
   Docs --> Editor[Resume or cover-letter editor]
   Editor --> Versions[Version history]
@@ -27,7 +28,7 @@ On first use, the server automatically creates the opaque local principal, works
 
 ## Content organization
 
-- **Bank:** profiles, entries, facts, skills, goals/preferences, sources, verification queue.
+- **Bank:** canonical sections containing distinct career items; each item owns typed metadata, item notes, proposed/approved bullets and detailed factual context, skills, and provenance. Sources and the verification queue preserve the same section/item hierarchy.
 - **Documents:** logical documents, type/status, current version, source/tailored lineage, exports.
 - **Jobs:** immutable job snapshots, reviewed requirements, evidence matrix, tailoring runs.
 - **Settings:** providers and data destinations, privacy/local deployment information, portability, and deletion.

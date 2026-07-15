@@ -26,13 +26,13 @@ sequenceDiagram
 
 Task inputs identify facts with immutable IDs and delimited data. Prompts state that imported/model text is untrusted and cannot issue instructions. Outputs cannot call tools or fetch arbitrary context. Maximum two repair attempts share one job budget; only safe schema error paths are sent back, never secrets. Provider-native structured output is preferred, but local validation is always mandatory.
 
-Career extraction proposes facts; requirement extraction proposes requirements. Retrieval has deterministic filters/lexical candidates; a model may rerank candidate IDs but cannot invent candidates. Tailoring emits claims/suggestions with evidence IDs. ATS scoring remains deterministic; model explanation consumes findings only.
+Career extraction proposes a section → item → item-bound-fact hierarchy; requirement extraction proposes requirements. Retrieval has deterministic filters/lexical candidates; a model may rerank candidate IDs but cannot invent candidates. Resume and cover-letter generation require an eligible model and receive approved evidence grouped by selected career item so relevant bullets and detailed context can be compared without losing item identity. Tailoring emits claims/suggestions with evidence IDs. ATS scoring remains deterministic; model explanation consumes findings only.
 
 See [task catalog](../ai/TASK_CATALOG.md), [prompt architecture](../ai/PROMPT_ARCHITECTURE.md), and [provenance](PROVENANCE_MODEL.md).
 
 ## Implemented M07 boundary
 
-Career-fact extraction starts with the bounded local document parser. A user may keep the deterministic line-based review or explicitly select a tested AI-01 provider/model after reviewing the destination and transmission preview. AI-01 can classify and group only exact single-line UTF-16 source slices; it cannot paraphrase, normalize, approve evidence, call tools, or add unsupported text. Closed-schema and exact-slice validation run before a transaction rechecks the source hash and creates pending proposals. Invalid/refused/timeout output creates no partial batch and leaves the deterministic path available. Multi-entry grouping is a proposal property, while an explicit user-selected existing career entry always takes precedence at approval.
+Career-fact extraction starts with the bounded local document parser. The product recommends a tested AI-01 provider/model after disclosing the destination and transmission preview; the local `deterministic-sections@2` heuristic remains an explicit fallback. AI-01 can classify and group only exact single-line UTF-16 source slices; it cannot paraphrase, normalize, approve evidence, call tools, or add unsupported text. Closed-schema, exact-slice, and stable item-key validation run before a transaction rechecks the source hash and creates pending proposals. Invalid/refused/timeout output creates no partial batch and leaves the deterministic path available. Section identity is derived from the entry type; facts sharing an item key reuse one item at approval, while an explicit user-selected existing career item always takes precedence.
 
 ## Implemented M13 boundary
 

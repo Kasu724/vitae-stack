@@ -41,7 +41,7 @@ erDiagram
 
 ## Important aggregates
 
-- `CareerEntry` is mutable metadata until facts are approved. `EvidenceFact` is a canonical assertion with type/value/unit/date scope, source locator, approval record, status, and optional `supersedesFactId`; its value never changes.
+- `CareerEntry` is one item in a canonical Career Information Bank section derived from its typed category. It stores mutable organizing metadata plus validated attributes (for example education major/minor/courses/awards or project technologies). Its bullets and detailed factual narrative remain proposals until approved. `EvidenceFact` is a canonical item-bound assertion with type/value/unit/date scope, source locator, approval record, status, and optional `supersedesFactId`; its value never changes.
 - `SourceDocument` stores metadata, checksum, storage key, parser version, retention state, and proposals. Storage bytes are outside SQLite.
 - `Document` is identity/metadata; `DocumentVersion` owns a full typed-content snapshot, parent, content hash, creation reason, and schema version. `DocumentSection` is a query projection/snapshot, not independently mutable.
 - `GeneratedClaim` anchors a factual span/status to a version. `ClaimEvidence` is immutable and requires same-workspace facts. Nonfactual prose has explicit classification but no fake evidence.

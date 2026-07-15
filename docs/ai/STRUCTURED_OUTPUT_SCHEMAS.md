@@ -17,6 +17,10 @@ Zod is the runtime source of truth; JSON Schema is derived for capable providers
 
 Identifiers are opaque strings matching IDs supplied in input. Free-form provider IDs, URLs, HTML, tool calls, and extra keys are forbidden. Strings and arrays have task-specific maximum lengths; every object is closed.
 
+## Career extraction hierarchy
+
+AI-01 returns exact source spans as pending proposals. Each proposal carries an `entryType` and stable `entryKey`; the application derives its canonical Career Information Bank section from `entryType`. Proposals with the same key must repeat the same exact title identity and become facts on one item when approved. Different keys remain different items even within one section. The provider cannot supply mutable item notes, approve evidence, or paraphrase a source span. The deterministic fallback uses the same stored item-key contract but derives keys from recognized headings and blank-line boundaries.
+
 ## Claim-bearing output
 
 ```json

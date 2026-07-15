@@ -9,7 +9,7 @@ Documents alone cannot reliably distinguish approved facts, corrections, metrics
 
 ## Decision
 
-Use typed `CareerEntry` aggregates for common categories, normalized `Skill` relations, flexible validated attributes, and immutable `EvidenceFact` assertions. Extraction/manual input creates proposals; explicit approval creates facts. Corrections create `supersedes` facts; withdrawal excludes future use; hard deletion previews dependents.
+Use canonical Career Information Bank sections containing typed `CareerEntry` item aggregates for common categories, normalized `Skill` relations, flexible validated item attributes, and immutable item-bound `EvidenceFact` assertions. Bullets and detailed factual context are evidence proposals, not mutable item metadata. Extraction/manual input creates section/item-bound proposals; explicit approval creates facts on that item. Corrections create `supersedes` facts; withdrawal excludes future use; hard deletion previews dependents.
 
 ## Alternatives considered
 
@@ -17,7 +17,7 @@ Store only resume blobs/text loses evidence lifecycle. Fully normalized subtype 
 
 ## Consequences
 
-Facts are reusable, searchable, and auditable across documents. The system must maintain schemas, proposal review, duplicate/conflict detection, and migration of flexible attributes. Entries organize facts but do not become evidence implicitly.
+Facts are reusable, searchable, and auditable across documents. The system must maintain section taxonomy, item schemas, proposal grouping, duplicate/conflict detection, and migration of flexible attributes. Items organize facts but do not become evidence implicitly; editable item notes cannot be sent to generation as though they were approved evidence.
 
 ## Security and privacy implications
 

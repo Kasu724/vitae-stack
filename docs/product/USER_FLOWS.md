@@ -7,13 +7,14 @@ flowchart LR
   A[Start Vitae Stack] --> C[Auto-provision local workspace]
   C --> E[Upload or enter career data]
   E --> F[Quarantine and parse]
-  F --> G[Review extraction proposals]
-  G -->|approve/edit| H[Immutable evidence facts]
-  G -->|reject| I[Excluded proposal]
-  H --> J[Career Information Bank]
+  F --> G[Recommended AI or deterministic fallback groups section → item → facts]
+  G --> H[Review grouped extraction proposals]
+  H -->|approve/edit| I[Immutable item-bound evidence facts]
+  H -->|reject| X[Excluded proposal]
+  I --> J[Section-grouped Career Information Bank]
 ```
 
-The UI never labels parsed proposals as verified. Editing before approval changes the proposal; changing an approved fact creates a superseding fact.
+The UI never labels parsed proposals as verified. Facts approved from one extraction item remain tied to that item. Editing before approval changes the proposal; changing an approved fact creates a superseding fact. Users can add more bullet or detailed-context proposals to any item after import.
 
 ## Tailoring
 
@@ -21,8 +22,8 @@ The UI never labels parsed proposals as verified. Editing before approval change
 flowchart TD
   J[Add job: text, URL, or file] --> K[Review normalized job and requirements]
   K --> L[Requirement-evidence matrix]
-  L --> M[Select source version, facts, locks, preferences]
-  M --> N[Generate schema-validated suggestions]
+  L --> M[Select source version, career items, facts, locks, preferences]
+  M --> N[Required AI model selects relevant item evidence and generates schema-validated suggestions]
   N --> O{Grounding checks pass?}
   O -->|no| P[Block or mark gap; never insert]
   O -->|yes| Q[Review atomic suggestions]

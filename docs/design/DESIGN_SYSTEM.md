@@ -19,6 +19,6 @@ Evidence-aware patterns:
 
 ## Content and motion
 
-Use direct labels (“Approve 4 facts”, “Delete source file”), sentence-case headings, ISO-aware but localized dates, and no success claims before server confirmation. Avoid gamified scoring language. Transitions are optional, under 200ms, and never required to understand state.
+Use direct labels (“Approve 4 facts”, “Delete source file”), sentence-case headings, ISO-aware but localized dates, and no success claims before server confirmation. Avoid gamified scoring language. Motion uses repository-owned duration and easing tokens. Entrances, hover feedback, focus movement, and state transitions stay under 200ms, use only opacity and small transforms where practical, and are never required to understand state. `prefers-reduced-motion: reduce` disables meaningful animation, delays, and smooth scrolling globally.
 
 Component stories will cover default, disabled, loading, error, long content, and narrow viewport. Visual regression tests complement interaction tests.

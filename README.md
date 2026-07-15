@@ -44,7 +44,7 @@ flowchart LR
 
 ### Three kinds of content to understand first
 
-- **Career entry:** a structured record of an experience, education, project, credential, skill-related item, or other career information. It organizes facts; it is not itself proof that every statement is verified.
+- **Career item:** one structured item inside a canonical section such as Experience, Projects, Education, or Skills. It holds typed metadata and organizes its own bullets and detailed factual context; it is not itself proof that every statement is verified.
 - **Fact proposal and approved evidence:** new facts—whether typed by you or extracted from an upload—start as proposals. Approving one creates an immutable evidence ID. If a fact needs correction, you create a replacement fact; you do not overwrite its history. Withdrawn facts cannot be used in new tailoring.
 - **Document claim:** a factual span in a resume or cover letter. It is supported only when linked to appropriate current approved evidence. Editing factual text can make the claim unverified until you link evidence again, approve it as a new fact, or mark genuinely nonfactual framing as nonfactual.
 
@@ -52,7 +52,7 @@ This distinction is why import and tailoring do not silently change a final docu
 
 ## Quick start: create a tailored document
 
-1. Open **Career evidence** and add the experiences you may want to use. Add fact proposals and approve the accurate ones. Alternatively, use **Sources** to import an existing resume or career document, then review its extraction proposals.
+1. Open **Career evidence** and add items under Experience, Projects, Education, Skills, or another section. Add bullet or detailed-context proposals and approve the accurate ones. Alternatively, use **Sources** to import an existing resume or career document; structured AI extraction is recommended, a deterministic fallback remains available, and both paths require review.
 2. Open **Jobs** and paste a job description, import it from a safe public HTTPS URL, use an allowed file, or create a job snapshot from an imported source. Review its requirements and finalize the reviewed set.
 3. On that job’s page, generate the **Requirement-to-evidence matrix**. Inspect the candidate facts, their lexical signals and strength, include only the evidence you want to use, and leave unsupported requirements as explicit gaps.
 4. Open **Documents** and create a resume or cover letter, then add or edit its structured sections. Save an immutable version when the draft is ready.
@@ -84,8 +84,8 @@ Use it whenever you want to return to a high-level view of the workflow. The sid
 
 This is the reusable evidence library. Use it to:
 
-- search active or archived career entries and review possible duplicates;
-- create entries for work, internships, projects, research, education, certifications, awards, leadership, extracurricular work, volunteering, coursework, publications, accomplishments, metrics, skills, or a custom type;
+- browse active or archived career items grouped into canonical sections, search them, and review possible duplicates;
+- create items for work, internships, projects, research, education, certifications, awards, leadership, extracurricular work, volunteering, coursework, publications, accomplishments, metrics, skills, or a custom type, including applicable education and project attributes;
 - create reusable skills with categories and aliases, then link a skill to an entry with a proficiency level; and
 - save career goals, target roles, and a direct, formal, or warm writing preference. Tailoring setup starts with its own selections, but these preferences provide reusable defaults.
 
@@ -93,7 +93,7 @@ Archive is reversible and keeps the record available through the archived filter
 
 #### Career-entry editor — `/career/new` and `/career/[id]`
 
-Use the new-entry page to create an organized record with typed dates, organization, location, description, and tags where applicable. On an existing entry page you can edit its details, archive or restore it, and link reusable skills.
+Use the new-item page to create an organized record with typed dates, organization or school, location, item notes, tags, and applicable fields such as major, minor, relevant courses, awards, and technologies. On an existing item page you can edit its details, archive or restore it, link reusable skills, and add any number of bullet or detailed-context proposals. Item notes organize private context but are not generation evidence.
 
 The same page is also the fact-review workspace:
 
@@ -109,7 +109,7 @@ Only approved, non-withdrawn facts can become matching candidates or support a g
 
 The source detail page shows the parser status, detected type, checksum, warnings, and extracted-text preview. When the source is ready, you can download the original, start a career-fact extraction review, create a job snapshot from the parsed text when appropriate, or delete source bytes. A source with unresolved extraction proposals must be reviewed before it can be deleted. Deleting source bytes can leave already approved facts available with a **source unavailable** marker.
 
-The extraction-review page presents proposals with their source locators. Review each proposal: edit its entry or fact details as needed, approve it, reject it, or resolve it as a duplicate. Parsed text is never automatically approved. Approved extraction facts appear in the Career Information Bank and can then feed evidence matching and tailoring.
+The extraction-review page groups proposals as section → item → item-bound fact and shows every source locator. Review each proposal: edit its destination item or fact details as needed, approve it, reject it, or resolve it as a duplicate. Facts approved from one item stay together in the Career Information Bank. Parsed text is never automatically approved. Approved extraction facts can then feed evidence matching and tailoring.
 
 ### Document library and editor — `/documents` and `/documents/[id]`
 
@@ -213,17 +213,17 @@ Only allowlist an endpoint you operate and trust. For a lasting setup, define th
 
 #### Which features need an AI model?
 
-| Feature                                                                                                    | Model requirement | Task assignments                                          | Local/manual alternative                                                                                          |
-| ---------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Import a source and produce career-fact proposals                                                          | No                | None in the current MVP                                   | The parser creates bounded deterministic proposals for review. You still approve, edit, or reject every proposal. |
-| Create career entries, approve evidence, edit documents, versions, claim support, portability, or deletion | No                | None                                                      | These features are entirely local.                                                                                |
-| Extract and review job requirements                                                                        | Optional          | `AI-02` for **Analyze with model**                        | Use **Analyze without AI** for deterministic line proposals, or start an empty manual review.                     |
-| Generate the requirement-to-evidence matrix                                                                | No                | None in the current MVP                                   | Matching is deterministic and uses only eligible approved evidence; you include or exclude candidates yourself.   |
-| Create resume-tailoring suggestions                                                                        | Yes               | `AI-05` (section selection) and `AI-06` (bullet revision) | Edit the resume manually, save versions, run ATS analysis, and export without a model.                            |
-| Create cover-letter-tailoring suggestions                                                                  | Yes               | `AI-07` (planning) and `AI-08` (drafting)                 | Edit the cover letter manually, save versions, run ATS analysis, and export without a model.                      |
-| Run estimated ATS analysis and create exports                                                              | No                | None                                                      | Both are deterministic/local. AI cannot change ATS scores or override an export blocker.                          |
+| Feature                                                                                                    | Model requirement | Task assignments                                          | Local/manual alternative                                                                                        |
+| ---------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Import a source and produce career-fact proposals                                                          | Recommended       | `AI-01` for structured section/item extraction            | Use the bounded deterministic section/item heuristic. You still approve, edit, or reject every proposal.        |
+| Create career entries, approve evidence, edit documents, versions, claim support, portability, or deletion | No                | None                                                      | These features are entirely local.                                                                              |
+| Extract and review job requirements                                                                        | Optional          | `AI-02` for **Analyze with model**                        | Use **Analyze without AI** for deterministic line proposals, or start an empty manual review.                   |
+| Generate the requirement-to-evidence matrix                                                                | No                | None in the current MVP                                   | Matching is deterministic and uses only eligible approved evidence; you include or exclude candidates yourself. |
+| Create resume-tailoring suggestions                                                                        | Yes               | `AI-05` (section selection) and `AI-06` (bullet revision) | Edit the resume manually, save versions, run ATS analysis, and export without a model.                          |
+| Create cover-letter-tailoring suggestions                                                                  | Yes               | `AI-07` (planning) and `AI-08` (drafting)                 | Edit the cover letter manually, save versions, run ATS analysis, and export without a model.                    |
+| Run estimated ATS analysis and create exports                                                              | No                | None                                                      | Both are deterministic/local. AI cannot change ATS scores or override an export blocker.                        |
 
-The provider configuration screen lists other versioned task IDs for internal capability assignment, but the MVP's user-facing model calls are the optional job-requirement analysis and the resume/cover-letter tailoring runs above. A configured provider never auto-runs: you choose the provider-backed action and see a transmission preview first.
+The provider configuration screen lists other versioned task IDs for internal capability assignment. Career extraction recommends AI-01 but retains its deterministic fallback; job-requirement analysis optionally uses AI-02; resume and cover-letter generation require their listed model tasks. A configured provider never auto-runs: you choose the provider-backed action and see a transmission preview first.
 
 The page displays the provider’s status, endpoint, credential mode, verified structured-output capability, last test, and task assignments. Public endpoints require HTTPS; local endpoints must be explicitly allowlisted. Before each provider-backed action, the relevant workflow page shows its data destination and selected data classes. Choose a local provider if you want model processing to remain on your computer.
 

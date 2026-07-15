@@ -55,7 +55,7 @@
 
 ## M04 — Career Information Bank
 
-**Implementation status:** Complete in the local repository. The baseline schema contains structured entries, profile settings, reusable skills, proposals, immutable evidence, and composite workspace ownership. The UI supports all MVP entry types, partial dates, typed metric proposals, explicit fact review, correction/withdrawal, provenance inspection, search, duplicate indication, archive/restore, and counted permanent deletion. Record deletion locks and rechecks the complete selection, blocks saved-document-claim dependencies, and removes eligible evidence/analysis atomically. Unit, SQLite integration, and default-browser E2E checks pass locally; the explicit narrow-reflow matrix is tracked in M20. Remote CI remains unverified.
+**Implementation status:** Complete in the local repository. The baseline schema contains structured entries, profile settings, reusable skills, proposals, immutable evidence, and composite workspace ownership. The UI groups typed items into canonical Career Information Bank sections, exposes applicable education/project attributes, and keeps editable item notes distinct from proposed/approved bullets and detailed factual context. It also supports all MVP entry types, partial dates, typed metric proposals, explicit fact review, correction/withdrawal, provenance inspection, search, duplicate indication, archive/restore, and counted permanent deletion. Record deletion locks and rechecks the complete selection, blocks saved-document-claim dependencies, and removes eligible evidence/analysis atomically. Focused unit and SQLite integration gates pass in the current change; full browser/release revalidation remains M21 scope. Remote CI remains unverified.
 
 - **Objective:** Implement structured entries, skills, goals/preferences, fact proposals, approval/supersede/withdraw/delete lifecycle, search/filter.
 - **User-visible outcome:** users can build and manage verified career data manually.
@@ -106,9 +106,9 @@
 
 ## M07 — Extraction review and approval
 
-**Implementation status:** Complete locally. The baseline schema, deterministic extraction, optional closed-schema AI-01 exact-span extraction, multi-entry proposal grouping, proposal review/merge, immutable evidence creation, redacted task/audit metadata, destination disclosure, and review UI are implemented with unit, SQLite integration, and browser coverage. Deterministic extraction keeps the MVP usable without a provider. Current full-gate revalidation remains part of M21.
+**Implementation status:** Complete locally. The baseline schema, recommended closed-schema AI-01 exact-span extraction, provider-independent `deterministic-sections@2` fallback, canonical section/item proposal grouping, grouped review/merge, immutable evidence creation, redacted task/audit metadata, destination disclosure, and review UI are implemented. Focused unit and SQLite integration gates pass in the current change; deterministic extraction keeps review usable without a provider and full browser/release revalidation remains M21 scope.
 
-- **Objective:** Add AI-01/provider-independent proposal ingestion and side-by-side approve/edit/reject/merge workflow.
+- **Objective:** Make AI-01 the recommended path for section → item → fact proposal ingestion while retaining a provider-independent section/item heuristic and side-by-side approve/edit/reject/merge workflow.
 - **User-visible outcome:** imported facts enter the bank only after granular review.
 - **Scope:** deterministic/basic extraction fallback, model task hook, source locators, bulk confirmation, conflicts/duplicates.
 - **Non-scope:** automatic approval or tailoring.
@@ -208,7 +208,7 @@
 
 ## M13 — Evidence-grounded resume tailoring
 
-**Implementation status:** Complete locally. The baseline schema, typed run/suggestion/task/provenance storage, locks, setup disclosure, provider-neutral AI-05/06 orchestration, hard claim validation, immutable persistence, gaps, and evidence review pass SQLite ownership/immutability tests, browser E2E, synthetic safety evaluations, and production build. No live-provider quality claim is made.
+**Implementation status:** Complete locally. The baseline schema, typed run/suggestion/task/provenance storage, locks, setup disclosure, required provider-neutral AI-05/06 orchestration, career-item-grouped approved bullet/context input, hard claim validation, immutable persistence, gaps, and evidence review are implemented. Focused unit validation passes in the current change; no live-provider quality claim is made and full release gates remain M21 scope.
 
 - **Objective:** Implement setup and AI-05/06 atomic resume suggestions with locks, requirements, claim spans, evidence validation, and explanations.
 - **User-visible outcome:** users receive reviewable grounded resume changes without automatic document mutation.
@@ -225,7 +225,7 @@
 
 ## M14 — Evidence-grounded cover-letter tailoring
 
-**Implementation status:** Complete locally. Cover-letter setup, AI-07 ID-only planning, AI-08 claim-covered drafting, deterministic salutation/closing framing, shared locks/run/provenance persistence, and review pass SQLite integration, browser E2E, synthetic safety evaluations, and production build. Company/role factual prose remains deliberately non-generated because the version provenance contract has no reviewed job-span claim source.
+**Implementation status:** Complete locally. Cover-letter setup requires an eligible AI-07/08 model; planning receives approved evidence grouped by career item, drafting remains claim-covered, deterministic salutation/closing framing remains nonfactual, and shared locks/run/provenance persistence and review are implemented. Focused unit validation passes in the current change. Company/role factual prose remains deliberately non-generated because the version provenance contract has no reviewed job-span claim source.
 
 - **Objective:** Implement AI-07/08 evidence-linked plan and paragraph suggestions using the same claim gate.
 - **User-visible outcome:** users can review a grounded letter outline/draft tied to job requirements and facts.
@@ -237,7 +237,7 @@
 - **Security:** same grounding/injection/data minimization; job/company assertions require job-span evidence or remain nonfactual framing.
 - **Required tests:** AC-010, missing company/contact, conflicts, claim coverage, plan/draft schema, AI-07/08 evals.
 - **Validation commands:** core/E2E/security plus `pnpm test:evals --task=AI-07,AI-08`.
-- **Completion criteria:** every factual letter span supported; user can complete flow manually if provider fails.
+- **Completion criteria:** every factual letter span supported; generation is unavailable if the required provider fails, while manual document editing remains a separate non-generation workflow.
 - **Rollback/recovery:** discard plan/draft suggestions; source version unaffected. **Docs:** task catalog/failure modes/letter UX.
 
 ## M15 — Editing and suggestion review

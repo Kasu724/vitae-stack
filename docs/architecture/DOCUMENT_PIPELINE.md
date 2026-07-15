@@ -22,6 +22,6 @@ Supported inputs are PDF embedded text, DOCX, Markdown, plain text, and versione
 
 The parser child receives no model-provider credential and returns a closed schema. Parser text is never approved automatically and prompt-like content stays inert. Approval records immutable evidence IDs and source locators; corrections create superseding facts.
 
-After local parsing, users may choose deterministic line proposals or an optional tested AI-01 provider. The UI discloses the destination/model and that the full bounded extracted text will be transmitted. AI output is limited to exact source spans, locally schema/span validated, and persisted only as pending proposals with provider/model/hash metadata; it never becomes evidence without review.
+After local parsing, the UI recommends a tested AI-01 provider for section/item extraction and discloses the destination/model and that the full bounded extracted text will be transmitted. A provider-independent `deterministic-sections@2` heuristic remains available as an explicit fallback. AI output is limited to exact source spans and stable item keys, locally schema/span/group validated, and persisted only as pending proposals with provider/model/hash metadata; neither path becomes evidence without review.
 
 Source metadata is stored in SQLite while bytes use opaque names in the local files folder. Deleting bytes removes extracted source text and makes retained approved-fact locators unavailable. See [file upload security](../security/FILE_UPLOAD_SECURITY.md).

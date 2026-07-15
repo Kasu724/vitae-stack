@@ -18,37 +18,37 @@ file. A mapping is not a claim that the evidence passed in the current run.
 
 ## Product requirements
 
-| Requirement | Milestone(s)            | Primary automated/manual evidence                                                                                                                |
-| ----------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| PR-001      | M04, M18                | `tests/integration/career.integration.test.ts`; `tests/integration/portability-deletion.integration.test.ts`; `tests/e2e/career-bank.spec.ts`    |
-| PR-002      | M04                     | `tests/unit/career-domain.test.ts`; `tests/unit/career-form-validation.test.ts`; `tests/integration/career.integration.test.ts`                  |
-| PR-003      | M04, M18                | `tests/integration/career.integration.test.ts` atomic dependency/blocker cases; `tests/deletion/workspace-deletion-recovery.test.ts`             |
-| PR-004      | M05                     | document aggregate/artifact deletion integration; `tests/e2e/document-library.spec.ts`; library-card action tests                                |
-| PR-005      | M05, M15                | `tests/integration/documents.integration.test.ts`; `tests/integration/requirements.integration.test.ts`                                          |
-| PR-006      | M06                     | `pnpm test:parsers` (including PDF line-boundary reconstruction); `tests/integration/sources.integration.test.ts`; file-upload security fixtures |
-| PR-007      | M07                     | AI-01 domain/service unit tests; `tests/integration/extraction.integration.test.ts`; `tests/e2e/extraction-review.spec.ts`                       |
-| PR-008      | M08, M09                | `tests/integration/jobs.integration.test.ts` aggregate deletion cases; job-ingestion and library-card E2E; `pnpm test:ssrf`                      |
-| PR-009      | M09                     | `pnpm test:ssrf`; `tests/security/url-fetching.security.test.ts`                                                                                 |
-| PR-010      | M10                     | `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-02`; `tests/e2e/job-ingestion.spec.ts`                          |
-| PR-011      | M11                     | `tests/unit/matching-domain.test.ts`; `tests/integration/requirements.integration.test.ts`                                                       |
-| PR-012      | M13, M14                | `tests/unit/resume-tailoring-service.test.ts`; `tests/unit/cover-letter-tailoring-service.test.ts`; `tests/e2e/resume-tailoring.spec.ts`         |
-| PR-013      | M13                     | `tests/unit/resume-tailoring-service.test.ts`; `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-05,AI-06`        |
-| PR-014      | M14                     | `tests/unit/cover-letter-tailoring-service.test.ts`; `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-07,AI-08`  |
-| PR-015      | M13–M15                 | `tests/unit/document-grounding.test.ts`; `tests/integration/documents.integration.test.ts`; `tests/integration/requirements.integration.test.ts` |
-| PR-016      | M13, M15, M17           | grounding/tailoring unit regressions; `tests/integration/exports.integration.test.ts`                                                            |
-| PR-017      | M15                     | `tests/integration/requirements.integration.test.ts`; `tests/e2e/resume-tailoring.spec.ts`                                                       |
-| PR-018      | M05, M15                | `tests/unit/document-editor.test.tsx`; `tests/integration/documents.integration.test.ts`; `tests/e2e/document-library.spec.ts`                   |
-| PR-019      | M16                     | `pnpm test:ats`; `tests/integration/ats.integration.test.ts`; `tests/e2e/primary-journey.spec.ts`                                                |
-| PR-020      | M17                     | `pnpm test:exports`; `tests/integration/exports.integration.test.ts`; `pnpm test:performance`                                                    |
-| PR-021      | M18                     | `pnpm test:portability`; `tests/integration/portability-deletion.integration.test.ts`                                                            |
-| PR-022      | M12                     | `tests/integration/providers.integration.test.ts`; `tests/contract/provider-adapters.contract.test.ts`; provider settings E2E                    |
-| PR-023      | M21, M22                | `tests/unit/personal-release.test.ts`; `pnpm test:smoke`; `pnpm test:personal`; extracted-package restart/persistence drill                      |
-| PR-024      | M10, M12–M14            | provider request security tests; rendered AI-02/tailoring transmission-preview inspection; `pnpm test:evals --smoke`                             |
-| PR-025      | M04, M05, M08, M18      | career/document/job atomic deletion integration; document/library-card E2E; `pnpm test:deletion`; restore-ledger drill                           |
-| PR-026      | M03, M19                | `tests/security/headers.security.test.ts`; cross-workspace integration tests; `tests/personal/no-account.spec.ts`                                |
-| PR-027      | M19                     | `pnpm test:security`; `pnpm test:ssrf`; `pnpm security:check`; abuse-case review                                                                 |
-| PR-028      | M02, M05, M09, M18, M21 | database/concurrency integration tests; editor recovery; fetch/deletion recovery; package restart drill                                          |
-| PR-029      | M20, M21                | `pnpm test:performance`; production-target `pnpm test:load`; rendered viewport/reflow matrix                                                     |
+| Requirement | Milestone(s)            | Primary automated/manual evidence                                                                                                                                                   |
+| ----------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PR-001      | M04, M18                | career section mapping unit coverage; `tests/integration/career.integration.test.ts`; `tests/integration/portability-deletion.integration.test.ts`; `tests/e2e/career-bank.spec.ts` |
+| PR-002      | M04                     | item-attribute coverage in `tests/unit/career-domain.test.ts` and `tests/unit/career-form-validation.test.ts`; `tests/integration/career.integration.test.ts`                       |
+| PR-003      | M04, M18                | `tests/integration/career.integration.test.ts` atomic dependency/blocker cases; `tests/deletion/workspace-deletion-recovery.test.ts`                                                |
+| PR-004      | M05                     | document aggregate/artifact deletion integration; `tests/e2e/document-library.spec.ts`; library-card action tests                                                                   |
+| PR-005      | M05, M15                | `tests/integration/documents.integration.test.ts`; `tests/integration/requirements.integration.test.ts`                                                                             |
+| PR-006      | M06                     | `pnpm test:parsers` (including PDF line-boundary reconstruction); `tests/integration/sources.integration.test.ts`; file-upload security fixtures                                    |
+| PR-007      | M07                     | AI-01 exact-span and deterministic section/item grouping unit tests; `tests/integration/extraction.integration.test.ts`; `tests/e2e/extraction-review.spec.ts`                      |
+| PR-008      | M08, M09                | `tests/integration/jobs.integration.test.ts` aggregate deletion cases; job-ingestion and library-card E2E; `pnpm test:ssrf`                                                         |
+| PR-009      | M09                     | `pnpm test:ssrf`; `tests/security/url-fetching.security.test.ts`                                                                                                                    |
+| PR-010      | M10                     | `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-02`; `tests/e2e/job-ingestion.spec.ts`                                                             |
+| PR-011      | M11                     | `tests/unit/matching-domain.test.ts`; `tests/integration/requirements.integration.test.ts`                                                                                          |
+| PR-012      | M13, M14                | `tests/unit/resume-tailoring-service.test.ts`; `tests/unit/cover-letter-tailoring-service.test.ts`; `tests/e2e/resume-tailoring.spec.ts`                                            |
+| PR-013      | M13                     | `tests/unit/resume-tailoring-service.test.ts`; `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-05,AI-06`                                           |
+| PR-014      | M14                     | `tests/unit/cover-letter-tailoring-service.test.ts`; `tests/integration/requirements.integration.test.ts`; `pnpm test:evals --task=AI-07,AI-08`                                     |
+| PR-015      | M13–M15                 | `tests/unit/document-grounding.test.ts`; `tests/integration/documents.integration.test.ts`; `tests/integration/requirements.integration.test.ts`                                    |
+| PR-016      | M13, M15, M17           | grounding/tailoring unit regressions; `tests/integration/exports.integration.test.ts`                                                                                               |
+| PR-017      | M15                     | `tests/integration/requirements.integration.test.ts`; `tests/e2e/resume-tailoring.spec.ts`                                                                                          |
+| PR-018      | M05, M15                | `tests/unit/document-editor.test.tsx`; `tests/integration/documents.integration.test.ts`; `tests/e2e/document-library.spec.ts`                                                      |
+| PR-019      | M16                     | `pnpm test:ats`; `tests/integration/ats.integration.test.ts`; `tests/e2e/primary-journey.spec.ts`                                                                                   |
+| PR-020      | M17                     | `pnpm test:exports`; `tests/integration/exports.integration.test.ts`; `pnpm test:performance`                                                                                       |
+| PR-021      | M18                     | `pnpm test:portability`; `tests/integration/portability-deletion.integration.test.ts`                                                                                               |
+| PR-022      | M12                     | `tests/integration/providers.integration.test.ts`; `tests/contract/provider-adapters.contract.test.ts`; provider settings E2E                                                       |
+| PR-023      | M21, M22                | `tests/unit/personal-release.test.ts`; `pnpm test:smoke`; `pnpm test:personal`; extracted-package restart/persistence drill                                                         |
+| PR-024      | M10, M12–M14            | provider request security tests; rendered AI-02/tailoring transmission-preview inspection; `pnpm test:evals --smoke`                                                                |
+| PR-025      | M04, M05, M08, M18      | career/document/job atomic deletion integration; document/library-card E2E; `pnpm test:deletion`; restore-ledger drill                                                              |
+| PR-026      | M03, M19                | `tests/security/headers.security.test.ts`; cross-workspace integration tests; `tests/personal/no-account.spec.ts`                                                                   |
+| PR-027      | M19                     | `pnpm test:security`; `pnpm test:ssrf`; `pnpm security:check`; abuse-case review                                                                                                    |
+| PR-028      | M02, M05, M09, M18, M21 | database/concurrency integration tests; editor recovery; fetch/deletion recovery; package restart drill                                                                             |
+| PR-029      | M20, M21                | `pnpm test:performance`; production-target `pnpm test:load`; rendered viewport/reflow matrix                                                                                        |
 
 ## Acceptance criteria
 
@@ -58,11 +58,11 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | AC-002    | M04, M07           | career/extraction integration approval and eligibility assertions                                                            |
 | AC-003    | M04                | `tests/integration/career.integration.test.ts` supersession/audit assertions                                                 |
 | AC-004    | M06                | `pnpm test:parsers`; malicious upload/security corpus                                                                        |
-| AC-005    | M07                | `tests/integration/extraction.integration.test.ts`; extraction review E2E                                                    |
+| AC-005    | M07                | deterministic section/item grouping unit coverage; `tests/integration/extraction.integration.test.ts`; extraction review E2E |
 | AC-006    | M08, M09           | jobs integration; `pnpm test:ssrf`; URL-fetch security tests                                                                 |
 | AC-007    | M10, M12           | structured-task runner unit/contract tests; AI-02 eval/integration fallback                                                  |
 | AC-008    | M11                | matching engine and requirements integration matrix/gap assertions                                                           |
-| AC-009    | M13, M14           | tailoring service unit payload tests; log/secret scan                                                                        |
+| AC-009    | M13, M14           | item-grouped tailoring payload and required-provider unit/UI coverage; log/secret scan                                       |
 | AC-010    | M13–M15            | grounding adversarial unit corpus; requirements/documents integration regressions                                            |
 | AC-011    | M15                | tailoring suggestion persistence/review integration; stale review E2E                                                        |
 | AC-012    | M13–M15            | tailoring lock validation integration and blocked-suggestion assertions                                                      |
@@ -100,3 +100,15 @@ reported as passing only when run in the current environment.
 - **Release impact:** Rebuild and re-exercise the portable ZIP after launcher,
   migration, or standalone-output changes. Migration-only changes require an
   upgrade/restart persistence drill against a copy of prior-version data.
+
+## UI motion detail
+
+- **Workflow:** Cross-cutting navigation, forms, cards, selection controls, and
+  confirmation dialogs use brief motion to reinforce hierarchy and interaction
+  state without carrying information that is unavailable statically.
+- **Automated evidence:** `tests/e2e/foundation.spec.ts` checks that the shared
+  entrance animation is active by default and effectively disabled when the
+  browser requests reduced motion. Existing browser journeys continue to cover
+  focus, dialog, card-action, and responsive behavior.
+- **Release impact:** None. The implementation is CSS-only, adds no dependency,
+  and does not change persisted data, APIs, or package configuration.
