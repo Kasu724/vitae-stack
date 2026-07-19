@@ -74,10 +74,12 @@ export class ProviderRequestError extends Error {
   public constructor(
     public readonly code:
       | "AUTHENTICATION"
+      | "INVALID_REQUEST"
       | "INVALID_RESPONSE"
       | "RATE_LIMITED"
       | "TIMEOUT"
       | "UNAVAILABLE",
+    public readonly httpStatus?: number,
   ) {
     super("The model provider request failed.");
     this.name = "ProviderRequestError";

@@ -34,10 +34,39 @@ test("user configures a provider without exposing a credential", async ({
   });
   await expect(configuredProvider).toBeVisible();
   await expect(
-    configuredProvider.getByText(
-      "Environment reference AI_PROVIDER_SYNTHETIC_KEY",
-    ),
+    configuredProvider.getByText(/Environment.*AI_PROVIDER_SYNTHETIC_KEY/u),
   ).toBeVisible();
   await expect(page.getByLabel("Credential (write-only)")).toHaveValue("");
   await expect(page.locator("body")).not.toContainText("synthetic-secret");
+
+  const cardActionButtons = await Promise.all(
+    [
+      "Test provider",
+      "Assign to selected tasks",
+      "Assign to all tasks",
+      "Rotate credential",
+    ].map(async (name) =>
+      configuredProvider.getByRole("button", { name }).boundingBox(),
+    ),
+  );
+  expect(cardActionButtons.every(Boolean)).toBe(true);
+  expect(
+    new Set(cardActionButtons.map((bounds) => Math.round(bounds!.width))).size,
+  ).toBe(1);
+  expect(
+    new Set(cardActionButtons.map((bounds) => Math.round(bounds!.height))).size,
+  ).toBe(1);
+
+  await configuredProvider.getByRole("button", { name: "Delete" }).click();
+  const dialog = page.getByRole("dialog", { name: "Delete provider?" });
+  await expect(dialog).toContainText(`Synthetic provider ${marker}`);
+  await expect(dialog).toContainText("stored credential");
+  await dialog.getByRole("button", { name: "Delete provider" }).click();
+
+  await expect(
+    page.getByText(
+      "Provider configuration and its stored credential were deleted.",
+    ),
+  ).toBeVisible();
+  await expect(configuredProvider).toHaveCount(0);
 });

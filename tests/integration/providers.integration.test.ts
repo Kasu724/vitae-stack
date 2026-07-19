@@ -10,9 +10,12 @@ import {
 } from "../helpers/sqlite-test-database";
 import { parseServerEnvironment } from "@/infrastructure/config/environment-schema";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
+import { DocumentRepository } from "@/modules/documents/repository";
+import { JobRepository } from "@/modules/jobs/repository";
 import { decryptCredential } from "@/modules/providers/credential-envelope";
 import {
   ProviderConfigurationConflictError,
+  ProviderConfigurationInUseError,
   ProviderConfigurationNotFoundError,
   ProviderConfigurationRepository,
 } from "@/modules/providers/repository";
@@ -136,6 +139,28 @@ describe("model provider configuration", () => {
       expect.objectContaining({ id: ai01, status: "available" }),
     ]);
     expect(await repository.listReadyForTask(second, "AI-01")).toEqual([]);
+
+    configuration = await repository.getPrivate(first, ai01);
+    await repository.unassignTask(first, ai01, "AI-01", configuration.revision);
+    expect((await repository.getPrivate(first, ai01)).task_assignments).toEqual(
+      {},
+    );
+    expect(await repository.listReadyForTask(first, "AI-01")).toEqual([]);
+
+    configuration = await repository.getPrivate(first, ai01);
+    await repository.assignTasks(
+      first,
+      ai01,
+      ["AI-01", "AI-02"],
+      "synthetic-bulk-model",
+      configuration.revision,
+    );
+    expect((await repository.getPrivate(first, ai01)).task_assignments).toEqual(
+      {
+        "AI-01": "synthetic-bulk-model",
+        "AI-02": "synthetic-bulk-model",
+      },
+    );
   });
 
   it("encrypts a write-only credential and isolates workspace reads", async () => {
@@ -247,5 +272,114 @@ describe("model provider configuration", () => {
       status: "unverified",
       last_tested_at: null,
     });
+  });
+
+  it("deletes an unused provider but preserves providers referenced by tailoring history", async () => {
+    const disposable = await service.create(first, {
+      label: "Synthetic disposable provider",
+      kind: "openai_compatible",
+      baseUrl: "https://disposable.example/v1/",
+      authType: "encrypted",
+      credential: "synthetic-disposable-secret",
+    });
+    const disposableConfiguration = await repository.getPrivate(
+      first,
+      disposable,
+    );
+    await repository.delete(
+      first,
+      disposable,
+      disposableConfiguration.revision,
+    );
+    await expect(
+      repository.getPrivate(first, disposable),
+    ).rejects.toBeInstanceOf(ProviderConfigurationNotFoundError);
+    const deletionAudit = await runtimePool.query<{
+      action: string;
+      metadata: unknown;
+    }>(
+      "SELECT action,metadata FROM audit_events WHERE target_id=$1 AND action='provider.delete'",
+      [disposable],
+    );
+    expect(deletionAudit.rows).toEqual([
+      {
+        action: "provider.delete",
+        metadata: { deletedCredential: true },
+      },
+    ]);
+    expect(JSON.stringify(deletionAudit.rows)).not.toContain(
+      "synthetic-disposable-secret",
+    );
+
+    const retained = await service.create(first, {
+      label: "Synthetic retained provider",
+      kind: "openai_compatible",
+      baseUrl: "https://retained.example/v1/",
+      authType: "none",
+    });
+    const documents = new DocumentRepository(runtimePool);
+    const documentId = await documents.create(first, {
+      kind: "resume",
+      title: "Provider deletion history fixture",
+    });
+    const document = await documents.get(first, documentId);
+    const jobs = new JobRepository(runtimePool);
+    const jobId = await jobs.createFromText(first, {
+      title: "Provider deletion history role",
+      company: "Example Company",
+      text: "Preserve provider provenance",
+    });
+    const jobRevision = (await jobs.get(first, jobId)).revisions[0]!;
+    const requirementSet = await runtimePool.query<{ id: string }>(
+      `INSERT INTO job_requirement_sets
+         (workspace_id,job_posting_revision_id,revision_number,method,status,metadata,created_by_user_id,reviewed_at)
+       VALUES ($1,$2,1,'manual','reviewed','{}',$3,now()) RETURNING id`,
+      [first.workspaceId, jobRevision.id, first.userId],
+    );
+    const matchRun = await runtimePool.query<{ id: string }>(
+      `INSERT INTO requirement_match_runs
+         (workspace_id,requirement_set_id,revision_number,algorithm_version,input_hash,eligible_fact_count,created_by_user_id)
+       VALUES ($1,$2,1,'provider-deletion@1',$3,0,$4) RETURNING id`,
+      [
+        first.workspaceId,
+        requirementSet.rows[0]!.id,
+        `sha256:${"d".repeat(64)}`,
+        first.userId,
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO tailoring_runs
+         (workspace_id,kind,document_id,base_version_id,job_posting_revision_id,
+          requirement_set_id,match_run_id,provider_configuration_id,model,status,
+          idempotency_key,manifest,created_by_user_id)
+       VALUES ($1,'resume',$2,$3,$4,$5,$6,$7,'synthetic-model','ready',$8,'{}',$9)`,
+      [
+        first.workspaceId,
+        documentId,
+        document.currentVersion.id,
+        jobRevision.id,
+        requirementSet.rows[0]!.id,
+        matchRun.rows[0]!.id,
+        retained,
+        crypto.randomUUID(),
+        first.userId,
+      ],
+    );
+
+    const retainedSummary = (await repository.list(first)).find(
+      (configuration) => configuration.id === retained,
+    );
+    expect(retainedSummary?.tailoring_run_count).toBe(1);
+    await expect(
+      repository.delete(second, retained, retainedSummary!.revision),
+    ).rejects.toBeInstanceOf(ProviderConfigurationNotFoundError);
+    await expect(
+      repository.delete(first, retained, retainedSummary!.revision),
+    ).rejects.toBeInstanceOf(ProviderConfigurationInUseError);
+    await expect(repository.getPrivate(first, retained)).resolves.toMatchObject(
+      {
+        id: retained,
+      },
+    );
   });
 });

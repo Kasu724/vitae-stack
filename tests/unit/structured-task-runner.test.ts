@@ -49,6 +49,9 @@ describe("structured task runner", () => {
       "AI-10",
       "AI-11",
     ]);
+    expect(taskRegistry.get("AI-01")?.timeoutMs).toBe(90_000);
+    expect(taskRegistry.get("AI-01")?.maxOutputTokens).toBe(16_384);
+    expect(taskRegistry.get("AI-02")?.timeoutMs).toBe(30_000);
   });
 
   it("validates output locally and returns a typed value", async () => {
@@ -71,7 +74,9 @@ describe("structured task runner", () => {
     const result = await new StructuredTaskRunner(provider).run(baseInput);
     expect(result).toMatchObject({ value: { value: "repaired" }, attempts: 3 });
     expect(provider.requests[1]?.user).toContain("invalid_json");
+    expect(provider.requests[1]?.user).toContain("Synthetic input");
     expect(provider.requests[2]?.user).toContain("unrecognized_keys");
+    expect(provider.requests[2]?.user).toContain("Synthetic input");
   });
 
   it("does not retry a hard semantic validation failure", async () => {

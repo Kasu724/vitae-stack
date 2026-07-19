@@ -37,3 +37,24 @@ export const taskAssignmentInputSchema = z.object({
   model: z.string().trim().min(1).max(200),
   expectedRevision: z.number().int().positive(),
 });
+
+export const taskAssignmentsInputSchema = z.object({
+  taskIds: z
+    .array(aiTaskIdSchema)
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "Each task can only be assigned once per request.",
+    }),
+  model: z.string().trim().min(1).max(200),
+  expectedRevision: z.number().int().positive(),
+});
+
+export const taskAssignmentRemovalInputSchema = z.object({
+  taskId: aiTaskIdSchema,
+  expectedRevision: z.number().int().positive(),
+});
+
+export const providerDeletionInputSchema = z.object({
+  configurationId: z.uuid(),
+  expectedRevision: z.number().int().positive(),
+});

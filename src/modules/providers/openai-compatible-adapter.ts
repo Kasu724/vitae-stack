@@ -41,6 +41,9 @@ export class OpenAiCompatibleAdapter implements AIProvider {
 
   public async generate(request: ProviderRequest): Promise<ProviderResponse> {
     const endpoint = new URL("chat/completions", this.baseUrl);
+    const usesOpenAiTokenParameter = this.baseUrl.hostname === "api.openai.com";
+    const usesGpt5 =
+      usesOpenAiTokenParameter && request.model.startsWith("gpt-5");
     const response = await this.transport.postJson({
       url: endpoint,
       timeoutMs: request.timeoutMs,
@@ -56,8 +59,10 @@ export class OpenAiCompatibleAdapter implements AIProvider {
           { role: "system", content: request.system },
           { role: "user", content: request.user },
         ],
-        temperature: request.temperature,
-        max_tokens: request.maxOutputTokens,
+        ...(usesGpt5 ? {} : { temperature: request.temperature }),
+        ...(usesOpenAiTokenParameter
+          ? { max_completion_tokens: request.maxOutputTokens }
+          : { max_tokens: request.maxOutputTokens }),
         response_format: {
           type: "json_schema",
           json_schema: {
@@ -69,10 +74,13 @@ export class OpenAiCompatibleAdapter implements AIProvider {
       },
     });
     if (response.status === 401 || response.status === 403)
-      throw new ProviderRequestError("AUTHENTICATION");
-    if (response.status === 429) throw new ProviderRequestError("RATE_LIMITED");
+      throw new ProviderRequestError("AUTHENTICATION", response.status);
+    if (response.status === 400)
+      throw new ProviderRequestError("INVALID_REQUEST", response.status);
+    if (response.status === 429)
+      throw new ProviderRequestError("RATE_LIMITED", response.status);
     if (response.status < 200 || response.status >= 300)
-      throw new ProviderRequestError("UNAVAILABLE");
+      throw new ProviderRequestError("UNAVAILABLE", response.status);
     const parsed = responseSchema.safeParse(response.body);
     if (!parsed.success) throw new ProviderRequestError("INVALID_RESPONSE");
     const choice = parsed.data.choices[0]!;

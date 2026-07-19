@@ -1,4 +1,8 @@
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  type PoolClient,
+  withTransaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type {
   ModelProviderCapabilities,
@@ -25,6 +29,15 @@ export class ProviderConfigurationConflictError extends Error {
   }
 }
 
+export class ProviderConfigurationInUseError extends Error {
+  public constructor() {
+    super(
+      "The model provider is used by saved AI history and cannot be deleted.",
+    );
+    this.name = "ProviderConfigurationInUseError";
+  }
+}
+
 export interface ProviderConfigurationSummary {
   id: string;
   kind: ProviderKind;
@@ -38,9 +51,14 @@ export interface ProviderConfigurationSummary {
   status: "unverified" | "available" | "unavailable" | "disabled";
   last_tested_at: Date | null;
   revision: number;
+  tailoring_run_count: number;
+  ats_report_count: number;
 }
 
-export interface PrivateProviderConfiguration extends ProviderConfigurationSummary {
+export interface PrivateProviderConfiguration extends Omit<
+  ProviderConfigurationSummary,
+  "tailoring_run_count" | "ats_report_count"
+> {
   workspace_id: string;
   credential_ciphertext: string | null;
   credential_nonce: string | null;
@@ -88,8 +106,16 @@ export class ProviderConfigurationRepository {
     principal: WorkspacePrincipal,
   ): Promise<ProviderConfigurationSummary[]> {
     const result = await this.pool.query<ProviderConfigurationSummary>(
-      `SELECT id,kind,label,base_url,auth_type,credential_last_four,environment_variable_name,capabilities,task_assignments,status,last_tested_at,revision
-       FROM model_provider_configurations WHERE workspace_id=$1 ORDER BY label,id`,
+      `SELECT p.id,p.kind,p.label,p.base_url,p.auth_type,p.credential_last_four,
+              p.environment_variable_name,p.capabilities,p.task_assignments,p.status,
+              p.last_tested_at,p.revision,
+              (SELECT COUNT(*) FROM tailoring_runs r
+               WHERE r.provider_configuration_id=p.id AND r.workspace_id=p.workspace_id) AS tailoring_run_count,
+              ((SELECT COUNT(*) FROM ats_reports r
+                WHERE r.provider_configuration_id=p.id AND r.workspace_id=p.workspace_id) +
+               (SELECT COUNT(*) FROM source_ats_reports r
+                WHERE r.provider_configuration_id=p.id AND r.workspace_id=p.workspace_id)) AS ats_report_count
+       FROM model_provider_configurations p WHERE p.workspace_id=$1 ORDER BY p.label,p.id`,
       [principal.workspaceId],
     );
     return result.rows;
@@ -132,9 +158,7 @@ export class ProviderConfigurationRepository {
       environmentVariableName?: string;
     },
   ): Promise<string> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+    return withTransaction(this.pool, async (client) => {
       await client.query(
         `INSERT INTO model_provider_configurations
           (id,workspace_id,created_by_user_id,kind,label,base_url,auth_type,credential_ciphertext,credential_nonce,credential_tag,credential_key_version,credential_last_four,environment_variable_name)
@@ -159,14 +183,8 @@ export class ProviderConfigurationRepository {
         kind: input.kind,
         authType: input.authType,
       });
-      await client.query("COMMIT");
       return input.id;
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   public async rotateEncryptedCredential(
@@ -175,9 +193,7 @@ export class ProviderConfigurationRepository {
     expectedRevision: number,
     envelope: CredentialEnvelope,
   ): Promise<void> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+    return withTransaction(this.pool, async (client) => {
       const result = await client.query(
         `UPDATE model_provider_configurations SET auth_type='encrypted',credential_ciphertext=$4,credential_nonce=$5,credential_tag=$6,credential_key_version=$7,credential_last_four=$8,environment_variable_name=NULL,status='unverified',last_tested_at=NULL,revision=revision+1,updated_at=now()
          WHERE id=$1 AND workspace_id=$2 AND revision=$3`,
@@ -196,13 +212,7 @@ export class ProviderConfigurationRepository {
       await audit(client, principal, "provider.credential.rotate", id, {
         keyVersion: envelope.keyVersion,
       });
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   public async assignTask(
@@ -212,23 +222,102 @@ export class ProviderConfigurationRepository {
     model: string,
     expectedRevision: number,
   ): Promise<void> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
-      const result = await client.query(
-        `UPDATE model_provider_configurations SET task_assignments=jsonb_set(task_assignments,ARRAY[$4],to_jsonb($5::text),true),revision=revision+1,updated_at=now()
+    await this.assignTasks(principal, id, [taskId], model, expectedRevision);
+  }
+
+  public async assignTasks(
+    principal: WorkspacePrincipal,
+    id: string,
+    taskIds: readonly string[],
+    model: string,
+    expectedRevision: number,
+  ): Promise<void> {
+    if (!taskIds.length) throw new ProviderConfigurationConflictError();
+    return withTransaction(this.pool, async (client) => {
+      const current = await client.query<{
+        task_assignments: Record<string, string>;
+      }>(
+        `SELECT task_assignments
+         FROM model_provider_configurations
          WHERE id=$1 AND workspace_id=$2 AND revision=$3`,
-        [id, principal.workspaceId, expectedRevision, taskId, model],
+        [id, principal.workspaceId, expectedRevision],
+      );
+      const existing = current.rows[0];
+      if (!existing) throw new ProviderConfigurationConflictError();
+      const assignments = Object.fromEntries(
+        taskIds.map((taskId) => [taskId, model]),
+      );
+      const result = await client.query(
+        `UPDATE model_provider_configurations SET task_assignments=$4::jsonb,revision=revision+1,updated_at=now()
+         WHERE id=$1 AND workspace_id=$2 AND revision=$3`,
+        [
+          id,
+          principal.workspaceId,
+          expectedRevision,
+          JSON.stringify({ ...existing.task_assignments, ...assignments }),
+        ],
       );
       if (!result.rowCount) throw new ProviderConfigurationConflictError();
-      await audit(client, principal, "provider.task.assign", id, { taskId });
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+      await audit(client, principal, "provider.task.assign", id, { taskIds });
+    });
+  }
+
+  public async unassignTask(
+    principal: WorkspacePrincipal,
+    id: string,
+    taskId: string,
+    expectedRevision: number,
+  ): Promise<void> {
+    return withTransaction(this.pool, async (client) => {
+      const result = await client.query(
+        `UPDATE model_provider_configurations SET task_assignments=task_assignments-$4,revision=revision+1,updated_at=now()
+         WHERE id=$1 AND workspace_id=$2 AND revision=$3`,
+        [id, principal.workspaceId, expectedRevision, taskId],
+      );
+      if (!result.rowCount) throw new ProviderConfigurationConflictError();
+      await audit(client, principal, "provider.task.unassign", id, { taskId });
+    });
+  }
+
+  public async delete(
+    principal: WorkspacePrincipal,
+    id: string,
+    expectedRevision: number,
+  ): Promise<void> {
+    return withTransaction(this.pool, async (client) => {
+      const configuration = await client.query<{
+        revision: number;
+        tailoring_run_count: number;
+        ats_report_count: number;
+      }>(
+        `SELECT p.revision,
+                (SELECT COUNT(*) FROM tailoring_runs r
+                 WHERE r.provider_configuration_id=p.id AND r.workspace_id=p.workspace_id) AS tailoring_run_count,
+                ((SELECT COUNT(*) FROM ats_reports r
+                  WHERE r.provider_configuration_id=p.id AND r.workspace_id=p.workspace_id) +
+                 (SELECT COUNT(*) FROM source_ats_reports r
+                  WHERE r.provider_configuration_id=p.id AND r.workspace_id=p.workspace_id)) AS ats_report_count
+         FROM model_provider_configurations p
+         WHERE p.id=$1 AND p.workspace_id=$2`,
+        [id, principal.workspaceId],
+      );
+      const current = configuration.rows[0];
+      if (!current) throw new ProviderConfigurationNotFoundError();
+      if (current.revision !== expectedRevision)
+        throw new ProviderConfigurationConflictError();
+      if (current.tailoring_run_count > 0 || current.ats_report_count > 0)
+        throw new ProviderConfigurationInUseError();
+
+      const result = await client.query(
+        `DELETE FROM model_provider_configurations
+         WHERE id=$1 AND workspace_id=$2 AND revision=$3`,
+        [id, principal.workspaceId, expectedRevision],
+      );
+      if (!result.rowCount) throw new ProviderConfigurationConflictError();
+      await audit(client, principal, "provider.delete", id, {
+        deletedCredential: true,
+      });
+    });
   }
 
   public async recordCapabilityResult(

@@ -2,6 +2,7 @@ import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import type { ServerEnvironment } from "@/infrastructure/config/environment";
 
 import type { AIProvider, ProviderRequest } from "./contracts";
+import { ProviderRequestError } from "./contracts";
 import {
   decryptCredential,
   encryptCredential,
@@ -33,6 +34,46 @@ export class ProviderCapabilityError extends Error {
   }
 }
 
+export type ProviderCapabilityTestFailure =
+  | "authentication"
+  | "rate_limited"
+  | "timeout"
+  | "invalid_request"
+  | "invalid_response"
+  | "unavailable"
+  | "refused"
+  | "unknown";
+
+export type ProviderCapabilityTestResult =
+  | { available: true }
+  | {
+      available: false;
+      failure: ProviderCapabilityTestFailure;
+      httpStatus?: number;
+    };
+
+export function providerCapabilityTestFailure(
+  error: unknown,
+): ProviderCapabilityTestFailure {
+  if (error instanceof ProviderRequestError) {
+    switch (error.code) {
+      case "AUTHENTICATION":
+        return "authentication";
+      case "RATE_LIMITED":
+        return "rate_limited";
+      case "TIMEOUT":
+        return "timeout";
+      case "INVALID_REQUEST":
+        return "invalid_request";
+      case "INVALID_RESPONSE":
+        return "invalid_response";
+      case "UNAVAILABLE":
+        return "unavailable";
+    }
+  }
+  return "unknown";
+}
+
 const capabilityRequest: Omit<ProviderRequest, "model"> = {
   taskId: "AI-10",
   taskVersion: "ai-10.v1",
@@ -48,7 +89,9 @@ const capabilityRequest: Omit<ProviderRequest, "model"> = {
   },
   temperature: 0,
   maxOutputTokens: 64,
-  timeoutMs: 15_000,
+  // Match the bounded deadline used by MVP AI tasks so reasoning-capable
+  // models are not rejected by a stricter synthetic preflight.
+  timeoutMs: 30_000,
   correlationId: "provider-capability-test",
 };
 
@@ -170,10 +213,11 @@ export class ProviderConfigurationService {
     principal: WorkspacePrincipal,
     id: string,
     model: string,
-  ): Promise<boolean> {
-    await this.repository.consumeRateLimit(principal, "provider-test", 10);
+  ): Promise<ProviderCapabilityTestResult> {
     const config = await this.repository.getPrivate(principal, id);
     let available = false;
+    let failure: ProviderCapabilityTestFailure = "unknown";
+    let httpStatus: number | undefined;
     let usage = false;
     const refusal = config.kind === "openai_compatible";
     const warnings: string[] = [];
@@ -183,13 +227,21 @@ export class ProviderConfigurationService {
         model,
       });
       if (result.status === "completed") {
-        const value = JSON.parse(result.text) as { ok?: unknown };
-        available = value.ok === "vitae-capability-test";
+        try {
+          const value = JSON.parse(result.text) as { ok?: unknown };
+          available = value.ok === "vitae-capability-test";
+          if (!available) failure = "invalid_response";
+        } catch {
+          failure = "invalid_response";
+        }
         usage = result.usage !== undefined;
         warnings.push(...result.warnings);
+      } else {
+        failure = "refused";
       }
-    } catch {
-      available = false;
+    } catch (error) {
+      failure = providerCapabilityTestFailure(error);
+      if (error instanceof ProviderRequestError) httpStatus = error.httpStatus;
     }
     await this.repository.recordCapabilityResult(
       principal,
@@ -205,7 +257,13 @@ export class ProviderConfigurationService {
       },
       available,
     );
-    return available;
+    return available
+      ? { available: true }
+      : {
+          available: false,
+          failure,
+          ...(httpStatus !== undefined ? { httpStatus } : {}),
+        };
   }
 
   public async runTask<T>(

@@ -72,6 +72,7 @@ describe("provider adapter contract", () => {
     );
     expect(transport.input?.headers.authorization).toBe("Bearer test-secret");
     expect(transport.input?.body).toMatchObject({
+      max_tokens: request.maxOutputTokens,
       response_format: {
         type: "json_schema",
         json_schema: { strict: true, schema: request.jsonSchema },
@@ -83,6 +84,27 @@ describe("provider adapter contract", () => {
       providerRequestId: "safe-request-id",
       usage: { inputTokens: 10, outputTokens: 5 },
     });
+  });
+
+  it("uses OpenAI's completion-token parameter for its current models", async () => {
+    const transport = new RecordingTransport({
+      status: 200,
+      headers: {},
+      body: { choices: [{ message: { content: '{"value":"ok"}' } }] },
+    });
+    const adapter = new OpenAiCompatibleAdapter(
+      new URL("https://api.openai.com/v1/"),
+      "test-secret",
+      transport,
+    );
+
+    await adapter.generate({ ...request, model: "gpt-5.6" });
+
+    expect(transport.input?.body).toMatchObject({
+      max_completion_tokens: request.maxOutputTokens,
+    });
+    expect(transport.input?.body).not.toHaveProperty("max_tokens");
+    expect(transport.input?.body).not.toHaveProperty("temperature");
   });
 
   it("normalizes OpenAI-compatible refusals and authentication errors", async () => {
@@ -145,14 +167,19 @@ describe("provider adapter contract", () => {
     });
   });
 
-  it.each([429, 500])("normalizes upstream HTTP %s", async (status) => {
+  it.each([400, 429, 500])("normalizes upstream HTTP %s", async (status) => {
     const adapter = new OllamaAdapter(
       new URL("http://ollama:11434/"),
       null,
       new RecordingTransport({ status, headers: {}, body: {} }),
     );
     await expect(adapter.generate(request)).rejects.toMatchObject({
-      code: status === 429 ? "RATE_LIMITED" : "UNAVAILABLE",
+      code:
+        status === 400
+          ? "INVALID_REQUEST"
+          : status === 429
+            ? "RATE_LIMITED"
+            : "UNAVAILABLE",
     });
   });
 });

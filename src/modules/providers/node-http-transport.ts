@@ -14,6 +14,21 @@ import {
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 
+export function createPinnedLookup(pinned: LookupAddress): LookupFunction {
+  return ((_hostname, options, callback) => {
+    if (typeof options === "object" && options !== null && options.all) {
+      (
+        callback as unknown as (
+          error: NodeJS.ErrnoException | null,
+          addresses: LookupAddress[],
+        ) => void
+      )(null, [pinned]);
+      return;
+    }
+    callback(null, pinned.address, pinned.family);
+  }) as LookupFunction;
+}
+
 export interface NodeProviderTransportDependencies {
   resolve?: typeof lookup;
 }
@@ -76,8 +91,7 @@ export class NodeProviderHttpTransport implements ProviderHttpTransport {
     const encoded = Buffer.from(JSON.stringify(input.body), "utf8");
     if (encoded.length > MAX_REQUEST_BYTES)
       throw new ProviderRequestError("INVALID_RESPONSE");
-    const pinnedLookup: LookupFunction = (_hostname, _options, callback) =>
-      callback(null, pinned.address, pinned.family);
+    const pinnedLookup = createPinnedLookup(pinned);
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw new ProviderRequestError("TIMEOUT");
     const requestImpl =

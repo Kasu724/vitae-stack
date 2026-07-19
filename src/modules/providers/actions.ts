@@ -6,15 +6,22 @@ import { redirect } from "next/navigation";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 
-import { taskAssignmentInputSchema } from "./domain";
-import { ProviderConfigurationRepository } from "./repository";
-import { ProviderConfigurationService } from "./service";
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
+import {
+  providerDeletionInputSchema,
+  taskAssignmentsInputSchema,
+  taskAssignmentRemovalInputSchema,
+} from "./domain";
+import {
+  ProviderConfigurationInUseError,
+  ProviderConfigurationRepository,
+} from "./repository";
+import {
+  providerCapabilityTestFailure,
+  ProviderConfigurationService,
+} from "./service";
+import { taskRegistry } from "./task-registry";
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());
@@ -70,15 +77,22 @@ export async function assignProviderTaskAction(form: FormData): Promise<void> {
   const { principal, repository } = await context();
   const id = text(form, "configurationId");
   try {
-    const input = taskAssignmentInputSchema.parse({
-      taskId: text(form, "taskId"),
+    const selectedTaskIds = form
+      .getAll("taskIds")
+      .filter((value): value is string => typeof value === "string");
+    const taskIds =
+      text(form, "assignmentScope") === "all"
+        ? [...taskRegistry.keys()]
+        : selectedTaskIds;
+    const input = taskAssignmentsInputSchema.parse({
+      taskIds,
       model: text(form, "model"),
       expectedRevision: Number(text(form, "expectedRevision")),
     });
-    await repository.assignTask(
+    await repository.assignTasks(
       principal,
       id,
-      input.taskId,
+      input.taskIds,
       input.model,
       input.expectedRevision,
     );
@@ -88,20 +102,68 @@ export async function assignProviderTaskAction(form: FormData): Promise<void> {
   redirect("/settings/providers?notice=assigned");
 }
 
+export async function unassignProviderTaskAction(
+  form: FormData,
+): Promise<void> {
+  const { principal, repository } = await context();
+  try {
+    const input = taskAssignmentRemovalInputSchema.parse({
+      taskId: text(form, "taskId"),
+      expectedRevision: Number(text(form, "expectedRevision")),
+    });
+    await repository.unassignTask(
+      principal,
+      text(form, "configurationId"),
+      input.taskId,
+      input.expectedRevision,
+    );
+  } catch {
+    redirect("/settings/providers?error=unassign");
+  }
+  redirect("/settings/providers?notice=unassigned");
+}
+
+export async function deleteProviderAction(form: FormData): Promise<void> {
+  const { principal, repository } = await context();
+  try {
+    const input = providerDeletionInputSchema.parse({
+      configurationId: text(form, "configurationId"),
+      expectedRevision: Number(text(form, "expectedRevision")),
+    });
+    await repository.delete(
+      principal,
+      input.configurationId,
+      input.expectedRevision,
+    );
+  } catch (error) {
+    if (error instanceof ProviderConfigurationInUseError)
+      redirect("/settings/providers?error=delete-in-use");
+    redirect("/settings/providers?error=delete");
+  }
+  redirect("/settings/providers?notice=deleted");
+}
+
 export async function testProviderAction(form: FormData): Promise<void> {
   const { principal, service } = await context();
   const id = text(form, "configurationId");
-  let available = false;
+  let result: Awaited<ReturnType<typeof service.testCapability>> = {
+    available: false,
+    failure: "unknown",
+  };
   try {
-    available = await service.testCapability(
-      principal,
-      id,
-      text(form, "model"),
-    );
-  } catch {
-    available = false;
+    result = await service.testCapability(principal, id, text(form, "model"));
+  } catch (error) {
+    // This only controls a safe UI diagnostic; no provider response is exposed.
+    result = {
+      available: false,
+      failure: providerCapabilityTestFailure(error),
+    };
   }
   redirect(
-    `/settings/providers?${available ? "notice=available" : "error=unavailable"}`,
+    `/settings/providers?${
+      result.available
+        ? "notice=available"
+        : `error=provider-${result.failure}${result.httpStatus !== undefined ? `-${result.httpStatus}` : ""}`
+    }`,
   );
 }

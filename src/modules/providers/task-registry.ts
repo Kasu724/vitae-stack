@@ -15,7 +15,7 @@ export const taskManifestSchema = z.object({
 export type TaskManifest = z.infer<typeof taskManifestSchema>;
 
 const definitions = [
-  ["AI-01", "Career-fact extraction", 4096],
+  ["AI-01", "Career-fact extraction", 16_384],
   ["AI-02", "Job-requirement extraction", 4096],
   ["AI-03", "Evidence retrieval", 2048],
   ["AI-04", "Evidence ranking", 2048],
@@ -25,8 +25,12 @@ const definitions = [
   ["AI-08", "Cover-letter drafting", 4096],
   ["AI-09", "Change explanation", 2048],
   ["AI-10", "Quality feedback", 2048],
-  ["AI-11", "ATS feedback explanation", 2048],
+  ["AI-11", "ATS analysis", 4096],
 ] as const satisfies ReadonlyArray<readonly [AiTaskId, string, number]>;
+
+const taskTimeouts: Partial<Record<AiTaskId, number>> = {
+  "AI-01": 90_000,
+};
 
 export const taskRegistry = new Map<AiTaskId, TaskManifest>(
   definitions.map(([id, label, maxOutputTokens]) => [
@@ -38,7 +42,7 @@ export const taskRegistry = new Map<AiTaskId, TaskManifest>(
       requiredCapabilities: ["structuredOutput"],
       defaultTemperature: 0,
       maxOutputTokens,
-      timeoutMs: 30_000,
+      timeoutMs: taskTimeouts[id] ?? 30_000,
     }),
   ]),
 );

@@ -51,6 +51,8 @@ export class OllamaAdapter implements AIProvider {
     });
     if (response.status === 401 || response.status === 403)
       throw new ProviderRequestError("AUTHENTICATION");
+    if (response.status === 400)
+      throw new ProviderRequestError("INVALID_REQUEST");
     if (response.status === 429) throw new ProviderRequestError("RATE_LIMITED");
     if (response.status < 200 || response.status >= 300)
       throw new ProviderRequestError("UNAVAILABLE");
