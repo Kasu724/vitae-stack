@@ -2,12 +2,12 @@
 
 ## Layers
 
-- **Unit:** domain lifecycles, provenance, ATS rules/math, URL/IP classification, schema transforms, template escaping.
+- **Unit:** domain lifecycles, provenance, ATS AI schema/service boundaries, URL/IP classification, schema transforms, template escaping.
 - **Integration/database:** repositories, transactions, SQLite migrations, job leasing/idempotency, deletion cascades, storage, and workspace isolation.
 - **Contract:** HTTP problem details/schemas; parser, provider adapter, artifact, and AI task interfaces; fake-provider refusal/timeout/malformed output.
 - **Parser:** representative and malicious PDF/DOCX/Markdown/text/JSON corpus, resource/cleanup checks, locator goldens.
 - **AI schema/evals:** structured validation, citation/semantic gates, provider portability, injection datasets, thresholds in evaluation plan.
-- **ATS:** golden/property/metamorphic rules, ruleset versioning, export parse-back.
+- **ATS:** AI-11 job/no-job schema, prompt separation, provider assignment, immutable model/input/output provenance, workspace isolation, and advisory-only behavior.
 - **End-to-end:** first-use local workspace → approval → job → evidence → tailoring → review → ATS → export; portability/delete; failure/retry/version conflict.
 - **Export visual/snapshot:** normalized text/structure, PDF page images, DOCX parse-back, malicious content.
 - **Security regression:** workspace-object isolation, origin/authority checks, XSS, SSRF/rebinding/redirect, upload bombs, prompt/output injection, secret redaction, quotas, and improper deletion.

@@ -191,17 +191,17 @@
 
 ## M12 — AI-provider abstraction
 
-**Implementation status:** Complete locally. The baseline schema, encrypted write-only credentials/environment references, endpoint policy, bounded transport, OpenAI-compatible and Ollama adapters, AI-01–11 registry, schema repair/failure handling, retry/deadline/token controls, fake provider, and settings UI pass SQLite integration, browser E2E, adapter contracts, evaluation smoke, security, portable package, and production-build gates. Live-provider contracts remain operator opt-in and are not a release requirement.
+**Implementation status:** Complete locally. The baseline schema, encrypted write-only credentials/environment references, endpoint policy, bounded transport, OpenAI-compatible and Ollama adapters, AI-01–11 registry, schema repair/failure handling, retry/deadline/token controls, fake provider, and settings UI are implemented. Provider cards expose confirmed deletion for unused configurations while preserving configurations referenced by saved tailoring history. The recorded baseline includes SQLite integration, browser E2E, adapter contracts, evaluation smoke, security, portable package, and production-build evidence; live-provider contracts remain operator opt-in and are not a release requirement.
 
 - **Objective:** Implement task registry, OpenAI-compatible and Ollama adapters, capability tests, encrypted credentials, schema/retry/failure framework.
-- **User-visible outcome:** users configure/test a provider, see destination/capabilities, and assign models to tasks without exposing keys.
-- **Scope:** write-only credentials, endpoint policy, normalized refusals/usage/timeouts, fake provider, AI-01–11 contracts.
+- **User-visible outcome:** users configure, test, and remove unused providers; see destination/capabilities; and assign models to tasks without exposing keys.
+- **Scope:** write-only credentials, confirmed unused-provider deletion, tailoring-history deletion blockers, endpoint policy, normalized refusals/usage/timeouts, fake provider, AI-01–11 contracts.
 - **Non-scope:** additional provider SDKs, hosted inference, provider tools/file stores.
 - **Prerequisites/dependencies:** M02, M03; enables model paths in M07/M10/M11 and M13+.
 - **Likely files/subsystems:** providers infrastructure/settings, crypto envelope, task runner, contract/eval harness.
 - **Data-model impact:** ModelProviderConfiguration, task manifest/attempt metadata, key version.
 - **Security:** AC-022; SSRF class endpoint validation/allowlist, minimal context, redacted logs, bounded cost/retries.
-- **Required tests:** adapter contracts, schema/refusal/timeout/rate/idempotency, encryption/rotation/wrong key, endpoint abuse, synthetic capability.
+- **Required tests:** adapter contracts, schema/refusal/timeout/rate/idempotency, encryption/rotation/deletion/wrong key, deletion dependency and workspace isolation, endpoint abuse, synthetic capability.
 - **Validation commands:** core/security/contract/integration plus `pnpm test:evals --smoke`.
 - **Completion criteria:** both adapters pass fake/live-opt-in contract; keys absent from client/log/snapshots; invalid output fails safe.
 - **Rollback/recovery:** disable provider config/task; rotate/revoke credentials; manual features remain. **Docs:** provider support/secrets/eval results.
@@ -257,22 +257,22 @@
 - **Completion criteria:** AC-011–015 pass; uncertain changed claims become unverified; no silent overwrite.
 - **Rollback/recovery:** version history restores content; drafts export as JSON before schema recovery. **Docs:** editor behavior/versioning.
 
-## M16 — Deterministic ATS analysis
+## M16 — AI-only ATS analysis
 
-**Implementation status:** Complete locally. The baseline schema and `ats-rules@1.1.0` implement all 15 weighted deterministic categories, applicability/coverage math, fail-closed untracked/unsupported-claim blockers, immutable idempotent reports, workspace-scoped UI, and fixtures. ATS, SQLite integration, PDF/DOCX parse-back, browser E2E, clean migration, and production-build gates pass.
+**Implementation status:** Complete locally. AI-11 produces the full ATS estimate for saved resumes and uploaded resume sources, with or without optional reviewed job context. Closed-schema validation, immutable provider/model/task/input/output provenance, workspace-scoped UI, and focused schema/integration/browser fixtures are implemented. Historical deterministic reports remain readable but cannot be newly generated.
 
-- **Objective:** Implement versioned pure ATS rules, category math/coverage/blockers, findings UI, and optional AI-11 explanation.
-- **User-visible outcome:** reproducible estimated parsing/alignment/content report with rule-level remediation and limitations.
-- **Scope:** all 15 rubric categories, canonical/export parse-back hooks, job comparison, ruleset fixtures.
-- **Non-scope:** proprietary ATS emulation, hiring prediction, AI scoring.
-- **Prerequisites/dependencies:** M10, M15; M17 supplies final format parse-back later.
-- **Likely files/subsystems:** ATS rule engine/registry/report UI/fixtures.
-- **Data-model impact:** ATSReport, ATSFinding, ruleset/input hashes.
-- **Security:** local default, no protected-class/prestige rules, hidden-keyword/unsupported detection, AI cannot alter numbers.
-- **Required tests:** AC-016/017; all fixture families, property math/caps/applicability, deterministic repeat, AI faithfulness.
+- **Objective:** Implement provider-backed structured AI-11 analysis, optional job context, validated category/finding output, and immutable report provenance.
+- **User-visible outcome:** AI-generated parsing/content estimate and, when selected, job alignment with rationales, remediation, model provenance, and limitations.
+- **Scope:** saved resumes, parsed resume uploads, job/no-job contexts, schema validation, idempotent input reuse, provider disclosure.
+- **Non-scope:** proprietary ATS emulation, hiring prediction, deterministic fallback scoring, or AI authority over grounding/export.
+- **Prerequisites/dependencies:** M10, M12, M15.
+- **Likely files/subsystems:** ATS AI service/schema/repository/report UI/provider task framework.
+- **Data-model impact:** ATS reports/categories/findings plus provider/model/task/attempt/input/output provenance.
+- **Security:** bounded delimited hostile input, closed output schema, content-free logs/audit metadata, no protected-class/prestige judgments, no grounding/export authority.
+- **Required tests:** AC-016/017; job/no-job schemas, provider assignment, hostile input separation, persistence, hash rechecks, workspace isolation, UI limitations.
 - **Validation commands:** core gates plus `pnpm test:ats`.
-- **Completion criteria:** 100-weight rubric implemented/versioned; <80% coverage suppression; golden/property tests pass.
-- **Rollback/recovery:** retain old ruleset/recalculate; reports pin versions. **Docs:** ATS methodology/rubric/fixtures/limitations.
+- **Completion criteria:** AI-11 is the sole generation path; both contexts pass schema/service/integration tests; reports disclose AI provenance and limitations.
+- **Rollback/recovery:** immutable reports pin task/model/input/output versions; disable AI-11 generation without affecting grounding/export. **Docs:** ATS methodology/output contract/fixtures/limitations.
 
 ## M17 — Export pipeline
 

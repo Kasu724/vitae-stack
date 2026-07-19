@@ -13,7 +13,7 @@ Accepted ADRs are authoritative for technical decisions. Superseding a decision 
 | [0007](0007-structured-career-model.md)                | Structured career bank and immutable facts   | Accepted   |
 | [0008](0008-ai-provider-abstraction.md)                | Provider-neutral AI tasks/adapters           | Accepted   |
 | [0009](0009-evidence-provenance.md)                    | Claim-to-evidence provenance                 | Accepted   |
-| [0010](0010-deterministic-ats.md)                      | Deterministic explainable ATS estimate       | Accepted   |
+| [0010](0010-deterministic-ats.md)                      | Deterministic explainable ATS estimate       | Superseded |
 | [0011](0011-document-editor-architecture.md)           | Typed document editor and immutable versions | Accepted   |
 | [0012](0012-export-strategy.md)                        | Safe repository-owned exporters              | Amended    |
 | [0013](0013-database-backed-jobs.md)                   | PostgreSQL-backed background jobs            | Superseded |
@@ -26,5 +26,6 @@ Accepted ADRs are authoritative for technical decisions. Superseding a decision 
 | [0020](0020-personal-no-login-release-default.md)      | Personal no-login release default            | Superseded |
 | [0021](0021-local-sqlite-no-account-runtime.md)        | Local SQLite, no-account runtime             | Accepted   |
 | [0022](0022-mit-license.md)                            | MIT license                                  | Accepted   |
+| [0023](0023-ai-only-ats-analysis.md)                   | AI-only ATS analysis with optional job       | Accepted   |
 
 Each record includes context, decision, alternatives, consequences, security/privacy implications, and revisit conditions. “Accepted” means planned architecture, not implemented capability.

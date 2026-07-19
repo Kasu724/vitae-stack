@@ -38,7 +38,7 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | PR-016      | M13, M15, M17           | grounding/tailoring unit regressions; `tests/integration/exports.integration.test.ts`                                                                                               |
 | PR-017      | M15                     | `tests/integration/requirements.integration.test.ts`; `tests/e2e/resume-tailoring.spec.ts`                                                                                          |
 | PR-018      | M05, M15                | `tests/unit/document-editor.test.tsx`; `tests/integration/documents.integration.test.ts`; `tests/e2e/document-library.spec.ts`                                                      |
-| PR-019      | M16                     | `pnpm test:ats`; `tests/integration/ats.integration.test.ts`; `tests/e2e/primary-journey.spec.ts`                                                                                   |
+| PR-019      | M16                     | `pnpm test:ats`; `tests/integration/ats.integration.test.ts` (including direct uploaded-resume reports); `tests/e2e/primary-journey.spec.ts`                                        |
 | PR-020      | M17                     | `pnpm test:exports`; `tests/integration/exports.integration.test.ts`; `pnpm test:performance`                                                                                       |
 | PR-021      | M18                     | `pnpm test:portability`; `tests/integration/portability-deletion.integration.test.ts`                                                                                               |
 | PR-022      | M12                     | `tests/integration/providers.integration.test.ts`; `tests/contract/provider-adapters.contract.test.ts`; provider settings E2E                                                       |
@@ -69,8 +69,8 @@ file. A mapping is not a claim that the evidence passed in the current run.
 | AC-013    | M13–M15            | tailoring idempotency/version-count integration tests                                                                        |
 | AC-014    | M05, M15           | documents integration claim invalidation/remediation tests; editor UI inspection                                             |
 | AC-015    | M17                | exports integration binary blocking and draft-manifest tests                                                                 |
-| AC-016    | M16                | ATS deterministic reuse/invariance tests and integration input pinning                                                       |
-| AC-017    | M16                | ATS engine/report UI tests and rendered report inspection                                                                    |
+| AC-016    | M16                | AI-11 job/no-job schema/service tests, provider assignment, immutable input reuse, and integration input pinning             |
+| AC-017    | M16                | AI ATS report UI tests, uploaded-source report integration coverage, and rendered report inspection                          |
 | AC-018    | M05                | document compare/restore copy-forward integration tests                                                                      |
 | AC-019    | M17                | `pnpm test:exports`; PDF/DOCX parse-back; rendered PDF visual inspection                                                     |
 | AC-020    | M18                | portability schema/unit tests; semantic round-trip/no-write integration tests                                                |

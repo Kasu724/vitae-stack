@@ -14,7 +14,7 @@ Errors state what happened, what was preserved, and the next safe action. User-v
 | Invalid model schema/citation        | Discard output, show task failure and retry path; do not render raw model content                          |
 | Save conflict                        | Keep local draft, show compare and resolution; never overwrite server content silently                     |
 | Unsupported claim                    | Identify affected span and offer evidence actions; final export stays disabled                             |
-| ATS check unavailable                | Exclude its denominator and show “Not evaluated”; never silently award points                              |
+| ATS AI unavailable                   | Explain that a tested AI-11 provider/model is required; keep editing and export controls available         |
 | Export failure                       | Keep version and validated settings; retry safely; expire partial artifact                                 |
 | Delete failure                       | Keep workspace write-blocked only when deletion actually began; show operation status and recovery contact |
 

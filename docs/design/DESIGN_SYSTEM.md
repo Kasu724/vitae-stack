@@ -15,7 +15,7 @@ Evidence-aware patterns:
 - `ClaimStatus`: icon + text (`Supported`, `Needs evidence`, `Conflict`, `Nonfactual`), never color alone.
 - `EvidenceChip`: stable short label, source type, approval state; opens inspector without navigating unexpectedly.
 - `SuggestionCard`: operation, before/after, rationale, requirements, evidence, accept/reject, base-version status.
-- `Finding`: severity, deterministic rule ID, affected range, explanation, remediation, score impact.
+- `Finding`: AI severity, affected-location hint, explanation, and remediation; it carries no grounding or export authority.
 
 ## Content and motion
 

@@ -8,7 +8,7 @@ Reference hardware: 4 vCPU, 8 GiB RAM, local SSD, SQLite and artifact volume on 
 | Simple mutation/version metadata | p95 ≤750 ms                                                            |
 | Editor typing/input response     | p95 INP ≤200 ms; no keystroke network dependency                       |
 | CIB search/filter                | p95 ≤300 ms server time at reference size                              |
-| Deterministic ATS analysis       | p95 ≤2 s for canonical two-page document/job                           |
+| AI ATS local preparation/save    | p95 ≤2 s excluding separately reported provider latency                |
 | Queue pickup under idle load     | p95 ≤1 s                                                               |
 | PDF/DOCX parse (10 MiB cap)      | ≤30 s wall timeout, ≤512 MiB worker child                              |
 | URL retrieval                    | ≤10 s total, ≤5 MiB decompressed                                       |
@@ -31,4 +31,4 @@ Set `LOAD_PATH=/career` or another authenticated read path to exercise a specifi
 
 The load harness issues 200 authenticated reads at concurrency 20, rejects redirects/failures, applies a two-second request timeout, and enforces p95 at 500 ms. On 2026-07-01, the reference dataset produced p95 results of 473 ms for dashboard, 344 ms for Career Bank, and 409 ms for document library with zero failures. These are end-to-end HTTP timings; they satisfy the general 500 ms read gate but do not isolate Career Bank server time, so the narrower 300 ms server-time budget must not be inferred from the 344 ms observation.
 
-`pnpm test:performance` runs 50 deterministic ATS analyses and three PDF plus three DOCX render/parse-back operations over a synthetic two-page, 36-claim document. The same run measured ATS p95 6 ms, PDF p95 936 ms, and DOCX p95 66 ms. Cold parser execution, bounded failure classification, worker restart, and the 512 MiB child ceiling were validated in the production portable package topology. Browser automation covers responsive input and editor behavior; release maintainers should retain INP and JavaScript-size measurements as trend data when producing published artifacts.
+`pnpm test:performance` runs three PDF plus three DOCX render/parse-back operations over a synthetic two-page, 36-claim document. The previous deterministic ATS microbenchmark was removed with the rules engine. AI-11 provider latency is bounded by its task deadline and reported separately because it depends on the selected endpoint and model. Cold parser execution, bounded failure classification, worker restart, and the 512 MiB child ceiling are validated in the production portable package topology. Browser automation covers responsive input and editor behavior; release maintainers should retain INP and JavaScript-size measurements as trend data when producing published artifacts.

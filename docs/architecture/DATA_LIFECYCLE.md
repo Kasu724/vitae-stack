@@ -16,7 +16,7 @@ stateDiagram-v2
   Rejected --> Deleted: retention expiry
 ```
 
-Quarantined/parser inputs are bounded and cleaned on terminal handling. Ready source bytes remain until the user deletes them or deletes the workspace; approved facts do not depend on retaining bytes after binary-only deletion, but provenance displays that the original is unavailable.
+Quarantined/parser inputs are bounded and cleaned on terminal handling. Ready source bytes remain until the user deletes them or deletes the workspace. Binary-only deletion is allowed while extraction proposals are pending; proposal records and approved facts do not depend on retaining the bytes or extracted preview, but review and provenance display that the original is unavailable.
 
 Provider requests exist in process memory only and are not logged or persisted as raw prompts. The project persists minimal task manifests, hashes, schema/prompt versions, usage counts, selected evidence IDs, and validated outputs needed for audit/versioning. External providers retain data according to their disclosed terms; the UI cannot promise deletion it does not control.
 

@@ -14,7 +14,7 @@ M08-M12 deliver text/file/secure-URL job ingestion, reviewed requirements, evide
 
 ## Phase 3 — Grounded documents
 
-M13-M18 deliver grounded resume/cover-letter tailoring, suggestion review, manual editing, deterministic ATS estimates, export, portability, and deletion.
+M13-M18 deliver grounded resume/cover-letter tailoring, suggestion review, manual editing, AI ATS estimates with optional job context, export, portability, and deletion.
 
 ## Phase 4 — Local release
 

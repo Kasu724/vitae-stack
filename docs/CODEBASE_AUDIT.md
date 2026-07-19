@@ -10,7 +10,7 @@
 
 ## Executive summary
 
-Vitae Stack is a coherent privacy-first local application with strong architectural foundations: a strict-TypeScript modular monolith, one loopback-only process, SQLite plus private filesystem artifacts, explicit immutable evidence, deterministic ATS estimation, and repository-owned PDF/DOCX renderers. The pre-remediation repository already had broad happy-path tests, but the audit found two critical factual-safety flaws, four high-severity runtime/recovery flaws, numerous UI/documentation gaps, and additional relational/package integrity issues that existing gates did not expose.
+Vitae Stack is a coherent privacy-first local application with strong architectural foundations: a strict-TypeScript modular monolith, one loopback-only process, SQLite plus private filesystem artifacts, explicit immutable evidence, provider-backed AI ATS analysis, and repository-owned PDF/DOCX renderers. The pre-remediation repository already had broad happy-path tests, but the audit found two critical factual-safety flaws, four high-severity runtime/recovery flaws, numerous UI/documentation gaps, and additional relational/package integrity issues that existing gates did not expose.
 
 The two critical flaws were executable, not theoretical. A portable archive could omit claim coverage and still create a `final` binary artifact, and the former 35% lexical-overlap rule accepted a longer claim containing an unrelated fabricated credential. Both paths now use one exact, fail-closed grounding contract. Current ATS and final artifact generation/download reassess structural coverage, claim hashes/offsets, evidence approval/entry lifecycle, and exact assertion support. Missing or stale grounding blocks final output.
 
@@ -20,7 +20,7 @@ The final repository passes every applicable gate, a 136-check core responsive/a
 
 ## Product, users, and architecture
 
-Vitae Stack serves job seekers who want local, inspectable career-document tooling without surrendering career history to a hosted account. Users enter or import career history, explicitly approve immutable evidence, review job requirements, select evidence, inspect generated suggestions, remediate unsupported claims, run a deterministic ATS estimate, and export only after the factual-safety gate passes.
+Vitae Stack serves job seekers who want local, inspectable career-document tooling without surrendering career history to a hosted account. Users enter or import career history, explicitly approve immutable evidence, review job requirements, select evidence, inspect generated suggestions, remediate unsupported claims, optionally run an AI ATS estimate with or without job context, and export only after the independent factual-safety gate passes.
 
 The delivered topology is a local-only Windows x64 package with bundled Node.js 24.18.0, one Next.js 16 process bound to loopback, one SQLite file, and sibling private artifact/queue directories. Optional Ollama or OpenAI-compatible providers are explicit opt-ins. Public job-page retrieval is HTTPS-only and SSRF constrained. No account, database server, container runtime, telemetry service, or proprietary provider is required.
 
@@ -252,7 +252,7 @@ Current-state documents now match the implementation on these previously contrad
 - No Docker/PostgreSQL/operator backup or hosted telemetry in the supported topology.
 - Content-free local readiness/audit logging rather than an unimplemented metrics/support-bundle stack.
 - No managed backup during deletion; user portability/manual copies are the recovery path.
-- Synchronous bounded PDF/DOCX rendering and ATS rules `ats-rules@1.1.0`.
+- Synchronous bounded PDF/DOCX rendering and closed-schema AI-11 ATS analysis.
 - Actual API authority/origin enforcement, provider disclosure, pagination, responsive behavior, and CI/package gates.
 - Explicit PR/AC-to-milestone/test evidence for every normative identifier.
 
@@ -272,7 +272,7 @@ The audit used Chromium and programmatic DOM/computed-style checks; it did not s
 
 ## Performance and reliability conclusions
 
-- ATS p95: 5 ms for the reference fixture.
+- AI-11 provider latency is endpoint/model dependent and reported separately from local performance.
 - PDF p95: 983 ms; DOCX p95: 60 ms.
 - Production HTTP load: 205 ms p95, 200 requests, concurrency 20, zero failures.
 - Parser/source/job/provider inputs retain byte, text, redirect, and absolute-time bounds.
@@ -287,7 +287,7 @@ The final passing matrix includes format, lint, typecheck, unit, integration, co
 
 ## Residual risks and limitations
 
-- ATS results are deterministic explainable estimates, not compatibility guarantees for a named employer system.
+- ATS results are AI-generated estimates, not compatibility guarantees for a named employer system or hiring predictions.
 - Optional remote providers control their own retention/training/security; the UI discloses destination/model/data before use, but this audit did not send data to live third-party services.
 - The no-account personal model assumes the operating-system user and local machine are trusted. It is not suitable for LAN/public binding.
 - Immutable historical claims may fail a newer grounding policy or later evidence lifecycle. Portability preserves that history; current ATS/export gates reassess it and block ineligible output.

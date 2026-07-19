@@ -14,6 +14,6 @@ DOCX is treated as hostile ZIP/XML; macros, executable relationships, external r
 
 ## Storage and logging
 
-Failed temporary data is removed on a bounded schedule. Deleting source bytes removes the stored file and extracted source text while explicitly approved facts may remain marked `source unavailable`. Logs contain only operation IDs, coarse types, sizes, durations, and safe error codes—never filenames where avoidable, document text, extracted text, prompts, credentials, or model output.
+Failed temporary data is removed on a bounded schedule. Deleting source bytes removes the stored file and extracted source text while pending proposals, completed review decisions, and explicitly approved facts may remain marked `source unavailable`. Logs contain only operation IDs, coarse types, sizes, durations, and safe error codes—never filenames where avoidable, document text, extracted text, prompts, credentials, or model output.
 
 Tests cover spoofing, traversal, polyglots, malformed/encrypted PDFs, DOCX macros/external relationships, decompression bombs, excess XML/entries/text, parser crash/timeout, output injection, and source deletion.

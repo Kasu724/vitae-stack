@@ -13,6 +13,6 @@
 - **Tailoring run:** reproducible record of job, source versions, selected facts, provider/task versions, and outputs.
 - **Trusted-local mode:** explicit development/personal mode with no login, permitted only on loopback with one workspace.
 - **Workspace:** authorization, ownership, export, retention, and deletion boundary.
-- **Estimated ATS compatibility:** project-defined deterministic heuristics; not a proprietary ATS result or hiring probability.
+- **AI ATS estimate:** a model-generated advisory analysis of resume text, optionally against a reviewed job source; not a proprietary ATS result or hiring probability.
 
 See [data model](architecture/DATA_MODEL.md) and [provenance model](architecture/PROVENANCE_MODEL.md) for precise lifecycle rules.

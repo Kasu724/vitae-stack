@@ -2,7 +2,7 @@
 
 ## Included
 
-The release-ready MVP is a local-only, single-user tool with one automatically provisioned workspace and no login or account bootstrap. It includes structured career entries and immutable approved facts; resume/letter storage and versions; PDF/DOCX/Markdown/text/project-JSON import; extraction approval; job text/file/secure-URL ingestion; requirement review; evidence matching; provider-neutral structured AI tasks; grounded resume and cover-letter tailoring; atomic suggestion review; manual editing; deterministic ATS estimates; PDF/DOCX/Markdown/text/JSON export; settings; portability; deletion; and responsive workflows.
+The release-ready MVP is a local-only, single-user tool with one automatically provisioned workspace and no login or account bootstrap. It includes structured career entries and immutable approved facts; resume/letter storage and versions; PDF/DOCX/Markdown/text/project-JSON import; extraction approval; job text/file/secure-URL ingestion; requirement review; evidence matching; provider-neutral structured AI tasks; grounded resume and cover-letter tailoring; atomic suggestion review; manual editing; AI ATS estimates with optional job context; PDF/DOCX/Markdown/text/JSON export; settings; portability; deletion; and responsive workflows.
 
 ## Provider and deployment boundary
 

@@ -1,6 +1,6 @@
 # ADR-0010: Use deterministic, explainable ATS scoring
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR-0023](0023-ai-only-ats-analysis.md)
 - **Date:** 2026-06-28
 
 ## Context

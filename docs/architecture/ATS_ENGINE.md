@@ -1,28 +1,21 @@
-# ATS engine
+# AI ATS analysis
 
 ```mermaid
 flowchart TD
-  D[Canonical document version] --> P[Deterministic document parser]
-  J[Reviewed job requirements] --> A[Alignment rules]
-  P --> R[Versioned rule registry]
-  A --> R
-  E[Claim/evidence graph] --> R
-  R --> F[Findings with locations and point effects]
-  F --> C[Category scores]
-  C --> O[Weighted estimated compatibility]
-  F --> X[Optional AI explanation]
-  X --> Report[Report display]
-  O --> Report
+  R[Saved resume or parsed resume upload] --> B[Bounded delimited AI-11 input]
+  J[Optional reviewed job source] --> B
+  P[Assigned tested provider and model] --> T[Structured AI-11 task]
+  B --> T
+  T --> V[Closed-schema validation]
+  V --> I[Immutable report with model and hash provenance]
+  I --> D[Advisory display]
+  G[Factual grounding and export gate] --> E[Export decision]
 ```
 
-Rules are pure functions over canonical typed content, reviewed requirements, and provenance—not rendered PDF guesses unless a format-specific parser check is requested. Each finding has stable rule ID/version, category, severity, location, measured value, threshold, remediation, and score effect. Rules that lack required inputs report `not_evaluated` and leave the denominator; they do not award default points.
+AI-11 is the only ATS analysis path. It receives bounded resume text and optionally the current normalized text of a reviewed job source. Imported text is delimited as hostile data and never enters the system prompt. Without a job, the model assesses parsing, formatting, readability, content, and impact. With a job, it must also assess job alignment.
 
-Category weights and caps are defined in [scoring rubric](../ats/SCORING_RUBRIC.md). The engine prevents double penalties through rule groups/caps and reports raw/category/overall calculations. A ruleset version plus input hashes makes runs reproducible. AI may paraphrase the already-computed findings but receives no authority to add findings, alter severity, or change numbers.
+The model returns `ai-11.v1` JSON containing an overall estimate, rationale, weighted categories, findings, location hints, and remediation. Local validation enforces the exact category set for the selected context, unique categories, integer score ranges, weights totaling 100, bounded strings and arrays, and known severities. Validation can reject output but does not calculate or replace the model's ATS score.
 
-The output is an estimated compatibility review, not an emulation of Workday, Taleo, Greenhouse, Lever, or any proprietary system and not a prediction of hiring outcome. See [limitations](../ats/LIMITATIONS.md).
+Reports are immutable and workspace-scoped. They record the provider configuration, configured model, task version, repair attempts, resume/job hashes, complete input hash, and validated output hash. The same resume/job/provider/model input reuses its existing report. Historical deterministic reports remain readable after migration but cannot be newly generated.
 
-## Current implementation boundary
-
-M16 implements `ats-rules@1.1.0` as a pure TypeScript function over canonical document content, accepted requirements, explicit included evidence matches, and current claim/evidence status. It persists immutable report, category, and finding rows keyed by a complete input hash; repeated identical runs reuse the same report. The UI exposes raw earned/applicable points, weights, stable rule IDs, locations, measurements, thresholds, remediation, ruleset/input hashes, evaluation coverage, and export blockers.
-
-Canonical checks cover all 15 weighted categories. Format-specific PDF/DOCX parse-back is intentionally joined in M17 because it requires the exact rendered artifact; an unavailable format check remains outside the denominator instead of receiving credit. Scoring never invokes a model. Optional AI wording remains deferred and cannot mutate stored values.
+The report is an AI estimate, not an emulation of a named ATS and not a prediction of ranking or hiring. AI output never establishes evidence, changes claim support, marks an export eligible, or overrides the independent factual-grounding gate. See [ADR-0023](../adr/0023-ai-only-ats-analysis.md) and [limitations](../ats/LIMITATIONS.md).
