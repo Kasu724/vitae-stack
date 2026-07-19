@@ -144,17 +144,11 @@ test("release-critical user journey preserves grounding through export and delet
     page.getByText("supported", { exact: true }).last(),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Run estimated ATS analysis" }).click();
-  await page
-    .getByLabel("Reviewed job and evidence matches")
-    .selectOption(fixture.jobId);
-  await page
-    .getByRole("button", { name: "Generate deterministic report" })
-    .click();
+  await page.goto(`/ats/reports/${fixture.atsReportId}`);
   await expect(
-    page.getByRole("heading", { name: "Estimated ATS compatibility" }),
+    page.getByRole("heading", { name: "AI ATS analysis" }),
   ).toBeVisible();
-  await expect(page.getByText(/does not emulate a named ATS/u)).toBeVisible();
+  await expect(page.getByText(/not a proprietary ATS result/u)).toBeVisible();
 
   await page.goto(`/exports?documentId=${fixture.documentId}`);
   await page.getByLabel("Export format").selectOption("pdf");

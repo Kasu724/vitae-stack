@@ -56,24 +56,16 @@ test("user inspects a resume suggestion and its exact approved evidence", async 
   await expect(
     page.getByRole("link", { name: "Tailor this resume" }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Run estimated ATS analysis" }).click();
-  await page
-    .getByLabel("Reviewed job and evidence matches")
-    .selectOption(fixture.jobId);
-  await page
-    .getByRole("button", { name: "Generate deterministic report" })
-    .click();
-  await expect(page).toHaveURL(/\/ats\/reports\/[0-9a-f-]+$/u);
+  await page.goto(`/ats/reports/${fixture.atsReportId}`);
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Estimated ATS compatibility",
+      name: "AI ATS analysis",
     }),
   ).toBeVisible();
-  await expect(page.getByText("Category calculations")).toBeVisible();
-  await expect(page.getByText("Explainable findings")).toBeVisible();
-  await expect(page.getByText("ats-rules@1.1.0")).toBeVisible();
-  await expect(page.getByText(/does not emulate a named ATS/u)).toBeVisible();
+  await expect(page.getByText("AI category assessments")).toBeVisible();
+  await expect(page.getByText("ai-11.v1")).toBeVisible();
+  await expect(page.getByText(/not a proprietary ATS result/u)).toBeVisible();
   await page.goto(`/exports?documentId=${fixture.documentId}`);
   await page.getByLabel("Export format").selectOption("pdf");
   await page.getByRole("button", { name: "Create private export" }).click();

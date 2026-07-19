@@ -2,14 +2,13 @@ import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { contentHash } from "@/modules/documents/hash";
 import type { ProviderConfigurationService } from "@/modules/providers/service";
 
-import { groupedCareerItems } from "./service";
+import { boundedJobText, groupedCareerItems, taskResult } from "./service";
 
 import {
   coverLetterParagraphJsonSchema,
   coverLetterParagraphSchema,
   coverLetterPlanJsonSchema,
   coverLetterPlanSchema,
-  tailoringHash,
   validateCoverLetterPlan,
   validateResumeBulletSuggestion,
 } from "./domain";
@@ -19,45 +18,6 @@ import type {
   TailoringRepository,
   TailoringRunInput,
 } from "./repository";
-
-function boundedJobText(value: string): string {
-  if (value.length <= 30_000) return value;
-  return `${value.slice(0, 30_000)}\n[${value.length - 30_000} characters omitted by deterministic context limit]`;
-}
-
-function taskResult(
-  taskId: "AI-07" | "AI-08",
-  taskVersion: string,
-  input: unknown,
-  result: {
-    value: Record<string, unknown>;
-    attempts: number;
-    providerKind: string;
-    response: {
-      model: string;
-      usage?: { inputTokens?: number; outputTokens?: number };
-    };
-  },
-): PersistedTaskResult {
-  return {
-    taskId,
-    taskVersion,
-    providerKind: result.providerKind,
-    model: result.response.model,
-    attempts: result.attempts,
-    inputHash: tailoringHash(input),
-    outputHash: tailoringHash(result.value),
-    usage: {
-      ...(result.response.usage?.inputTokens === undefined
-        ? {}
-        : { inputTokens: result.response.usage.inputTokens }),
-      ...(result.response.usage?.outputTokens === undefined
-        ? {}
-        : { outputTokens: result.response.usage.outputTokens }),
-    },
-    result: result.value,
-  };
-}
 
 export class CoverLetterTailoringService {
   public constructor(

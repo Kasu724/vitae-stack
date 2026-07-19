@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 import { ProviderConfigurationRepository } from "@/modules/providers/repository";
 import { ProviderConfigurationService } from "@/modules/providers/service";
 
@@ -16,11 +17,6 @@ import {
   type TailoringReviewDecision,
 } from "./repository";
 import { ResumeTailoringService } from "./service";
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 export async function startResumeTailoringAction(
   form: FormData,

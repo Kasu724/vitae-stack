@@ -22,7 +22,7 @@ import {
 } from "./repository";
 import type { TailoringEvidenceInput } from "./domain";
 
-function boundedJobText(value: string): string {
+export function boundedJobText(value: string): string {
   if (value.length <= 30_000) return value;
   return `${value.slice(0, 30_000)}\n[${value.length - 30_000} characters omitted by deterministic context limit]`;
 }
@@ -71,7 +71,7 @@ export function groupedCareerItems(evidence: TailoringEvidenceInput[]) {
   return [...items.values()];
 }
 
-function taskResult(
+export function taskResult(
   taskId: string,
   taskVersion: string,
   input: unknown,

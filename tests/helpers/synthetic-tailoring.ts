@@ -1,4 +1,9 @@
 import { createDatabaseConnection } from "@/infrastructure/database/connection";
+import {
+  ATS_AI_TASK_VERSION,
+  hashAtsAiValue,
+  type AtsAiOutput,
+} from "@/modules/ats/domain";
 import { AtsRepository } from "@/modules/ats/repository";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import { contentHash } from "@/modules/documents/hash";
@@ -137,6 +142,7 @@ export async function seedSyntheticTailoringRun(
           "AI-06": "synthetic",
           "AI-07": "synthetic",
           "AI-08": "synthetic",
+          "AI-11": "synthetic",
         }),
       ],
     );
@@ -279,10 +285,56 @@ export async function seedSyntheticTailoringRun(
         },
       ],
     });
-    const atsReportId = await new AtsRepository(connection.pool).generate(
+    const ats = new AtsRepository(connection.pool);
+    const atsInput = await ats.getDocumentAnalysisInput(
       principal,
-      { documentId, jobId },
+      documentId,
+      jobId,
     );
+    const atsAnalysis: AtsAiOutput = {
+      schemaVersion: ATS_AI_TASK_VERSION,
+      summary: "Synthetic AI analysis for browser coverage.",
+      overallScore: 82,
+      overallRationale: "The supplied resume and job source are aligned.",
+      categories: [
+        ["parsing", 15],
+        ["formatting", 15],
+        ["readability", 15],
+        ["content", 15],
+        ["impact", 15],
+        ["job_alignment", 25],
+      ].map(([key, weight]) => ({
+        key: key as AtsAiOutput["categories"][number]["key"],
+        label: String(key).replaceAll("_", " "),
+        score: 82,
+        weight: Number(weight),
+        rationale: "Synthetic model rationale.",
+      })),
+      findings: [],
+    };
+    const atsInputHash = hashAtsAiValue({
+      taskVersion: ATS_AI_TASK_VERSION,
+      providerConfigurationId: provider.rows[0]!.id,
+      model: "synthetic",
+      resumeIdentity: {
+        kind: "document",
+        documentId: atsInput.kind === "document" ? atsInput.documentId : "",
+        documentVersionId:
+          atsInput.kind === "document" ? atsInput.documentVersionId : "",
+      },
+      resumeHash: atsInput.resumeHash,
+      jobHash: atsInput.job?.hash ?? null,
+    });
+    const atsReportId = await ats.saveAiReport(principal, {
+      analysisInput: atsInput,
+      providerConfigurationId: provider.rows[0]!.id,
+      model: "synthetic",
+      taskVersion: ATS_AI_TASK_VERSION,
+      attempts: 1,
+      inputHash: atsInputHash,
+      outputHash: hashAtsAiValue(atsAnalysis),
+      analysis: atsAnalysis,
+    });
     return {
       documentId,
       runId: prepared.runId,

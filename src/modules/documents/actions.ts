@@ -7,6 +7,7 @@ import { FilesystemArtifactStore } from "@/infrastructure/artifacts/filesystem-s
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 import { CareerRepository } from "@/modules/career/repository";
 import {
   archivedValue,
@@ -22,11 +23,6 @@ import {
   DocumentNotFoundError,
   DocumentRepository,
 } from "./repository";
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());

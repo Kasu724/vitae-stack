@@ -6,17 +6,13 @@ import { redirect } from "next/navigation";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 import { JobRepository } from "@/modules/jobs/repository";
 import { ProviderConfigurationRepository } from "@/modules/providers/repository";
 import { ProviderConfigurationService } from "@/modules/providers/service";
 
 import { RequirementRepository } from "./repository";
 import { RequirementAnalysisService } from "./service";
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { JobUrlImportService } from "@/modules/job-fetch/service";
 import {
@@ -23,11 +24,6 @@ import {
   JobNotFoundError,
   JobRepository,
 } from "./repository";
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 async function context() {
   const principal = await getCurrentPrincipal(await headers());

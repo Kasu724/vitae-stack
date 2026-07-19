@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 import {
   archivedValue,
   safeReturnPath,
@@ -30,11 +31,6 @@ async function context() {
   const principal = await getCurrentPrincipal(await headers());
   if (!principal) redirect("/");
   return { principal, repository: new CareerRepository(getRuntimePool()) };
-}
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
 }
 
 export async function createCareerEntryAction(
