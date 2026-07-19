@@ -3,17 +3,25 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import { AtsInputNotFoundError, AtsRepository } from "@/modules/ats/repository";
+import {
+  ATS_AI_TASK_VERSION,
+  hashAtsAiValue,
+  type AtsAiOutput,
+} from "@/modules/ats/domain";
+import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
+import { DocumentRepository } from "@/modules/documents/repository";
+import { JobRepository } from "@/modules/jobs/repository";
+import { RequirementRepository } from "@/modules/requirements/repository";
+import { RequirementAnalysisService } from "@/modules/requirements/service";
+import {
+  ProviderConfigurationInUseError,
+  ProviderConfigurationRepository,
+} from "@/modules/providers/repository";
 import {
   createSqliteTestDatabase,
   type SqliteTestDatabase,
 } from "../helpers/sqlite-test-database";
-import { AtsInputNotFoundError, AtsRepository } from "@/modules/ats/repository";
-import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
-import { DocumentRepository } from "@/modules/documents/repository";
-import { JobRepository } from "@/modules/jobs/repository";
-import { MatchingRepository } from "@/modules/matching/repository";
-import { RequirementRepository } from "@/modules/requirements/repository";
-import { RequirementAnalysisService } from "@/modules/requirements/service";
 
 let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
@@ -45,8 +53,34 @@ async function principal(label: string): Promise<WorkspacePrincipal> {
   };
 }
 
+const analysis: AtsAiOutput = {
+  schemaVersion: ATS_AI_TASK_VERSION,
+  summary: "AI summary based on supplied text.",
+  overallScore: 76,
+  overallRationale: "The resume is readable and specific.",
+  categories: ["parsing", "formatting", "readability", "content", "impact"].map(
+    (key) => ({
+      key: key as
+        "parsing" | "formatting" | "readability" | "content" | "impact",
+      label: key,
+      score: 76,
+      weight: 20,
+      rationale: `AI rationale for ${key}.`,
+    }),
+  ),
+  findings: [
+    {
+      category: "readability" as const,
+      severity: "low" as const,
+      location: "Experience",
+      message: "A bullet is dense.",
+      remediation: "Shorten it without adding facts.",
+    },
+  ],
+};
+
 beforeAll(async () => {
-  testDatabase = await createSqliteTestDatabase("ats");
+  testDatabase = await createSqliteTestDatabase("ats-ai");
   runtimePool = testDatabase.pool;
   first = await principal("ats-first");
   second = await principal("ats-second");
@@ -56,93 +90,109 @@ afterAll(async () => {
   await testDatabase?.cleanup();
 });
 
-describe("persisted deterministic ATS reports", () => {
-  it("pins inputs, reuses identical runs, isolates workspaces, and remains immutable", async () => {
+describe("persisted AI ATS reports", () => {
+  it("persists a provider-attributed source analysis without a job source", async () => {
+    const sourceId = "90000000-0000-4000-8000-000000000001";
+    const providerId = "80000000-0000-4000-8000-000000000001";
+    const sourceHash = `sha256:${"a".repeat(64)}`;
+    await runtimePool.query(
+      `INSERT INTO model_provider_configurations
+       (id,workspace_id,created_by_user_id,kind,label,base_url,auth_type,capabilities,task_assignments,status,last_tested_at)
+       VALUES ($1,$2,$3,'ollama','Local test model','http://127.0.0.1:11434','none',$4::jsonb,$5::jsonb,'available',now())`,
+      [
+        providerId,
+        first.workspaceId,
+        first.userId,
+        JSON.stringify({ schemaVersion: 1, structuredOutput: true }),
+        JSON.stringify({ "AI-11": "local-model" }),
+      ],
+    );
+    await runtimePool.query(
+      `INSERT INTO source_documents
+       (id,workspace_id,uploaded_by_user_id,purpose,original_name,declared_media_type,detected_media_type,byte_size,content_hash,storage_key,status,extracted_text,parser_version,processed_at)
+       VALUES ($1,$2,$3,'resume','resume.txt','text/plain','text/plain',80,$4,$5,'ready',$6,'text@1',now())`,
+      [
+        sourceId,
+        first.workspaceId,
+        first.userId,
+        sourceHash,
+        `${first.workspaceId}/${sourceId}.bin`,
+        "Alex Example\nalex@example.test\nExperience\nBuilt systems",
+      ],
+    );
+    const repository = new AtsRepository(runtimePool);
+    const input = await repository.getSourceAnalysisInput(first, sourceId, "");
+    const inputHash = hashAtsAiValue({ sourceHash, model: "local-model" });
+    const reportId = await repository.saveAiReport(first, {
+      analysisInput: input,
+      providerConfigurationId: providerId,
+      model: "local-model",
+      taskVersion: ATS_AI_TASK_VERSION,
+      attempts: 1,
+      inputHash,
+      outputHash: hashAtsAiValue(analysis),
+      analysis,
+    });
+    expect(await repository.findExistingReport(first, input, inputHash)).toBe(
+      reportId,
+    );
+    const report = await repository.getSourceReport(first, reportId);
+    expect(report.report).toMatchObject({
+      source_document_id: sourceId,
+      document_hash: sourceHash,
+      model: "local-model",
+      task_version: ATS_AI_TASK_VERSION,
+      analysis_summary: analysis.summary,
+      overall_score_basis_points: 7600,
+    });
+    expect(report.categories).toHaveLength(5);
+    expect(report.categories[0]?.rationale).toContain("AI rationale");
+    expect(report.findings[0]).toMatchObject({
+      rule_id: "AI-FINDING-001",
+      blocker: false,
+    });
+    const provider = (
+      await new ProviderConfigurationRepository(runtimePool).list(first)
+    ).find((item) => item.id === providerId)!;
+    expect(provider.ats_report_count).toBe(1);
+    await expect(
+      new ProviderConfigurationRepository(runtimePool).delete(
+        first,
+        providerId,
+        provider.revision,
+      ),
+    ).rejects.toBeInstanceOf(ProviderConfigurationInUseError);
+    await expect(
+      repository.getSourceReport(second, reportId),
+    ).rejects.toBeInstanceOf(AtsInputNotFoundError);
+  });
+
+  it("accepts an optional reviewed job source for a saved resume", async () => {
     const documents = new DocumentRepository(runtimePool);
     const documentId = await documents.create(first, {
       kind: "resume",
-      title: "Synthetic ATS resume",
+      title: "AI ATS resume",
     });
-    const initial = await documents.get(first, documentId);
-    const content = structuredClone(initial.currentVersion.content);
-    content.sections[0]!.blocks[0]!.text = "alex@example.test";
-    const experience = content.sections.find(
-      (section) => section.type === "experience",
-    )!;
-    const block = experience.blocks[0]!;
-    block.text = "Built synthetic systems in 2025 with 20% less latency.";
-    await documents.commitVersion(first, {
-      documentId,
-      baseVersionId: initial.currentVersion.id,
-      content,
-    });
-
-    const entry = await runtimePool.query<{ id: string }>(
-      `INSERT INTO career_entries (workspace_id,career_profile_id,type,title,description)
-       SELECT $1,id,'project','Synthetic ATS project','Fixture' FROM career_profiles WHERE workspace_id=$1 RETURNING id`,
-      [first.workspaceId],
-    );
-    const fact = await runtimePool.query<{ id: string }>(
-      `INSERT INTO evidence_facts (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id)
-       VALUES ($1,$2,'statement',$3::jsonb,$4,$5::jsonb,$6) RETURNING id`,
-      [
-        first.workspaceId,
-        entry.rows[0]!.id,
-        JSON.stringify({ kind: "text", text: block.text }),
-        block.text,
-        JSON.stringify({ kind: "manual", label: "Synthetic ATS fixture" }),
-        first.userId,
-      ],
-    );
-    const contactFact = await runtimePool.query<{ id: string }>(
-      `INSERT INTO evidence_facts (workspace_id,career_entry_id,type,value,display_text,source_locator,approved_by_user_id)
-       VALUES ($1,$2,'statement',$3::jsonb,$4,$5::jsonb,$6) RETURNING id`,
-      [
-        first.workspaceId,
-        entry.rows[0]!.id,
-        JSON.stringify({ kind: "text", text: "alex@example.test" }),
-        "alex@example.test",
-        JSON.stringify({ kind: "manual", label: "Synthetic ATS fixture" }),
-        first.userId,
-      ],
-    );
-    for (const [claimText, evidenceFactId] of [
-      ["alex@example.test", contactFact.rows[0]!.id],
-      [block.text, fact.rows[0]!.id],
-    ] as const) {
-      const claim = (await documents.listClaims(first, documentId)).find(
-        (item) => item.text === claimText,
-      )!;
-      await documents.supportClaimWithEvidence(first, {
-        documentId,
-        claimId: claim.id,
-        evidenceFactId,
-      });
-    }
-
     const jobs = new JobRepository(runtimePool);
     const jobId = await jobs.createFromText(first, {
-      title: "Synthetic systems role",
+      title: "Systems role",
       company: "Example Company",
-      text: "Requirements:\n- Built synthetic systems",
+      text: "Requirements:\n- Build reliable TypeScript systems for local users and collaborate across product engineering teams.",
     });
     const job = await jobs.get(first, jobId);
-    const requirementRepository = new RequirementRepository(runtimePool);
+    const requirements = new RequirementRepository(runtimePool);
     const setId = await new RequirementAnalysisService(
-      requirementRepository,
+      requirements,
     ).createDeterministicDraft(
       first,
       job.revisions[0]!.id,
       job.revisions[0]!.normalized_text,
     );
     const draft = (
-      await requirementRepository.listForJobRevision(
-        first,
-        job.revisions[0]!.id,
-      )
+      await requirements.listForJobRevision(first, job.revisions[0]!.id)
     )[0]!;
     for (const requirement of draft.requirements)
-      await requirementRepository.reviseRequirement(first, {
+      await requirements.reviseRequirement(first, {
         setId,
         requirementId: requirement.id,
         category: "required_qualification",
@@ -150,73 +200,15 @@ describe("persisted deterministic ATS reports", () => {
         decision: "accepted",
         requirementText: requirement.requirement_text,
       });
-    await requirementRepository.finalize(first, setId);
-    const matching = new MatchingRepository(runtimePool);
-    await matching.generate(first, setId);
-    const matrix = (await matching.getLatestMatrix(first, setId))!;
-    const candidate = matrix.requirements
-      .flatMap((requirement) => requirement.candidates)
-      .find((item) => item.evidence_fact_id === fact.rows[0]!.id)!;
-    expect(candidate).toBeDefined();
-    await matching.decide(first, candidate.id, "included");
+    await requirements.finalize(first, setId);
 
     const repository = new AtsRepository(runtimePool);
-    const reportId = await repository.generate(first, { documentId, jobId });
-    expect(await repository.generate(first, { documentId, jobId })).toBe(
-      reportId,
-    );
-    const report = await repository.getReport(first, reportId);
-    expect(report.categories).toHaveLength(15);
-    expect(report.report).toMatchObject({
-      id: reportId,
-      document_id: documentId,
-      job_id: jobId,
-      blocker_count: 0,
-    });
-    expect(report.report.input_hash).toMatch(/^sha256:[0-9a-f]{64}$/u);
-    await expect(repository.getReport(second, reportId)).rejects.toBeInstanceOf(
-      AtsInputNotFoundError,
-    );
-    await expect(
-      runtimePool.query("UPDATE ats_reports SET blocker_count=99 WHERE id=$1", [
-        reportId,
-      ]),
-    ).rejects.toMatchObject({ code: "23514" });
-
-    const currentVersion = (await documents.get(first, documentId))
-      .currentVersion.id;
-    await expect(
-      runtimePool.query(
-        "DELETE FROM generated_claims WHERE version_id=$1 AND workspace_id=$2",
-        [currentVersion, first.workspaceId],
-      ),
-    ).rejects.toThrow("immutable history cannot be deleted");
-    const corruptionFixture = await runtimePool.connect();
-    try {
-      await corruptionFixture.query("BEGIN");
-      corruptionFixture.authorizeWorkspaceDeletion();
-      await corruptionFixture.query(
-        "DELETE FROM generated_claims WHERE version_id=$1 AND workspace_id=$2",
-        [currentVersion, first.workspaceId],
-      );
-      await corruptionFixture.query("COMMIT");
-    } catch (error) {
-      await corruptionFixture.query("ROLLBACK");
-      throw error;
-    } finally {
-      corruptionFixture.release();
-    }
-    const incompleteReportId = await repository.generate(first, {
+    const input = await repository.getDocumentAnalysisInput(
+      first,
       documentId,
       jobId,
-    });
-    const incompleteReport = await repository.getReport(
-      first,
-      incompleteReportId,
     );
-    expect(incompleteReport.report.blocker_count).toBeGreaterThan(0);
-    expect(incompleteReport.findings).toContainEqual(
-      expect.objectContaining({ rule_id: "ATS-UNSUP-001", blocker: true }),
-    );
+    expect(input.job).toMatchObject({ id: jobId, title: "Systems role" });
+    expect(input.resumeText).toContain("Experience");
   });
 });

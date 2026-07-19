@@ -1,22 +1,21 @@
 # ATS methodology
 
-Vitae Stack provides a deterministic, versioned estimate of document parsing and job alignment. It does not reproduce a proprietary ATS, predict ranking, or know an employer's configuration. Results are advisory and explain their inputs, rules, and unavailable checks.
+Vitae Stack provides an AI-generated estimate of resume compatibility and content quality. It does not reproduce a proprietary ATS, predict ranking, know an employer's configuration, or predict hiring.
 
-The engine evaluates canonical document structure, optional parse-back of an export, reviewed job requirements, and claim/evidence graph. Rules emit stable findings; categories normalize earned/applicable points; an overall weighted score combines applicable categories. AI may explain findings but cannot create, remove, reweight, or rescore them.
+The user selects a saved resume or ready parsed resume upload, an available provider/model assigned to AI-11, and optionally a reviewed job source. Resume and job text are bounded and sent as separately delimited untrusted data. Without a job source the model assesses general parsing, formatting, readability, content, and impact. With a job source it also assesses job alignment.
 
 ```mermaid
 flowchart LR
-  D[Document schema/export parse-back] --> Rules[Versioned deterministic rules]
-  J[Reviewed requirements] --> Rules
-  P[Claim provenance] --> Rules
-  Rules --> Findings[Located findings]
-  Findings --> Categories[Applicable category scores]
-  Categories --> Estimate[Weighted 0–100 estimate]
-  Findings --> Explain[Optional AI/plain templates]
+  R[Resume text] --> AI[Structured AI-11 analysis]
+  J[Optional reviewed job text] --> AI
+  AI --> V[Closed-schema validation]
+  V --> Report[Immutable advisory report]
 ```
 
-Scores are reproducible for identical input hashes/ruleset. `Not evaluated` checks leave the denominator and lower confidence/coverage rather than awarding points. Category caps prevent one repeated problem from dominating. Unsupported factual claims also block final export, independent of score.
+The model provides the overall 0–100 estimate, category scores and weights, rationales, findings, location hints, and remediation. Local validation requires the exact categories for the selected context, unique category keys, integer scores from 0 to 100, positive integer weights totaling 100, known severities, and bounded strings and arrays. Validation rejects malformed output but does not calculate a deterministic replacement score.
 
-The implemented `ats-rules@1.1.0` input hash covers the canonical document hash, reviewed job hash, accepted requirement identifiers/text/category/priority, current claim anchors/status/evidence status, and explicit included requirement/evidence matches. Stored reports are immutable and workspace-scoped. A reviewed match contributes to qualification coverage only when the same active approved evidence supports a current supported document claim; keyword presence by itself never earns evidence coverage.
+The report records provider configuration, configured model, `ai-11.v1` task version, attempts, resume/job hashes, input hash, and validated output hash. Identical resume/job/provider/model inputs reuse the immutable stored report. Changing any input or model creates a distinct analysis context.
 
-See [rubric](SCORING_RUBRIC.md), [rules](PARSING_RULES.md), [alignment](JOB_ALIGNMENT_RULES.md), [quality](CONTENT_QUALITY_RULES.md), and [limitations](LIMITATIONS.md).
+AI analysis is separate from factual grounding. Scores and recommendations never establish approved evidence, change claim support, permit export, or override unsupported-claim blockers. An uploaded resume remains unapproved source text and does not become a saved document or export candidate.
+
+See [output contract](SCORING_RUBRIC.md), [input guidance](PARSING_RULES.md), [job context](JOB_ALIGNMENT_RULES.md), [quality guidance](CONTENT_QUALITY_RULES.md), and [limitations](LIMITATIONS.md).

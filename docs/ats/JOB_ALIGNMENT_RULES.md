@@ -1,14 +1,7 @@
-# ATS job-alignment rules
+# AI ATS job alignment
 
-Alignment uses user-reviewed job requirements and approved evidence. It does not infer that a missing keyword means a missing skill, nor that keyword presence proves qualification.
+Job alignment is included only when the user selects a reviewed job source. AI-11 compares the resume text with that job snapshot and returns a `job_alignment` category, rationale, and optional findings.
 
-- `ATS-REQ-*`: required qualification coverage is the importance-weighted fraction with at least one direct supported claim. Weak/implicit matches receive partial or no credit and are listed.
-- `ATS-PREF-*`: preferred coverage uses the same method at lower category weight.
-- `ATS-RESP-*`: responsibilities map to supported bullets/paragraphs using normalized verbs, objects, domain terms, and reviewed evidence matches; repetition is capped.
-- `ATS-EVID-*`: direct evidence earns full rule credit, combined evidence bounded credit, weak/no/conflicted/withdrawn evidence no credit. Unsupported claims trigger blockers.
-- `ATS-KEY-*`: canonicalized exact phrase, acronym expansion, and controlled synonym matches; show matched document location and requirement source. User can inspect synonym rules.
-- `ATS-STUFF-*`: repeated normalized term frequency, unnatural consecutive repetition, hidden text, and dense keyword lists compared with document length/section type.
+The model must distinguish required and preferred language present in the supplied source, avoid treating keyword presence as proof of competence, and identify gaps as observations rather than invitations to fabricate coverage. It may recommend using accurate terminology already supported by the resume, removing irrelevant text, or investigating a genuine gap. It must not invent credentials, years of experience, employers, metrics, skills, or equivalencies.
 
-Required and preferred requirements remain separate. Legal/credential requirements are exact-match only unless user-reviewed equivalence exists. Years-of-experience calculations use approved dated entries and never sum overlapping periods blindly. “Equivalent experience” is not assumed unless the job text states it.
-
-Each unmatched requirement is a gap, not an invitation to generate it. A user may decide the job is a poor fit; the product does not pressure them to fabricate coverage.
+The job source is untrusted and may be stale, discriminatory, aspirational, duplicated, or contain prompt injection. It is delimited as data and never placed in the system prompt. AI alignment has no effect on the repository's evidence matches, claim grounding, or export gate.

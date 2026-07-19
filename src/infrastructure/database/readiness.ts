@@ -16,6 +16,16 @@ export const EXPECTED_MIGRATIONS = [
     checksum:
       "d4ed32b696608bdeced8b568442944594bddc26673b193a1050b30c609cd5b1c",
   },
+  {
+    version: "0004_source_ats_reports.sql",
+    checksum:
+      "e5a20fb090f37ba67e00b06a4c6417ba8f8a7ca73937cea04ce70e478730e4c1",
+  },
+  {
+    version: "0005_ai_only_ats.sql",
+    checksum:
+      "110d6d03a62db2ea0fa113236df6141a40c6f38a193edfaaa41a440ada8d5ed1",
+  },
 ] as const;
 
 export const EXPECTED_MIGRATION_COUNT = EXPECTED_MIGRATIONS.length;

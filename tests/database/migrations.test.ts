@@ -18,6 +18,8 @@ describe("SQLite migration artifacts", () => {
       "0001_initial.sql",
       "0002_integrity_guards.sql",
       "0003_extraction_ai.sql",
+      "0004_source_ats_reports.sql",
+      "0005_ai_only_ats.sql",
     ]);
     expect(migrationFiles).toHaveLength(EXPECTED_MIGRATION_COUNT);
   });
@@ -31,6 +33,11 @@ describe("SQLite migration artifacts", () => {
           "utf8",
         ),
         readFile(path.resolve("db/migrations/0003_extraction_ai.sql"), "utf8"),
+        readFile(
+          path.resolve("db/migrations/0004_source_ats_reports.sql"),
+          "utf8",
+        ),
+        readFile(path.resolve("db/migrations/0005_ai_only_ats.sql"), "utf8"),
       ])
     ).join("\n");
 

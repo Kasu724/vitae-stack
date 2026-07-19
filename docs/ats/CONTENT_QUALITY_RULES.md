@@ -1,13 +1,7 @@
-# ATS content-quality rules
+# AI ATS content-quality guidance
 
-These deterministic heuristics assess readability, not a universal writing style.
+AI-11 may assess readability, concision, impact presentation, repetition, vague wording, and apparent keyword stuffing. These are model judgments rather than repository-owned deterministic rules.
 
-- `ATS-IMPACT-*`: count bullets with a supported outcome/metric; validate quantities against evidence. Do not demand metrics for duties where none are appropriate.
-- `ATS-BULLET-*`: configurable word/character range, verb presence, sentence fragments, nested depth, punctuation consistency, first-person use in resume, and multi-idea complexity. Findings show measured threshold.
-- `ATS-REDUND-*`: normalized duplicate and high-overlap bullets within/across sections; cap repeated penalties and exclude intentional skill lists.
-- `ATS-UNSUP-*`: factual claim lacks active evidence, cites conflicted/withdrawn facts, or changes a number/date/name. Any occurrence blocks final export.
-- `ATS-CLARITY-*`: undefined acronym on first use, vague pronoun, excessive nominalization/hedging, and readability range; findings remain low severity because context matters.
+The model must base every observation on supplied text, provide a bounded location hint, and recommend changes that preserve the user's meaning. It may suggest shortening, clarifying, reordering, or removing text. It may not recommend adding unsupported metrics, credentials, responsibilities, employers, dates, or other career facts.
 
-No AI sentiment, personality, prestige, demographic, school/employer ranking, or “culture fit” judgment contributes to the score. Optional AI quality feedback is separate, unscored, and cannot create factual content.
-
-Thresholds are fixture-backed, documented in rule metadata, and configurable only through versioned rulesets—not per-user hidden tuning. The UI permits dismissing advice without rewriting the report history.
+Sentiment, personality, prestige, demographic traits, school/employer ranking, protected-class proxies, and “culture fit” must not contribute to the analysis. Content feedback never establishes factual support or controls export eligibility.

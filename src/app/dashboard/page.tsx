@@ -88,7 +88,7 @@ export default async function DashboardPage() {
               <Link href="/documents">Open document library</Link>
             </li>
             <li>
-              <Link href="/ats">Run estimated ATS analysis</Link>
+              <Link href="/ats">Run AI ATS analysis</Link>
             </li>
             <li>
               <Link href="/exports">Export a document</Link>
