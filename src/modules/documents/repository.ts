@@ -1,4 +1,8 @@
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  type PoolClient,
+  withTransaction as transaction,
+} from "@/infrastructure/database/sqlite-pool";
 import type { StagedArtifactDeletion } from "@/infrastructure/artifacts/filesystem-store";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
@@ -100,24 +104,6 @@ function evidenceSupportsClaim(
   return claimIsGrounded(claimText, [
     { displayText: evidence.display_text, value: evidence.value },
   ]);
-}
-
-async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const value = await work(client);
-    await client.query("COMMIT");
-    return value;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 async function audit(

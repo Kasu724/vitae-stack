@@ -1,4 +1,8 @@
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  type PoolClient,
+  withTransaction as transaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
@@ -98,24 +102,6 @@ export interface FactProposalRecord {
 }
 
 type Queryable = Pick<Pool | PoolClient, "query">;
-
-async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await work(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
-}
 
 async function writeAudit(
   client: Queryable,

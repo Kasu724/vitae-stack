@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  type PoolClient,
+  withTransaction as begin,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type { ExportManifestValue } from "@/infrastructure/database/value-types";
 import {
@@ -119,24 +123,6 @@ export interface ExportArtifactRecord {
   manifest: ExportManifestValue;
   expires_at: Date;
   created_at: Date;
-}
-
-async function begin<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await work(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 function byteHash(bytes: Uint8Array): string {

@@ -1,4 +1,8 @@
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  type PoolClient,
+  withTransaction as transaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type { JobRevisionMetadata } from "@/infrastructure/database/value-types";
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
@@ -66,24 +70,6 @@ export interface JobRevisionRecord {
   content_hash: string;
   metadata: JobRevisionMetadata;
   created_at: Date;
-}
-
-async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const value = await work(client);
-    await client.query("COMMIT");
-    return value;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 async function audit(
@@ -417,9 +403,12 @@ export class JobRepository {
             JOIN tailoring_runs t ON t.id=suggestion.run_id AND t.workspace_id=suggestion.workspace_id
             JOIN job_posting_revisions r ON r.id=t.job_posting_revision_id AND r.workspace_id=t.workspace_id
            WHERE r.job_posting_id=$1 AND r.workspace_id=$2 AND suggestion.accepted_version_id IS NOT NULL) accepted_document_versions,
-         (SELECT count(*)::int FROM ats_reports report
+         ((SELECT count(*)::int FROM ats_reports report
            JOIN job_posting_revisions r ON r.id=report.job_posting_revision_id AND r.workspace_id=report.workspace_id
-          WHERE r.job_posting_id=$1 AND r.workspace_id=$2) ats_reports,
+          WHERE r.job_posting_id=$1 AND r.workspace_id=$2) +
+          (SELECT count(*)::int FROM source_ats_reports report
+           JOIN job_posting_revisions r ON r.id=report.job_posting_revision_id AND r.workspace_id=report.workspace_id
+          WHERE r.job_posting_id=$1 AND r.workspace_id=$2)) ats_reports,
          (SELECT count(*)::int FROM job_url_imports url_import
            WHERE url_import.job_posting_id=$1 AND url_import.workspace_id=$2) url_imports
        WHERE EXISTS (SELECT 1 FROM job_postings WHERE id=$1 AND workspace_id=$2)`,
@@ -466,6 +455,15 @@ export class JobRepository {
         const parameters = [id, principal.workspaceId];
         await client.query(
           `DELETE FROM job_url_imports WHERE job_posting_id=$1 AND workspace_id=$2`,
+          parameters,
+        );
+        await client.query(
+          `DELETE FROM source_ats_reports WHERE workspace_id=$2 AND EXISTS (
+             SELECT 1 FROM job_posting_revisions r
+              WHERE r.id=source_ats_reports.job_posting_revision_id
+                AND r.workspace_id=source_ats_reports.workspace_id
+                AND r.job_posting_id=$1
+           )`,
           parameters,
         );
         await client.query(

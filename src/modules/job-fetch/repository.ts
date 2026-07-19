@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  withTransaction as transaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 
@@ -28,24 +31,6 @@ export interface JobUrlImportRecord {
   job_posting_id: string | null;
   error_code: string | null;
   created_at: Date;
-}
-
-async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const value = await work(client);
-    await client.query("COMMIT");
-    return value;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 export class JobUrlImportRepository {

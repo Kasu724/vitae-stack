@@ -1,4 +1,7 @@
-import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  withTransaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 export type AuthenticationMode = "trusted-local";
 
@@ -51,9 +54,7 @@ export async function provisionPersonalWorkspace(
   pool: Pool,
   input: { userId: string; displayName: string; mode: AuthenticationMode },
 ): Promise<string> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withTransaction(pool, async (client) => {
     await client.query(
       "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
       [input.userId],
@@ -65,7 +66,6 @@ export async function provisionPersonalWorkspace(
       [input.userId],
     );
     if (existing.rows[0]) {
-      await client.query("COMMIT");
       return existing.rows[0].workspace_id;
     }
 
@@ -97,14 +97,8 @@ export async function provisionPersonalWorkspace(
         JSON.stringify({ mode: input.mode }),
       ],
     );
-    await client.query("COMMIT");
     return workspaceId;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function ensureTrustedLocalPrincipal(

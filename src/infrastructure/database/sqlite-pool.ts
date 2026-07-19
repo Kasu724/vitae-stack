@@ -137,6 +137,10 @@ function transformSql(sql: string): {
       /jsonb_set\(([^,]+),\s*'\{([^}]+)\}',\s*to_jsonb\(([^)]+)\)(?:,\s*true)?\)/giu,
       "json_set($1, '$.$2', $3)",
     )
+    .replace(
+      /([a-z0-9_]+)\s*=\s*\1\s*-\s*\$(\d+)/giu,
+      "$1 = json_remove($1, '$.' || $$$2)",
+    )
     .replace(/::(?:"[^"]+"|[a-z_][a-z0-9_]*(?:\[\])?)/giu, "")
     .replace(/\s+FOR\s+UPDATE(?:\s+OF\s+[a-z0-9_.,"]+)?/giu, "")
     .replace(/\s+SKIP\s+LOCKED/giu, "")
@@ -378,3 +382,21 @@ export class SqlitePool implements Queryable {
 
 export type Pool = SqlitePool;
 export type PoolClient = SqliteClient;
+
+export async function withTransaction<T>(
+  pool: Pool,
+  work: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await work(client);
+    await client.query("COMMIT");
+    return result;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}

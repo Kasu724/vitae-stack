@@ -4,7 +4,6 @@ import { readServerEnvironment } from "@/infrastructure/config/environment";
 
 import {
   createDatabaseConnection,
-  type Database,
   type DatabaseConnection,
 } from "./connection";
 import type { Pool } from "./sqlite-pool";
@@ -26,8 +25,4 @@ function getRuntimeConnection(): DatabaseConnection {
 
 export function getRuntimePool(): Pool {
   return getRuntimeConnection().pool;
-}
-
-export function getRuntimeDatabase(): Database {
-  return getRuntimeConnection().database;
 }

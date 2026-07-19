@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
-import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  withTransaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 export const APPLICATION_RATE_LIMIT_SCOPES = [
   "provider-test",
@@ -48,9 +51,7 @@ export async function consumeApplicationRateLimit(
     throw new Error("INVALID_RATE_LIMIT_POLICY");
   const key = applicationRateLimitKey(input.scope, input.subject);
   const now = input.now ?? Date.now();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  return withTransaction(pool, async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
       key,
     ]);
@@ -74,11 +75,5 @@ export async function consumeApplicationRateLimit(
         key,
       ]);
     }
-    await client.query("COMMIT");
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
+  });
 }
