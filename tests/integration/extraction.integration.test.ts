@@ -19,10 +19,7 @@ import {
   ExtractionNotFoundError,
   ExtractionRepository,
 } from "@/modules/extraction/repository";
-import {
-  SourceDependencyError,
-  SourceRepository,
-} from "@/modules/ingestion/source-repository";
+import { SourceRepository } from "@/modules/ingestion/source-repository";
 
 let testDatabase: SqliteTestDatabase;
 let runtimePool: Pool;
@@ -214,11 +211,22 @@ describe("extraction review and approval", () => {
     const aiPrincipal = await createPrincipal("ai-race");
     const text = "Synthetic Employer\nBuilt synthetic systems";
     const sourceId = await readySource(aiPrincipal, "ai-race", text);
+    const proposal: AiExtractionProposal = {
+      entryKey: "employment_1",
+      entryType: "work",
+      entryTitleStart: 0,
+      entryTitleEnd: "Synthetic Employer".length,
+      entryTitleText: "Synthetic Employer",
+      factType: "statement",
+      sourceStart: text.indexOf("Built synthetic systems"),
+      sourceEnd: text.length,
+      sourceText: "Built synthetic systems",
+    };
     await expect(
       repository.createAiBatch(aiPrincipal, {
         sourceId,
         expectedSourceContentHash: `sha256:${"f".repeat(64)}`,
-        proposals: [],
+        proposals: [proposal],
         metadata: {
           schemaVersion: 1,
           taskVersion: "ai-01.v1",
@@ -229,7 +237,7 @@ describe("extraction review and approval", () => {
           inputHash: hashExtractionValue(text),
           outputHash: hashExtractionValue({
             schemaVersion: "ai-01.v1",
-            proposals: [],
+            proposals: [proposal],
             warnings: [],
           }),
         },
@@ -421,7 +429,7 @@ describe("extraction review and approval", () => {
     ).toHaveLength(1);
   });
 
-  it("blocks source deletion during review and preserves resolved audit history", async () => {
+  it("deletes a source during review while preserving pending proposals", async () => {
     const sourceId = await readySource(
       first,
       "delete-race",
@@ -430,21 +438,18 @@ describe("extraction review and approval", () => {
     const batchId = await repository.createDeterministicBatch(first, sourceId);
     const sources = new SourceRepository(runtimePool);
     let artifactDeletionCalled = false;
-    await expect(
-      sources.deleteWithArtifacts(first, sourceId, async () => {
-        artifactDeletionCalled = true;
-      }),
-    ).rejects.toBeInstanceOf(SourceDependencyError);
-    expect(artifactDeletionCalled).toBe(false);
-    const proposal = (await repository.getBatch(first, batchId)).proposals[0]!;
-    await repository.reject(first, proposal.id);
     await sources.deleteWithArtifacts(first, sourceId, async () => {
       artifactDeletionCalled = true;
     });
     expect(artifactDeletionCalled).toBe(true);
-    const review = await repository.getBatch(first, batchId);
+    let review = await repository.getBatch(first, batchId);
     expect(review.batch.source_available).toBe(false);
     expect(review.batch.extracted_text).toBe("");
-    expect(review.proposals[0]!.status).toBe("rejected");
+    expect(review.proposals[0]!.status).toBe("pending");
+
+    await repository.approve(first, review.proposals[0]!.id);
+    review = await repository.getBatch(first, batchId);
+    expect(review.batch.status).toBe("completed");
+    expect(review.proposals[0]!.status).toBe("approved");
   });
 });

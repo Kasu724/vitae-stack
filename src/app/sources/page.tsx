@@ -72,15 +72,6 @@ export default async function SourcesPage({
           The source bytes and active source record were deleted.
         </p>
       ) : null}
-      {query.notice === "delete-blocked" ? (
-        <p
-          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
-          role="alert"
-        >
-          Resolve pending extraction proposals for every selected source, then
-          try deleting them again.
-        </p>
-      ) : null}
       <section
         className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5"
         aria-labelledby="import-heading"
@@ -143,6 +134,7 @@ export default async function SourcesPage({
               deleteImpact: [
                 "The private source bytes and extracted preview will be removed.",
                 "Approved facts remain available with a source-unavailable marker.",
+                "Pending proposals and completed review decisions remain available, but the source preview will be unavailable.",
               ],
             }))}
             resourceName="source"
@@ -150,7 +142,7 @@ export default async function SourcesPage({
             headingLevel={3}
             status="active"
             deleteAction={deleteSourcesAction}
-            deleteWarning="Deletion cannot be undone. A source with pending extraction proposals is blocked until that review is resolved."
+            deleteWarning="Deletion cannot be undone. Pending proposals and completed review decisions remain available with the source marked unavailable."
             returnPath="/sources"
           />
         ) : (

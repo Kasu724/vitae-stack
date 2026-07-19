@@ -10,7 +10,7 @@ test.beforeAll(async () => {
   await ensureSyntheticAuthUser();
 });
 
-test("user imports, reviews, downloads, and deletes an inert source document", async ({
+test("user deletes a source while its extraction proposals remain pending", async ({
   page,
 }) => {
   const marker = `Synthetic imported resume ${Date.now()}`;
@@ -39,10 +39,28 @@ test("user imports, reviews, downloads, and deletes an inert source document", a
   expect(download.ok()).toBe(true);
   expect(await download.text()).toContain(marker);
 
+  const sourceUrl = page.url();
+  await page.getByText("Use deterministic fallback").click();
+  await page.getByRole("button", { name: "Extract without AI" }).click();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Review extracted facts" }),
+  ).toBeVisible();
+  const reviewUrl = page.url();
+  await expect(page.getByText(/pending of 2 proposals/u)).toBeVisible();
+
+  await page.goto(sourceUrl);
   await page.getByLabel("Type DELETE").fill("DELETE");
   await page.getByRole("button", { name: "Delete source bytes" }).click();
   await expect(page).toHaveURL(/\/sources\?notice=deleted$/u);
   await expect(
     page.getByText("The source bytes and active source record were deleted."),
+  ).toBeVisible();
+
+  await page.goto(reviewUrl);
+  await expect(page.getByText(/pending of 2 proposals/u)).toBeVisible();
+  await expect(
+    page.getByText(
+      "The original source and extracted text were deleted. Existing review decisions and evidence identifiers remain auditable.",
+    ),
   ).toBeVisible();
 });

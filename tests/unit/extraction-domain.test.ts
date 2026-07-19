@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   aiExtractionJsonSchema,
   aiExtractionOutputSchema,
+  aiExtractionOutputSchemaForSource,
+  aiExtractionSourceLineCatalog,
   aiProposalEvidenceValue,
   deterministicLineCandidates,
   deterministicStructuredCandidates,
@@ -44,7 +46,7 @@ describe("deterministic extraction fallback", () => {
         "",
         "PROJECTS",
         "Private Portfolio",
-        "- Used TypeScript",
+        "• Used TypeScript",
       ].join("\n"),
       "Imported resume",
     );
@@ -131,7 +133,17 @@ describe("AI extraction boundary", () => {
         proposals: [{ ...proposal, unexpected: true }],
       }).success,
     ).toBe(false);
+    expect(
+      aiExtractionOutputSchema.safeParse({ ...output, proposals: [] }).success,
+    ).toBe(false);
     expect(aiExtractionJsonSchema.additionalProperties).toBe(false);
+    expect(aiExtractionJsonSchema.properties.proposals.minItems).toBe(1);
+    expect(
+      aiExtractionOutputSchemaForSource(source).safeParse({
+        ...output,
+        proposals: [{ ...proposal, sourceText: "Invented systems" }],
+      }).success,
+    ).toBe(false);
     expect(
       (
         aiExtractionJsonSchema.properties.proposals.items as {
@@ -139,6 +151,30 @@ describe("AI extraction boundary", () => {
         }
       ).additionalProperties,
     ).toBe(false);
+  });
+
+  it("precomputes exact title and bullet-free fact slices for the model", () => {
+    const catalogSource = " EXPERIENCE \r\n  - Built synthetic systems  \n";
+    expect(aiExtractionSourceLineCatalog(catalogSource)).toEqual([
+      {
+        line: 1,
+        entryTitleStart: 1,
+        entryTitleEnd: 11,
+        entryTitleText: "EXPERIENCE",
+        sourceStart: 1,
+        sourceEnd: 11,
+        sourceText: "EXPERIENCE",
+      },
+      {
+        line: 2,
+        entryTitleStart: 16,
+        entryTitleEnd: 41,
+        entryTitleText: "- Built synthetic systems",
+        sourceStart: 18,
+        sourceEnd: 41,
+        sourceText: "Built synthetic systems",
+      },
+    ]);
   });
 
   it("rejects fabricated, duplicate, or inconsistently grouped spans", () => {

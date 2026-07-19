@@ -12,6 +12,7 @@ import {
 import type { EvidenceValue } from "@/infrastructure/database/value-types";
 
 export const MAX_AI_EXTRACTION_SOURCE_CHARACTERS = 60_000;
+export const MAX_AI_EXTRACTION_SOURCE_LINES = 1_000;
 export const MAX_EXTRACTION_PROPOSALS = 100;
 export const AI_EXTRACTION_REVIEW_WARNING =
   "AI-generated classifications require review.";
@@ -45,12 +46,55 @@ export const aiExtractionOutputSchema = z
     schemaVersion: z.literal("ai-01.v1"),
     proposals: z
       .array(aiExtractionProposalSchema)
+      .min(1)
       .max(MAX_EXTRACTION_PROPOSALS),
     warnings: z.array(z.string().min(1).max(300)).max(20),
   })
   .strict();
 
-export type AiExtractionOutput = z.infer<typeof aiExtractionOutputSchema>;
+export interface AiExtractionSourceLine {
+  line: number;
+  entryTitleStart: number;
+  entryTitleEnd: number;
+  entryTitleText: string;
+  sourceStart: number;
+  sourceEnd: number;
+  sourceText: string;
+}
+
+export function aiExtractionSourceLineCatalog(
+  source: string,
+): AiExtractionSourceLine[] {
+  const lines = source.split("\n");
+  if (lines.length > MAX_AI_EXTRACTION_SOURCE_LINES)
+    throw new Error("The source has too many lines for AI extraction.");
+  const catalog: AiExtractionSourceLine[] = [];
+  let offset = 0;
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index]!;
+    const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+    const entryTitleText = line.trim();
+    if (entryTitleText) {
+      const entryTitleStart = offset + line.indexOf(entryTitleText);
+      const entryTitleEnd = entryTitleStart + entryTitleText.length;
+      const marker = line.match(/^\s*(?:[-*•]|\d+[.)])\s+/u)?.[0] ?? "";
+      const factCandidate = line.slice(marker.length).trimEnd();
+      const sourceText = factCandidate.trimStart();
+      const sourceStart = offset + line.indexOf(sourceText, marker.length);
+      catalog.push({
+        line: index + 1,
+        entryTitleStart,
+        entryTitleEnd,
+        entryTitleText,
+        sourceStart,
+        sourceEnd: sourceStart + sourceText.length,
+        sourceText,
+      });
+    }
+    offset += raw.length + (index < lines.length - 1 ? 1 : 0);
+  }
+  return catalog;
+}
 
 export const aiExtractionMetadataSchema = z
   .object({
@@ -73,6 +117,7 @@ export const aiExtractionJsonSchema = {
     schemaVersion: { type: "string", enum: ["ai-01.v1"] },
     proposals: {
       type: "array",
+      minItems: 1,
       maxItems: MAX_EXTRACTION_PROPOSALS,
       items: {
         type: "object",
@@ -169,6 +214,20 @@ export function validateExtractionSourceSpans(
       throw new Error("AI extraction contains a duplicate proposal.");
     facts.add(factIdentity);
   }
+}
+
+export function aiExtractionOutputSchemaForSource(source: string) {
+  return aiExtractionOutputSchema.superRefine((value, context) => {
+    try {
+      validateExtractionSourceSpans(source, value.proposals);
+    } catch {
+      context.addIssue({
+        code: "custom",
+        path: ["proposals"],
+        message: "source_span_validation_failed",
+      });
+    }
+  });
 }
 
 export function aiProposalEvidenceValue(
@@ -278,8 +337,8 @@ export function deterministicStructuredCandidates(
       startNewItem = true;
       continue;
     }
-    const isBullet = /^\s*(?:[-*â€¢]|\d+[.)])\s+/u.test(raw);
-    const candidateText = raw.replace(/^\s*(?:[-*â€¢]|\d+[.)])\s*/u, "").trim();
+    const isBullet = /^\s*(?:[-*•]|\d+[.)])\s+/u.test(raw);
+    const candidateText = raw.replace(/^\s*(?:[-*•]|\d+[.)])\s*/u, "").trim();
     if (candidateText.length < 3 || candidateText.length > 5_000) continue;
     if (startNewItem && !isBullet) {
       itemIndex += 1;

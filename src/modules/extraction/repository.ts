@@ -1,4 +1,8 @@
-import type { Pool, PoolClient } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  type PoolClient,
+  withTransaction as transaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type {
   EvidenceValue,
@@ -76,24 +80,6 @@ export interface ExtractionProposalRecord {
   duplicate_of_fact_id: string | null;
   approved_fact_id: string | null;
   revision: number;
-}
-
-async function transaction<T>(
-  pool: Pool,
-  work: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const value = await work(client);
-    await client.query("COMMIT");
-    return value;
-  } catch (error) {
-    await client.query("ROLLBACK");
-    throw error;
-  } finally {
-    client.release();
-  }
 }
 
 async function audit(

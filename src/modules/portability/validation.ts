@@ -36,6 +36,7 @@ const entityTables = new Set<PortableTable>([
   "extraction_batches",
   "job_requirement_sets",
   "ats_reports",
+  "source_ats_reports",
   "document_drafts",
   "document_sections",
   "export_artifacts",
@@ -45,6 +46,7 @@ const entityTables = new Set<PortableTable>([
   "job_requirements",
   "requirement_match_runs",
   "ats_findings",
+  "source_ats_findings",
   "requirement_evidence_matches",
   "tailoring_runs",
   "requirement_evidence_decisions",
@@ -59,6 +61,7 @@ const compositeKeys = new Map<PortableTable, readonly string[]>([
   ["career_entry_skills", ["career_entry_id", "skill_id"]],
   ["claim_evidence", ["claim_id", "evidence_fact_id"]],
   ["ats_category_scores", ["report_id", "category"]],
+  ["source_ats_category_scores", ["report_id", "category"]],
   ["tailoring_run_entries", ["run_id", "career_entry_id"]],
   ["tailoring_run_evidence", ["run_id", "evidence_fact_id"]],
   ["tailoring_suggestion_requirements", ["suggestion_id", "requirement_id"]],
@@ -280,6 +283,11 @@ export function validateArchiveSemantics(
     rows(archive, "ats_reports"),
     issues,
     "ats-report-identifier",
+  );
+  const sourceAtsReports = mapById(
+    rows(archive, "source_ats_reports"),
+    issues,
+    "source-ats-report-identifier",
   );
   const extractionBatches = mapById(
     rows(archive, "extraction_batches"),
@@ -882,6 +890,15 @@ export function validateArchiveSemantics(
             stringField(revision, "content_hash")))
     )
       issues.add("ats-report-context");
+    const providerId = stringField(row, "provider_configuration_id");
+    if (
+      providerId !== null &&
+      (!providers.has(providerId) ||
+        !stringField(row, "model") ||
+        !stringField(row, "task_version") ||
+        !stringField(row, "output_hash"))
+    )
+      issues.add("ats-report-ai-provenance");
   }
   for (const row of rows(archive, "ats_category_scores"))
     if (!atsReports.has(stringField(row, "report_id") ?? ""))
@@ -889,6 +906,41 @@ export function validateArchiveSemantics(
   for (const row of rows(archive, "ats_findings"))
     if (!atsReports.has(stringField(row, "report_id") ?? ""))
       issues.add("ats-finding-reference");
+  for (const row of sourceAtsReports.values()) {
+    const source = sources.get(stringField(row, "source_document_id") ?? "");
+    const revisionId = stringField(row, "job_posting_revision_id");
+    const setId = stringField(row, "requirement_set_id");
+    const revision = jobRevisions.get(revisionId ?? "");
+    const set = requirementSets.get(setId ?? "");
+    if (
+      !source ||
+      stringField(source, "content_hash") !==
+        stringField(row, "document_hash") ||
+      (revisionId === null) !== (setId === null) ||
+      (revisionId !== null &&
+        (!revision ||
+          !set ||
+          stringField(set, "job_posting_revision_id") !== revisionId ||
+          stringField(row, "job_hash") !==
+            stringField(revision, "content_hash")))
+    )
+      issues.add("source-ats-report-context");
+    const providerId = stringField(row, "provider_configuration_id");
+    if (
+      providerId !== null &&
+      (!providers.has(providerId) ||
+        !stringField(row, "model") ||
+        !stringField(row, "task_version") ||
+        !stringField(row, "output_hash"))
+    )
+      issues.add("source-ats-report-ai-provenance");
+  }
+  for (const row of rows(archive, "source_ats_category_scores"))
+    if (!sourceAtsReports.has(stringField(row, "report_id") ?? ""))
+      issues.add("source-ats-score-reference");
+  for (const row of rows(archive, "source_ats_findings"))
+    if (!sourceAtsReports.has(stringField(row, "report_id") ?? ""))
+      issues.add("source-ats-finding-reference");
 
   const projectedSections = new Map<string, Array<Record<string, unknown>>>();
   for (const row of rows(archive, "document_sections")) {

@@ -194,10 +194,3 @@ export function exportArtifactStorageKey(
 ): string {
   return `${workspaceId}/${artifactId}.bin`;
 }
-
-export function portabilityBlobStorageKey(
-  workspaceId: string,
-  resourceId: string,
-): string {
-  return `${workspaceId}/${resourceId}.bin`;
-}

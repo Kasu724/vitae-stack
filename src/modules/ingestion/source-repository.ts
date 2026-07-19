@@ -1,4 +1,7 @@
-import type { Pool } from "@/infrastructure/database/sqlite-pool";
+import {
+  type Pool,
+  withTransaction,
+} from "@/infrastructure/database/sqlite-pool";
 
 import type { WorkspacePrincipal } from "@/modules/auth/workspace-access";
 import type { ParsedSource } from "./parsers";
@@ -44,13 +47,6 @@ export class SourceRateLimitError extends Error {
   }
 }
 
-export class SourceDependencyError extends Error {
-  public constructor() {
-    super("Resolve pending extraction proposals before deleting this source.");
-    this.name = "SourceDependencyError";
-  }
-}
-
 export class SourceRepository {
   public constructor(private readonly pool: Pool) {}
 
@@ -67,9 +63,7 @@ export class SourceRepository {
       | "created_at"
     >,
   ): Promise<void> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+    return withTransaction(this.pool, async (client) => {
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
         [`source-upload:${principal.workspaceId}`],
@@ -106,13 +100,7 @@ export class SourceRepository {
           JSON.stringify({ byteSize: input.byte_size, purpose: input.purpose }),
         ],
       );
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   public async markProcessing(
@@ -197,9 +185,7 @@ export class SourceRepository {
     ids: string[],
     removeArtifacts: (sourceId: string, storageKey: string) => Promise<void>,
   ): Promise<void> {
-    const client = await this.pool.connect();
-    try {
-      await client.query("BEGIN");
+    return withTransaction(this.pool, async (client) => {
       for (const id of ids)
         await client.query(
           "SELECT pg_advisory_xact_lock(hashtextextended($1,0))",
@@ -210,11 +196,6 @@ export class SourceRepository {
         [principal.workspaceId, ids],
       );
       if (sources.rowCount !== ids.length) throw new SourceNotFoundError();
-      const pending = await client.query(
-        `SELECT 1 FROM extraction_batches WHERE workspace_id=$1 AND status='pending' AND source_document_id=ANY($2::uuid[]) LIMIT 1`,
-        [principal.workspaceId, ids],
-      );
-      if (pending.rowCount) throw new SourceDependencyError();
       for (const source of sources.rows)
         await removeArtifacts(source.id, source.storage_key);
       const updated = await client.query(
@@ -228,32 +209,6 @@ export class SourceRepository {
            VALUES ($1,$2,'source.delete','source_document',$3,'succeeded',$4,'{}'::jsonb)`,
           [principal.workspaceId, principal.userId, id, crypto.randomUUID()],
         );
-      await client.query("COMMIT");
-    } catch (error) {
-      await client.query("ROLLBACK");
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  private async audit(
-    principal: WorkspacePrincipal,
-    action: string,
-    targetId: string,
-    metadata: Record<string, string | number | boolean | null> = {},
-  ): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO audit_events (workspace_id,actor_user_id,action,target_type,target_id,outcome,correlation_id,metadata)
-       VALUES ($1,$2,$3,'source_document',$4,'succeeded',$5,$6::jsonb)`,
-      [
-        principal.workspaceId,
-        principal.userId,
-        action,
-        targetId,
-        crypto.randomUUID(),
-        JSON.stringify(metadata),
-      ],
-    );
+    });
   }
 }

@@ -90,15 +90,6 @@ export default async function SourcePage({
           selected provider.
         </p>
       ) : null}
-      {query.error === "pending-extraction" ? (
-        <p
-          className="mt-6 rounded-lg border border-[var(--danger)] p-4"
-          role="alert"
-        >
-          This source has pending extraction proposals. Approve or reject every
-          proposal before deleting the source.
-        </p>
-      ) : null}
       {query.error === "job-snapshot" ? (
         <p
           className="mt-6 rounded-lg border border-[var(--danger)] p-4"
@@ -173,6 +164,24 @@ export default async function SourcePage({
             <pre className="mt-3 max-h-[40rem] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-[var(--border)] bg-[var(--background)] p-4 font-sans">
               {source.extracted_text}
             </pre>
+            {source.purpose === "resume" ? (
+              <div className="mt-5 border-t border-[var(--border)] pt-5">
+                <h3 className="text-lg font-semibold">
+                  Score this uploaded resume
+                </h3>
+                <p className="mt-2 text-sm text-[var(--muted)]">
+                  Run AI ATS analysis directly on this parsed source, with or
+                  without an optional reviewed job source. This does not approve
+                  facts or create a document.
+                </p>
+                <Link
+                  className="secondary-button mt-4 inline-block"
+                  href={`/ats?sourceId=${source.id}`}
+                >
+                  Analyze uploaded resume
+                </Link>
+              </div>
+            ) : null}
             {source.purpose === "job_description" ? (
               <div className="mt-5 border-t border-[var(--border)] pt-5">
                 <h3 className="text-lg font-semibold">Create job snapshot</h3>
@@ -301,10 +310,9 @@ export default async function SourcePage({
           Delete source
         </h2>
         <p className="mt-2">
-          This deletes the stored binary and extracted text. Completed review
-          decisions and approved evidence remain, with the source marked
-          unavailable. Pending extraction proposals must be resolved first. This
-          cannot be undone.
+          This deletes the stored binary and extracted text. Pending proposals,
+          completed review decisions, and approved evidence remain, with the
+          source marked unavailable. This cannot be undone.
         </p>
         {query.error === "confirmation" ? (
           <p className="mt-3 font-semibold" role="alert">

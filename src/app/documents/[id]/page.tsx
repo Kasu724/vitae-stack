@@ -194,7 +194,7 @@ export default async function DocumentPage({
               : "Tailor this cover letter"}
           </Link>
           <Link className="secondary-button" href={`/ats?documentId=${id}`}>
-            Run estimated ATS analysis
+            Run AI ATS analysis
           </Link>
           <Link className="secondary-button" href={`/exports?documentId=${id}`}>
             Export document

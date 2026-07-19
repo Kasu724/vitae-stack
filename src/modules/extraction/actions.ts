@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { readServerEnvironment } from "@/infrastructure/config/environment";
 import { getRuntimePool } from "@/infrastructure/database/runtime";
 import { getCurrentPrincipal } from "@/modules/auth/principal";
+import { formText as text } from "@/modules/shared/form-data";
 import { partialDateSchema } from "@/modules/career/domain";
 import { SourceRepository } from "@/modules/ingestion/source-repository";
 import { ProviderConfigurationRepository } from "@/modules/providers/repository";
@@ -14,11 +15,6 @@ import { ProviderConfigurationService } from "@/modules/providers/service";
 import { extractionProposalEditSchema } from "./domain";
 import { ExtractionRepository } from "./repository";
 import { ExtractionAnalysisService } from "./service";
-
-function text(form: FormData, key: string): string {
-  const value = form.get(key);
-  return typeof value === "string" ? value.trim() : "";
-}
 
 function reviewLocation(
   batchId: string,
