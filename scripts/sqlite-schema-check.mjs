@@ -37,8 +37,8 @@ const integrity = database.prepare("PRAGMA integrity_check").get();
 const foreignKeys = database.prepare("PRAGMA foreign_key_check").all();
 database.close();
 
-if (tables.length !== 46)
-  throw new Error(`Expected 46 application tables, found ${tables.length}.`);
+if (tables.length !== 49)
+  throw new Error(`Expected 49 application tables, found ${tables.length}.`);
 if (Number(triggers.count) < 100)
   throw new Error(`Expected lifecycle triggers, found ${triggers.count}.`);
 if (integrity.integrity_check !== "ok")

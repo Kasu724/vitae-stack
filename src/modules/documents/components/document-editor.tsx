@@ -173,7 +173,7 @@ export function DocumentEditor({
     setAutosaveBlocked(false);
     setConflict(null);
     setStatus(
-      "Reapplying the local draft against the reviewed server revisionâ€¦",
+      "Reapplying the local draft against the reviewed server revision…",
     );
   }
 

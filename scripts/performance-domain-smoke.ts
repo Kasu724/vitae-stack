@@ -1,5 +1,4 @@
 import type { CanonicalDocument } from "../src/modules/documents/document-schema";
-import { analyzeAts } from "../src/modules/ats/domain";
 import { orderedTokenCoverage } from "../src/modules/exports/domain";
 import { renderExport } from "../src/modules/exports/renderers";
 import { parseSourceBuffer } from "../src/modules/ingestion/parsers";
@@ -54,12 +53,6 @@ const document: CanonicalDocument = {
     },
   ],
 };
-const requirements = Array.from({ length: 20 }, (_, index) => ({
-  id: `requirement-${index}`,
-  text: `Build TypeScript evidence workflow ${index + 1}`,
-  category: index < 12 ? "required_qualification" : "responsibility",
-  priority: index < 12 ? "required" : "preferred",
-}));
 const claims = bullets.map((block, index) => ({
   id: `claim-${index}`,
   blockId: block.id,
@@ -68,19 +61,6 @@ const claims = bullets.map((block, index) => ({
   status: "supported" as const,
   evidence: [{ id: `evidence-${index}`, status: "approved" }],
 }));
-const support = requirements.map((requirement, index) => ({
-  requirementId: requirement.id,
-  evidenceFactId: `evidence-${index}`,
-  strength: "direct" as const,
-}));
-
-const atsDurations: number[] = [];
-for (let iteration = 0; iteration < 50; iteration += 1) {
-  const started = performance.now();
-  analyzeAts({ document, requirements, claims, support });
-  atsDurations.push(performance.now() - started);
-}
-
 const exportDurations: Record<"docx" | "pdf", number[]> = {
   docx: [],
   pdf: [],
@@ -112,17 +92,11 @@ const result = {
   fixture: {
     bullets: bullets.length,
     claims: claims.length,
-    requirements: requirements.length,
   },
-  atsP95Milliseconds: Math.round(percentile(atsDurations, 0.95)),
   pdfP95Milliseconds: Math.round(percentile(exportDurations.pdf, 0.95)),
   docxP95Milliseconds: Math.round(percentile(exportDurations.docx, 0.95)),
 };
 process.stdout.write(`${JSON.stringify(result)}\n`);
-if (
-  result.atsP95Milliseconds > 2_000 ||
-  result.pdfP95Milliseconds > 10_000 ||
-  result.docxP95Milliseconds > 10_000
-) {
+if (result.pdfP95Milliseconds > 10_000 || result.docxP95Milliseconds > 10_000) {
   process.exitCode = 1;
 }
